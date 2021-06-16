@@ -1,0 +1,18 @@
+Make a command to set the SessionTrackerEnabler to true/false whether it's enabled or disabled.
+Also make command to set target of session time tracker, write to db.
+Make sure to set the enabled session tracker in ready() in the session_tracker's mod.rs to whatever value is read from the db later.
+
+Perhaps periodically open and close the db to make use of cached prepared db statements in the time tracker
+
+Might want to create separate threads to run each remove and add role request. This way, it gets done faster
+
+
+
+
+
+Make sure to make the command to:
+    set other user's birthdays (privileged: true). Extract function from other command to reuse code
+    add, get, and remove server role used for bday
+    add, get, and remove bdays. 
+
+implement cooldown for birthday commands (called buckets in serenity)

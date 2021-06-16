@@ -1,0 +1,3 @@
+/target
+/src/secret/mod.rs
+*.db
