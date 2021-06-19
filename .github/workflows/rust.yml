@@ -54,7 +54,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./target/release/burdbot
-          asset_name: ${{ github.action }}
+          asset_name: burdbot
           asset_content_type: application/octet-stream
       - name: Publish Release
         uses: eregon/publish-release@v1
