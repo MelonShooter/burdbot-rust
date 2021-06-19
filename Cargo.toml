@@ -18,6 +18,7 @@ chrono = "0.4.19"
 lazy_static = "1.4.0"
 regex = "1.5.4"
 simsearch = "0.2.3"
+async-ctrlc = { version = "1.2.0", features = ["termination"] }
 
 [profile.dev.package."*"]
 opt-level = 3

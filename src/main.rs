@@ -9,17 +9,19 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_ctrlc::CtrlC;
 use chrono::{Timelike, Utc};
 use events::BurdBotEventHandler;
 use log::{debug, info, LevelFilter};
 use rusqlite::Connection;
-use serenity::client::bridge::gateway::GatewayIntents;
+use serenity::client::bridge::gateway::{GatewayIntents, ShardManager};
 use serenity::client::Context;
 use serenity::framework::standard::macros::hook;
 use serenity::framework::standard::CommandResult;
 use serenity::framework::StandardFramework;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
+use serenity::prelude::Mutex;
 use serenity::{CacheAndHttp, Client};
 use simple_logger::SimpleLogger;
 use songbird::driver::{Config, DecodeMode};
@@ -102,6 +104,10 @@ async fn on_post_command(_: &Context, _: &Message, cmd: &str, result: CommandRes
     debug!("Result of {}{}: {:?}", PREFIX, cmd, result);
 }
 
+async fn on_terminate(shard_manager: Arc<Mutex<ShardManager>>) {
+    shard_manager.lock().await.shutdown_all().await;
+}
+
 #[tokio::main]
 async fn main() {
     SimpleLogger::new()
@@ -143,8 +149,15 @@ async fn main() {
         .expect("Couldn't build client.");
 
     let cache = client.cache_and_http.clone();
+    let shard_manager = client.shard_manager.clone();
 
     setup_birthday_tracker(cache);
+
+    tokio::spawn(async move {
+        CtrlC::new().expect("Failed to create ctrl + c handler.").await;
+
+        on_terminate(shard_manager).await;
+    });
 
     client.start().await.expect("Couldn't start client.");
 }
