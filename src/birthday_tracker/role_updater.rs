@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use chrono::{DateTime, Datelike, Duration, Utc};
 use rusqlite::{params, Connection};
 use rusqlite::{Error as SQLiteError, Transaction};
-use serenity::CacheAndHttp;
+use serenity::http::Http;
 
 use crate::commands::error_util::error::SerenitySQLiteError;
 use crate::BURDBOT_DB;
@@ -13,10 +15,8 @@ struct DatabaseRoleInfo {
     addition_list: Vec<(u64, u64, u64)>,
 }
 
-pub async fn update_birthday_roles(cache_and_http: &CacheAndHttp) -> Result<(), SerenitySQLiteError> {
+pub async fn update_birthday_roles(http: Arc<Http>) -> Result<(), SerenitySQLiteError> {
     let user_role_info = update_bday_db_roles()?;
-
-    let http = cache_and_http.http.clone();
     let mut error_vector_option = None;
 
     for (user_id, guild_id, role_id) in user_role_info.removal_list {
@@ -46,7 +46,7 @@ fn update_bday_db_roles() -> Result<DatabaseRoleInfo, SQLiteError> {
     let transaction = connection.transaction()?;
     let date_time = get_date_time_to_use();
     let bdays_to_remove = get_and_delete_old_bdays(&transaction, date_time)?;
-    let bdays_to_add = add_new_bdays(&&transaction, date_time)?;
+    let bdays_to_add = add_new_bdays(&transaction, date_time)?;
 
     transaction.commit()?;
 
@@ -108,10 +108,10 @@ fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> Re
                 SELECT 
                     bday.user_id, 
                     bday.guild_id,
-                    bday_role_list.role_id
+                    bday_role_list.role_id,
                     bday_date
                 FROM bday
-                    INNER JOIN bday_role_list ON bday.user_id = bday_role_list.user_id
+                    INNER JOIN bday_role_list ON bday.guild_id = bday_role_list.guild_id
                 WHERE bday_date < ? AND bday_date > ?;
             ",
         )?;
@@ -122,14 +122,14 @@ fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> Re
                     SELECT 
                         bday.user_id, 
                         bday.guild_id,
-                        bday_role_list.role_id
+                        bday_role_list.role_id,
                         bday_date
                     FROM bday
-                        INNER JOIN bday_role_list ON bday.user_id = bday_role_list.user_id
+                        INNER JOIN bday_role_list ON bday.guild_id = bday_role_list.guild_id
                     WHERE bday_date < ? OR bday_date > ?;
                 ",
         )?;
-    }
+    } // 6-15-4 < 6-18-12 AND 6-15-4 > 6-17-11
 
     let earliest_date_time = curr_date_time - Duration::hours(25); // Checks 23 hrs or less away
     let curr_date_time_fmt = BirthdayDateTime::from(curr_date_time);
@@ -140,7 +140,7 @@ fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> Re
             row.get::<_, u64>(0)?,
             row.get::<_, u64>(1)?,
             row.get::<_, u64>(2)?,
-            row.get::<_, DateTime<Utc>>(3)?,
+            row.get::<_, BirthdayDateTime>(3)?,
         ))
     })?;
 
@@ -153,9 +153,8 @@ fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> Re
 
     for row in rows {
         let bday_data = row.unwrap();
-        let bday_over = bday_data.3 + Duration::days(1);
-        let bday_over_fmt = BirthdayDateTime::from(bday_over);
-        let rows_changed = insertion_statement.execute(params![bday_data.0, bday_over_fmt])?;
+        let bday_date_time = bday_data.3.one_day_ahead();
+        let rows_changed = insertion_statement.execute(params![bday_data.0, bday_date_time])?;
 
         if rows_changed != 0 {
             query_info.push((bday_data.0, bday_data.1, bday_data.2));

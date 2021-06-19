@@ -5,8 +5,9 @@ use std::time::Instant;
 use bimap::BiHashMap;
 use serenity::async_trait;
 use serenity::client::{Context, EventHandler};
+use serenity::model::guild::{Guild, GuildUnavailable, Member};
 use serenity::model::id::GuildId;
-use serenity::model::prelude::{Ready, VoiceState};
+use serenity::model::prelude::{Ready, User, VoiceState};
 use songbird::model::payload::{ClientDisconnect, Speaking};
 use songbird::{Event, EventContext, EventHandler as VoiceEventHandler};
 
@@ -19,15 +20,35 @@ pub struct BurdBotEventHandler;
 impl EventHandler for BurdBotEventHandler {
     async fn ready(&self, context: Context, _ready: Ready) {
         crate::on_ready();
-        session_tracker::on_ready(context).await;
+        session_tracker::on_ready(&context).await;
     }
 
     async fn cache_ready(&self, context: Context, _guilds: Vec<GuildId>) {
-        user_search_engine::on_cache_ready(context).await;
+        user_search_engine::on_cache_ready(&context).await;
     }
 
     async fn voice_state_update(&self, context: Context, _guild_id: Option<GuildId>, _old_state: Option<VoiceState>, new_state: VoiceState) {
-        session_tracker::on_voice_state_update(new_state, context).await;
+        session_tracker::on_voice_state_update(new_state, &context).await;
+    }
+
+    async fn guild_member_addition(&self, ctx: Context, guild_id: GuildId, new_member: Member) {
+        user_search_engine::on_member_add(&ctx, guild_id.0, new_member).await;
+    }
+
+    async fn guild_member_removal(&self, ctx: Context, guild_id: GuildId, user: User, _member_data: Option<Member>) {
+        user_search_engine::on_member_remove(&ctx, guild_id.0, user.id.0).await;
+    }
+
+    async fn guild_create(&self, ctx: Context, guild: Guild, is_new: bool) {
+        if is_new {
+            user_search_engine::on_self_join(&ctx, guild.id).await;
+        }
+    }
+
+    async fn guild_delete(&self, ctx: Context, incomplete: GuildUnavailable, _full_guild: Option<Guild>) {
+        if !incomplete.unavailable {
+            user_search_engine::on_self_leave(&ctx, incomplete.id.0).await;
+        }
     }
 }
 
@@ -49,7 +70,7 @@ impl BurdBotVoiceEventHandler {
 impl VoiceEventHandler for BurdBotVoiceEventHandler {
     async fn act(&self, context: &EventContext<'_>) -> Option<Event> {
         match context {
-            EventContext::SpeakingStateUpdate(Speaking { ssrc, user_id, ..}) => {
+            EventContext::SpeakingStateUpdate(Speaking { ssrc, user_id, .. }) => {
                 voice_handler::on_speaking_state_update(self, user_id, ssrc);
             }
 

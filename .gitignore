@@ -1,3 +1,6 @@
 /target
 /src/secret/mod.rs
 *.db
+TODO.txt
+.vscode
+build-debug.sh

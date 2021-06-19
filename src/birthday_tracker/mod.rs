@@ -13,6 +13,8 @@ use rusqlite::types::FromSqlError;
 use rusqlite::types::ToSqlOutput;
 use rusqlite::ToSql;
 
+use crate::commands;
+
 #[derive(Clone, Copy)]
 struct BirthdayDateTime {
     month: u32,
@@ -23,6 +25,23 @@ struct BirthdayDateTime {
 impl BirthdayDateTime {
     fn new(month: u32, day: u32, hour: u32) -> BirthdayDateTime {
         BirthdayDateTime { month, day, hour }
+    }
+
+    fn one_day_ahead(&self) -> BirthdayDateTime {
+        let mut day = (self.day + 1) % (commands::MONTH_TO_DAYS[self.month as usize] + 1);
+        let mut month = self.month;
+
+        if day == 0 {
+            month = (self.month + 1) % 13;
+
+            if month == 0 {
+                month = 1;
+            }
+
+            day = 1;
+        }
+
+        BirthdayDateTime::new(month, day, self.hour)
     }
 }
 
@@ -52,9 +71,9 @@ impl FromSql for BirthdayDateTime {
 
         value.as_str().and_then(|sql_str| match BIRTHDAY_TIME_MATCHER.captures(sql_str) {
             Some(groups) => {
-                let month = groups.get(0).unwrap().as_str().parse::<u32>().unwrap();
-                let day = groups.get(1).unwrap().as_str().parse::<u32>().unwrap();
-                let hour = groups.get(2).unwrap().as_str().parse::<u32>().unwrap();
+                let month = groups.get(1).unwrap().as_str().parse::<u32>().unwrap();
+                let day = groups.get(2).unwrap().as_str().parse::<u32>().unwrap();
+                let hour = groups.get(3).unwrap().as_str().parse::<u32>().unwrap();
 
                 Ok(BirthdayDateTime { month, day, hour })
             }
