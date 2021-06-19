@@ -15,42 +15,50 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Change how the token is inputted.
-      run: sed -i 's/secret::TOKEN/std::env::args().skip(1).next().expect("Provide a token.")/' src/main.rs
-    - uses: actions/checkout@v2
-    - name: Get the rust toolchain.
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    - name: Get cargo and build.
-    - uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --release
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: auto-workflow-${{ github.run_id }}
-        release_name: Automated Bot Build
-        body: |
-          This release was created automatically.
-        draft: true
-        prerelease: false
-    - name: Upload Release Asset 
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./target/release/burdbot
-        asset_name: ${{ github.action }}
-        asset_content_type: application/octet-stream
-    - name: Publish Release
-      uses: eregon/publish-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        release_id: ${{ steps.create_release.outputs.id }}
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Change how the token is inputted.
+        run: sed -i 's/secret::TOKEN/std::env::args().skip(1).next().expect("Provide a token.")/' src/main.rs
+      - name: Remove secret module declaration.
+        run: sed -i 's/mod secret;//' src/main.rs
+      - name: Get the rust toolchain.
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Get dependencies and build
+        run: ./build-release.sh
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: auto-workflow-${{ github.run_id }}
+          release_name: Automated Bot Build
+          body: |
+            This release was created automatically.
+          draft: true
+          prerelease: false
+      - name: Upload Release Asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./target/release/burdbot
+          asset_name: ${{ github.action }}
+          asset_content_type: application/octet-stream
+      - name: Publish Release
+        uses: eregon/publish-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          release_id: ${{ steps.create_release.outputs.id }}
