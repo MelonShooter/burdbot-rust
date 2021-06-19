@@ -135,7 +135,7 @@ pub async fn get_birthday(ctx: &Context, channel_id: &ChannelId, user_id: u64) -
     if let Some(bday) = bday_option {
         let month: usize = bday.month as usize;
 
-        msg = format!("{}'s birthday is on {} {}", user_id, MONTH_TO_NAME[month], bday.day);
+        msg = format!("{}'s birthday is on {} {}", user_id, MONTH_TO_NAME[month - 1], bday.day);
     } else {
         msg = format!("No birthday found from the user {}", user_id);
     }
