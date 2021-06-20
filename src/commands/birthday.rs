@@ -18,6 +18,7 @@ use tokio::time::sleep;
 use log::error;
 
 use crate::birthday_tracker::{self, add_birthday_to_db};
+use burdbot::obfuscated_command;
 
 use super::{error_util, util, ArgumentInfo};
 use error_util::error::SerenitySQLiteError as Error;
@@ -338,11 +339,11 @@ async fn removeserverbirthdayrole(context: &Context, message: &Message) -> Comma
     Ok(())
 }
 
-#[command]
+#[obfuscated_command]
 #[only_in("guilds")]
 #[help_available(false)]
 #[bucket("default")]
-async fn chamuyar(context: &Context, message: &Message, mut args: Args) -> CommandResult {
+async fn f6b0988ccf0daad75deec7f0a1d8cc236(context: &Context, message: &Message, mut args: Args) -> CommandResult {
     let msg_to_send: String;
 
     if let Ok(person) = args.single::<String>() {
@@ -368,7 +369,7 @@ async fn chamuyar(context: &Context, message: &Message, mut args: Args) -> Comma
 #[commands(
     setmybirthday,
     birthdayconfirm,
-    chamuyar,
+    f6b0988ccf0daad75deec7f0a1d8cc236,
     setuserbirthday,
     removeuserbirthday,
     getuserbirthday,
