@@ -132,7 +132,8 @@ async fn main() {
         //.unrecognised_command(on_unrecognized_command)
         .after(on_post_command)
         .help(&commands::HELP)
-        .group(&commands::BIRTHDAY_GROUP);
+        .group(&commands::BIRTHDAY_GROUP)
+        .group(&commands::EASTEREGG_GROUP);
 
     let songbird = Songbird::serenity();
 
