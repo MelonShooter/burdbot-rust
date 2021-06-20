@@ -18,7 +18,6 @@ use tokio::time::sleep;
 use log::error;
 
 use crate::birthday_tracker::{self, add_birthday_to_db};
-use burdbot::obfuscated_command;
 
 use super::{error_util, util, ArgumentInfo};
 use error_util::error::SerenitySQLiteError as Error;
@@ -339,37 +338,10 @@ async fn removeserverbirthdayrole(context: &Context, message: &Message) -> Comma
     Ok(())
 }
 
-#[obfuscated_command]
-#[only_in("guilds")]
-#[help_available(false)]
-#[bucket("default")]
-async fn f6b0988ccf0daad75deec7f0a1d8cc236(context: &Context, message: &Message, mut args: Args) -> CommandResult {
-    let msg_to_send: String;
-
-    if let Ok(person) = args.single::<String>() {
-        if person != "@everyone" && person != "@here" {
-            msg_to_send = format!("Alta facha tiene el {}", person);
-        } else {
-            util::send_message(context, &message.channel_id, "Nice try.", "chamuyar").await;
-
-            return Ok(());
-        }
-    } else {
-        error_util::not_enough_arguments(context, &message.channel_id, 0, 1).await;
-
-        return Ok(());
-    }
-
-    util::send_message(context, &message.channel_id, msg_to_send, "chamuyar").await;
-
-    Ok(())
-}
-
 #[group]
 #[commands(
     setmybirthday,
     birthdayconfirm,
-    f6b0988ccf0daad75deec7f0a1d8cc236,
     setuserbirthday,
     removeuserbirthday,
     getuserbirthday,
