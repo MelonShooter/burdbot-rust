@@ -6,21 +6,24 @@ mod util;
 use std::str::FromStr;
 
 use syn::AttrStyle;
-use syn::ExprMacro;
-use syn::LitByteStr;
+use syn::Block;
+use syn::Expr;
+use syn::ExprLit;
+use syn::Lit;
 use syn::LitStr;
-use syn::Macro;
 use syn::Path;
+use syn::Stmt;
 use syn::Token;
-use syn::__private::quote::__private::TokenStream as TokenStream2;
-use syn::__private::quote::__private::TokenTree;
 use syn::__private::quote::quote;
 use syn::__private::Span;
+use syn::__private::TokenStream2;
 use syn::fold::Fold;
 use syn::token::Bracket;
 use syn::{parse_macro_input, Attribute, Ident, ItemFn};
 
 use proc_macro::TokenStream;
+
+const INCORRECT_EXPR: &str = "The function body should only contain one string literal without a semicolon.";
 
 struct CommandModifier;
 
@@ -48,55 +51,80 @@ impl Fold for CommandModifier {
         item
     }
 
-    fn fold_lit_byte_str(&mut self, byte_str: LitByteStr) -> LitByteStr {
-        LitByteStr::new(util::decode_aes_bytes(byte_str.value()).as_bytes(), Span::call_site())
+    fn fold_block(&mut self, block: Block) -> Block {
+        let statements = block.stmts;
+
+        if statements.len() != 1 {
+            panic!("{}", INCORRECT_EXPR);
+        }
+
+        let first_statement = statements.first().unwrap().to_owned();
+
+        Block {
+            brace_token: block.brace_token,
+            stmts: vec![self.fold_stmt(first_statement)],
+        }
+    }
+
+    fn fold_stmt(&mut self, statement: Stmt) -> Stmt {
+        match statement {
+            Stmt::Expr(expr) => Stmt::Expr(self.fold_expr(expr)),
+            _ => panic!("{}", INCORRECT_EXPR),
+        }
+    }
+
+    fn fold_expr(&mut self, expr: Expr) -> Expr {
+        match expr {
+            Expr::Lit(lit) => Expr::Lit(self.fold_expr_lit(lit)),
+            _ => panic!("{}", INCORRECT_EXPR),
+        }
+    }
+
+    fn fold_expr_lit(&mut self, expr_lit: ExprLit) -> ExprLit {
+        ExprLit {
+            attrs: (expr_lit.attrs),
+            lit: (self.fold_lit(expr_lit.lit)),
+        }
+    }
+
+    fn fold_lit(&mut self, lit: Lit) -> Lit {
+        match lit {
+            Lit::Str(lit_str) => Lit::Str(self.fold_lit_str(lit_str)),
+            _ => panic!("{}", INCORRECT_EXPR),
+        }
     }
 
     fn fold_lit_str(&mut self, str: LitStr) -> LitStr {
         LitStr::new(util::decode_aes(str.value().as_str()).as_str(), Span::call_site())
-    }
-
-    fn fold_expr_macro(&mut self, expr_macro: ExprMacro) -> ExprMacro {
-        let mac = expr_macro.mac;
-        let macro_tokens = mac.tokens.clone();
-        let mut string = String::new();
-
-        for token in macro_tokens {
-            match token {
-                TokenTree::Literal(literal) => {
-                    let literal_string_owned = literal.to_string();
-                    let literal_string = literal_string_owned.as_str();
-
-                    if !literal_string.starts_with('"') {
-                        string.push_str(literal_string);
-                    } else {
-                        string.push('"');
-                        string.push_str(util::decode_aes(&literal_string[1..literal_string_owned.len() - 1]).as_str());
-                        string.push('"');
-                    }
-                }
-                TokenTree::Group(group) => string.push_str(group.to_string().as_str()),
-                TokenTree::Ident(ident) => string.push_str(ident.to_string().as_str()),
-                TokenTree::Punct(punct) => string.push_str(punct.to_string().as_str()),
-            }
-        }
-
-        ExprMacro {
-            attrs: expr_macro.attrs,
-            mac: Macro {
-                path: mac.path,
-                bang_token: mac.bang_token,
-                delimiter: mac.delimiter,
-                tokens: TokenStream2::from_str(string.as_str()).expect("Couldn't parse tokens."),
-            },
-        }
     }
 }
 
 #[proc_macro_attribute]
 pub fn obfuscated_command(_arguments: TokenStream, input_stream: TokenStream) -> TokenStream {
     let input_fn = parse_macro_input!(input_stream as ItemFn);
-    let output_fn = CommandModifier.fold_item_fn(input_fn);
+    let mut output_fn = CommandModifier.fold_item_fn(input_fn);
+    let statement = output_fn.block.stmts.first().unwrap().clone();
+    let mut value = String::with_capacity(128);
+    let mut code = "";
+
+    if let Stmt::Expr(expr) = statement {
+        if let Expr::Lit(expr_lit) = expr {
+            if let Lit::Str(lit) = expr_lit.lit {
+                value.push('{');
+                value.push_str(lit.value().as_str());
+                value.push('}');
+
+                code = value.as_str();
+            }
+        }
+    }
+
+    if code.is_empty() {
+        panic!("Code was never set. This should never ever happen.");
+    }
+
+    let body = TokenStream::from(TokenStream2::from_str(code).unwrap());
+    output_fn.block = Box::new(parse_macro_input!(body as Block));
 
     TokenStream::from(quote!(#output_fn))
 }

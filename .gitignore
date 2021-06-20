@@ -4,3 +4,4 @@
 TODO.txt
 .vscode
 build-debug.sh
+*.secret_rs
