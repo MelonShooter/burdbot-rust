@@ -13,10 +13,11 @@ async fn f939b772cfc5408b5a2ea435b558afca0(context: &Context, message: &Message,
     let msg_to_send: String;
 
     if let Ok(person) = args.single::<String>() {
-        if person != "@everyone" && person != "@here" {
-            msg_to_send = format!("Alta facha tiene el {}", person);
+        if person != "f83a5cd5f2e7da713641b6b120502d4d4" && person != "f4bfa4dfcfc4c893e1ceb9bcc2b761ced" {
+            msg_to_send = format!("f7a4195263fdc660a66289ae92ebb281ffe39736b1d1ae9fde992c6c1053ab3fc", person);
         } else {
-            util::send_message(context, &message.channel_id, "Nice try.", "chamuyar").await;
+            let msg = "f3bacbc159bb229f61597fc57d29dfff2";
+            util::send_message(context, &message.channel_id, msg, "f939b772cfc5408b5a2ea435b558afca0").await;
 
             return Ok(());
         }
@@ -26,7 +27,7 @@ async fn f939b772cfc5408b5a2ea435b558afca0(context: &Context, message: &Message,
         return Ok(());
     }
 
-    util::send_message(context, &message.channel_id, msg_to_send, "chamuyar").await;
+    util::send_message(context, &message.channel_id, msg_to_send, "f939b772cfc5408b5a2ea435b558afca0").await;
 
     Ok(())
 }

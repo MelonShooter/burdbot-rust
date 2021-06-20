@@ -9,8 +9,13 @@ use crate::secret;
 
 #[allow(dead_code)]
 pub fn decode_aes(string: impl Display) -> String {
-    let encoded_input = hex::decode(&string.to_string()[1..]).expect("Invalid function name.");
+    let encoded_input = hex::decode(&string.to_string()[1..]).expect("Invalid string.");
 
+    decode_aes_bytes(encoded_input)
+}
+
+#[allow(dead_code)]
+pub fn decode_aes_bytes(encoded_input: Vec<u8>) -> String {
     if encoded_input.len() % 16 != 0 {
         panic!("Invalid input.");
     }
