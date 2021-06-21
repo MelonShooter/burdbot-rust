@@ -5,8 +5,6 @@ use aes::Aes256;
 use aes::BlockDecrypt;
 use aes::NewBlockCipher;
 
-use crate::secret;
-
 #[allow(dead_code)]
 pub fn decode_aes(string: impl Display) -> String {
     let encoded_input = hex::decode(&string.to_string()[1..]).expect("Invalid string.");
@@ -20,7 +18,7 @@ pub fn decode_aes_bytes(encoded_input: Vec<u8>) -> String {
         panic!("Invalid input.");
     }
 
-    let key = hex::decode(secret::AES_KEY).expect("Bad key");
+    let key = hex::decode(crate::secret::AES_KEY).expect("Bad key");
 
     if key.len() != 32 {
         panic!("Bad key length. Should be 256-bits.");
