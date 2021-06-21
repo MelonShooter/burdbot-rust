@@ -8,17 +8,24 @@ use std::str::FromStr;
 use syn::AttrStyle;
 use syn::Block;
 use syn::Expr;
+use syn::ExprCall;
 use syn::ExprLit;
+use syn::ExprPath;
 use syn::Lit;
 use syn::LitStr;
 use syn::Path;
+use syn::PathArguments;
+use syn::PathSegment;
 use syn::Stmt;
 use syn::Token;
 use syn::__private::quote::quote;
 use syn::__private::Span;
 use syn::__private::TokenStream2;
 use syn::fold::Fold;
+use syn::punctuated::Punctuated;
 use syn::token::Bracket;
+use syn::token::Colon2;
+use syn::token::Paren;
 use syn::{parse_macro_input, Attribute, Ident, ItemFn};
 
 use proc_macro::TokenStream;
@@ -127,4 +134,56 @@ pub fn obfuscated_command(_arguments: TokenStream, input_stream: TokenStream) ->
     output_fn.block = Box::new(parse_macro_input!(body as Block));
 
     TokenStream::from(quote!(#output_fn))
+}
+
+fn create_segment(str: &str) -> PathSegment {
+    PathSegment {
+        ident: Ident::new(str, Span::call_site()),
+        arguments: PathArguments::None,
+    }
+}
+
+struct Encoder;
+
+impl Fold for Encoder {
+    fn fold_lit_str(&mut self, lit_str: LitStr) -> LitStr {
+        LitStr::new(util::encode_aes(lit_str.value()).as_str(), Span::call_site())
+    }
+}
+
+#[proc_macro]
+pub fn aes_encode_decode(tokens: TokenStream) -> TokenStream {
+    let mut mac = parse_macro_input!(tokens as LitStr);
+    mac = Encoder.fold_lit_str(mac);
+
+    let lit = Expr::Lit(ExprLit {
+        attrs: Vec::new(),
+        lit: Lit::Str(mac),
+    });
+    let mut func_call = Punctuated::new();
+
+    func_call.push(create_segment("crate"));
+    func_call.push(create_segment("util"));
+    func_call.push(create_segment("decode_aes"));
+
+    let mut args = Punctuated::new();
+
+    args.push(lit);
+
+    let path = Path {
+        leading_colon: None,
+        segments: func_call,
+    };
+    let expr = ExprCall {
+        attrs: Vec::new(),
+        func: Box::new(Expr::Path(ExprPath {
+            attrs: Vec::new(),
+            qself: None,
+            path,
+        })),
+        paren_token: Paren(Span::call_site()),
+        args,
+    };
+
+    TokenStream::from(quote!(#expr))
 }
