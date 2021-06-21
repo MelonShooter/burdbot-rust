@@ -1,3 +1,4 @@
+use chrono::DateTime;
 use chrono::Datelike;
 use chrono::Duration;
 use chrono::NaiveDate;
@@ -15,7 +16,6 @@ use serenity::model::id::ChannelId;
 use crate::commands;
 use crate::commands::error_util::error::SerenitySQLiteError;
 use crate::commands::BirthdayInfoConfirmation;
-use crate::commands::MONTH_TO_NAME;
 use crate::BURDBOT_DB;
 
 use super::BirthdayDateTime;
@@ -133,14 +133,32 @@ pub async fn get_birthday(ctx: &Context, channel_id: &ChannelId, user_id: u64) -
     let msg;
 
     if let Some(bday) = bday_option {
-        let month: usize = bday.month as usize;
+        channel_id
+            .send_message(ctx.http.clone(), |msg| {
+                msg.embed(|embed| {
+                    let now = Utc::now();
+                    let naive_timestamp = NaiveDate::from_ymd(now.year(), bday.month, bday.day).and_hms(bday.hour, 0, 0);
+                    let mut time_stamp = DateTime::<Utc>::from_utc(naive_timestamp, Utc);
 
-        msg = format!("{}'s birthday is on {} {}", user_id, MONTH_TO_NAME[month - 1], bday.day);
+                    if time_stamp < now {
+                        time_stamp = time_stamp.with_year(time_stamp.year() + 1).unwrap();
+                    }
+
+                    embed.timestamp(&time_stamp);
+
+                    let msg = format!("{}'s next birthday will start at ", user_id);
+
+                    embed.footer(|footer| footer.text(msg))
+                })
+            })
+            .await?;
     } else {
         msg = format!("No birthday found from the user {}", user_id);
-    }
 
-    commands::send_message(ctx, channel_id, msg, "get_birthday").await;
+        channel_id
+            .send_message(ctx.http.clone(), |message| message.embed(|embed| embed.description(msg)))
+            .await?;
+    }
 
     Ok(())
 }
