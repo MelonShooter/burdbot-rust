@@ -22,6 +22,7 @@ async-ctrlc = { version = "1.2.0", features = ["termination"] }
 syn = {version="1.0.73",features=["full","fold"]}
 aes = "0.7.4"
 hex = "0.4.3"
+rand = "0.8.4"
 
 [profile.dev.package."*"]
 opt-level = 3
