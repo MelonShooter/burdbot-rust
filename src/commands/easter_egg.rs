@@ -1,4 +1,4 @@
-use burdbot::obfuscated_command;
+use burdbot::*;
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::{Args, CommandResult};
