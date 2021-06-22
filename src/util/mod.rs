@@ -25,6 +25,7 @@ pub fn decode_aes_bytes(encoded_input: Vec<u8>) -> String {
         panic!("Bad key length. Should be 256-bits.");
     }
 
+    let mut full_block = Vec::with_capacity(encoded_input.len());
     let mut decoded_string = String::with_capacity(encoded_input.len());
     let cipher = Aes256::new(GenericArray::from_slice(key.as_slice()));
 
@@ -34,15 +35,22 @@ pub fn decode_aes_bytes(encoded_input: Vec<u8>) -> String {
         cipher.decrypt_block(&mut block);
 
         let block_vec = block.to_vec();
-
-        let mut decoded_str = std::str::from_utf8(block_vec.as_slice()).expect("One of the decoded blocks is not UTF-8.");
+        let mut idx = 0;
 
         if start == 0 {
-            decoded_str = decoded_str.trim_start_matches('0');
+            while idx < block_vec.len() && block_vec[idx] == '0' as u8 {
+                idx += 1;
+            }
         }
 
-        decoded_string.push_str(decoded_str);
+        for byte in &block_vec[idx..] {
+            full_block.push(*byte);
+        }
     }
+
+    let decoded_str = std::str::from_utf8(full_block.as_slice()).expect("One of the decoded blocks is not UTF-8.");
+
+    decoded_string.push_str(decoded_str);
 
     decoded_string
 }
