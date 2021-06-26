@@ -24,7 +24,6 @@ use syn::__private::TokenStream2;
 use syn::fold::Fold;
 use syn::punctuated::Punctuated;
 use syn::token::Bracket;
-use syn::token::Colon2;
 use syn::token::Paren;
 use syn::{parse_macro_input, Attribute, Ident, ItemFn};
 

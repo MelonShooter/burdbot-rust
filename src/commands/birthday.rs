@@ -1,4 +1,5 @@
 use serenity::client::Context;
+
 use std::collections::HashMap;
 use std::time::Duration;
 use std::u32;
@@ -80,15 +81,17 @@ impl TypeMapKey for BirthdayInfoConfirmationKey {
 async fn setmybirthday(context: &Context, message: &Message, mut args: Args) -> CommandResult {
     args.trimmed();
 
-    let mut is_privileged = false;
+    let cache = context.cache.clone();
+    let guild_id = message.guild_id.unwrap();
+    let user_id = message.author.id;
+    let permissions = util::get_member_permissions(cache, guild_id, user_id).await;
+    let is_privileged_option = permissions.and_then(|perms| Some(perms.manage_roles()));
 
-    if let Some(guild) = message.guild(context.cache.clone()).await {
-        let perms = guild.member_permissions(context, message.author.id).await?;
-
-        is_privileged = perms.manage_roles();
+    if let Some(is_privileged) = is_privileged_option {
+        set_birthday(context, message, args, message.author.id.0, is_privileged).await
+    } else {
+        Ok(())
     }
-
-    set_birthday(context, message, args, message.author.id.0, is_privileged).await
 }
 
 #[command]

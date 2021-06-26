@@ -16,6 +16,7 @@ use serenity::model::id::ChannelId;
 use serenity::model::id::GuildId;
 use serenity::model::id::RoleId;
 use serenity::model::id::UserId;
+use serenity::model::Permissions;
 use serenity::prelude::ModelError;
 use serenity::Error;
 use std::ops::Deref;
@@ -276,5 +277,26 @@ pub async fn send_message(ctx: impl AsRef<Http>, ch: &ChannelId, msg: impl Displ
         if let Error::Model(ModelError::MessageTooLong(_)) = error {
             error!("{}() message too long! This shouldn't ever happen.", function_name);
         }
+    }
+}
+
+pub async fn get_member_permissions(cache: Arc<Cache>, guild_id: GuildId, user_id: impl Into<UserId>) -> Option<Permissions> {
+    let roles_accessor = |member: &Member| member.roles.clone();
+    let roles_option = cache.member_field(guild_id, user_id, roles_accessor).await;
+
+    if let Some(roles) = roles_option {
+        let mut permission = Permissions::empty();
+
+        for role_id in roles {
+            let role_option = cache.role(guild_id, role_id).await;
+
+            if let Some(role) = role_option {
+                permission |= role.permissions;
+            }
+        }
+
+        Some(permission)
+    } else {
+        None
     }
 }

@@ -11,6 +11,7 @@ use rusqlite::Error;
 use rusqlite::OptionalExtension;
 use rusqlite::Transaction;
 use serenity::client::Context;
+use serenity::model::channel::GuildChannel;
 use serenity::model::id::ChannelId;
 
 use crate::commands;
@@ -47,7 +48,9 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: &ChannelId, bday_info
     }
 
     let user_id = bday_info.user_id;
-    let guild_id = *channel_id.to_channel(ctx).await?.guild().unwrap().guild_id.as_u64();
+    let cache = ctx.cache.clone();
+    let channel_selector = |channel: &GuildChannel| *channel.guild_id.as_u64();
+    let guild_id = cache.guild_channel_field(*channel_id, channel_selector).await.unwrap();
     let bday_date_naive_local = NaiveDate::from_ymd(2021, bday_info.month, bday_info.day).and_hms(0, 0, 0);
     let bday_date_naive_utc = bday_date_naive_local - Duration::hours(bday_info.time_zone);
     let bday_date_time = BirthdayDateTime::new(bday_date_naive_utc.month(), bday_date_naive_utc.day(), bday_date_naive_utc.hour());
