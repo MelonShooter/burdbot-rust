@@ -57,7 +57,7 @@ impl From<DateTime<Utc>> for BirthdayDateTime {
 
 impl ToSql for BirthdayDateTime {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
-        let date_time_str = format!("{}-{}-{}", self.month, self.day, self.hour);
+        let date_time_str = format!("{:02}-{:02}-{:02}", self.month, self.day, self.hour);
 
         Ok(ToSqlOutput::from(date_time_str))
     }
