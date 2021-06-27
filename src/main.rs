@@ -1,5 +1,6 @@
 mod birthday_tracker;
 mod commands;
+mod custom;
 mod events;
 mod secret;
 mod session_tracker;
