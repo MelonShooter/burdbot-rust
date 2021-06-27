@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use serenity::client::Context;
-use serenity::model::guild::Member;
+use serenity::model::guild::{Guild, Member};
 use serenity::model::id::GuildId;
 use serenity::prelude::TypeMapKey;
 use simsearch::{SearchOptions, SimSearch};
@@ -12,7 +12,7 @@ impl TypeMapKey for UserSearchEngine {
     type Value = HashMap<u64, SimSearch<u64>>;
 }
 
-fn add_member_to_search_engine(nick_option: Option<String>, search_engine: &mut SimSearch<u64>, id: u64, name: &String, tag: &String) {
+fn add_member_to_search_engine(nick_option: &Option<String>, search_engine: &mut SimSearch<u64>, id: u64, name: &String, tag: &String) {
     if let Some(nick) = nick_option {
         search_engine.insert_tokens(id, &[nick.as_str(), name.as_str(), tag.as_str()]);
     } else {
@@ -24,13 +24,11 @@ async fn add_guild_to_search_engine(ctx: &Context, guild_id: GuildId, user_searc
     let search_options = SearchOptions::new().stop_words(vec!["#".to_string()]);
     let mut search_engine = SimSearch::new_with(search_options);
     let cache = ctx.cache.clone();
-    let guild_option = guild_id.to_guild_cached(cache).await;
-
-    if let Some(guild) = guild_option {
-        for (user_id, member) in guild.members {
+    let guild_adder = |guild: &Guild| {
+        for (user_id, member) in guild.members.iter() {
             let id = *user_id.as_u64();
-            let user = member.user;
-            let nick = member.nick;
+            let user = &member.user;
+            let nick = &member.nick;
             let name = &user.name;
             let tag = &user.tag();
 
@@ -38,7 +36,9 @@ async fn add_guild_to_search_engine(ctx: &Context, guild_id: GuildId, user_searc
         }
 
         user_search_map.insert(guild.id.0, search_engine);
-    }
+    };
+
+    cache.guild_field(guild_id, guild_adder).await;
 }
 
 pub async fn on_self_join(ctx: &Context, guild_id: GuildId) {
@@ -85,7 +85,7 @@ pub async fn on_member_add(ctx: &Context, guild_id: u64, member: Member) {
             let name = &member.user.name;
             let tag = &member.user.tag();
 
-            add_member_to_search_engine(nick, search_engine, id, name, tag);
+            add_member_to_search_engine(&nick, search_engine, id, name, tag);
         }
     }
 }
