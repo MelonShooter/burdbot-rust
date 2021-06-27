@@ -24,6 +24,10 @@ aes = "0.7.4"
 hex = "0.4.3"
 rand = "0.8.4"
 
+[patch.crates-io]
+serenity = { git = 'https://github.com/MelonShooter/serenity' }
+#serenity = { path = "../serenity" }
+
 [profile.dev.package."*"]
 opt-level = 3
 
