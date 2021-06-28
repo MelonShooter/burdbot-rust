@@ -12,7 +12,7 @@ use serenity::model::prelude::{Ready, User, VoiceState};
 use songbird::model::payload::{ClientDisconnect, Speaking};
 use songbird::{Event, EventContext, EventHandler as VoiceEventHandler};
 
-use crate::commands::user_search_engine;
+use crate::commands::{self, user_search_engine};
 use crate::custom::spanish_english;
 use crate::session_tracker::{self, voice_handler};
 
@@ -23,10 +23,12 @@ impl EventHandler for BurdBotEventHandler {
     async fn ready(&self, context: Context, _ready: Ready) {
         crate::on_ready();
         session_tracker::on_ready(&context).await;
+        commands::vocaroo::on_ready(&context).await;
     }
 
     async fn message(&self, ctx: Context, new_message: Message) {
         spanish_english::on_message_receive(&ctx, &new_message).await;
+        commands::vocaroo::on_message_received(&ctx, &new_message).await;
     }
 
     async fn cache_ready(&self, context: Context, _guilds: Vec<GuildId>) {

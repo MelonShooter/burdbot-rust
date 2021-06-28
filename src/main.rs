@@ -59,6 +59,10 @@ fn create_sql_tables() {
             FOREIGN KEY(user_id) REFERENCES bday(user_id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS vocaroo_enabled (
+            guild_id INTEGER PRIMARY KEY
+        );
+
         CREATE INDEX IF NOT EXISTS bday_date_index
             on bday (bday_date);
 
@@ -134,7 +138,8 @@ async fn main() {
         .after(on_post_command)
         .help(&commands::HELP)
         .group(&commands::BIRTHDAY_GROUP)
-        .group(&commands::EASTEREGG_GROUP);
+        .group(&commands::EASTEREGG_GROUP)
+        .group(&commands::VOCAROO_GROUP);
 
     let songbird = Songbird::serenity();
 
