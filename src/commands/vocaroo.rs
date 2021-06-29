@@ -116,27 +116,25 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
             let channel_id = msg.channel_id;
             let user_id = msg.author.id.0;
 
-            tokio::spawn(async move {
-                match process_vocaroo_id(&VOCAROO_CLIENT, vocaroo_id.as_str()).await {
-                    Ok(vocaroo_data) => {
-                        let _ = channel_id
-                            .send_message(&http, |msg_builder| {
-                                msg_builder.add_file((&vocaroo_data[..], "vocaroo-to-mp3.mp3"));
+            match process_vocaroo_id(&VOCAROO_CLIENT, vocaroo_id.as_str()).await {
+                Ok(vocaroo_data) => {
+                    let _ = channel_id
+                        .send_message(&http, |msg_builder| {
+                            msg_builder.add_file((&vocaroo_data[..], "vocaroo-to-mp3.mp3"));
 
-                                let mut msg_str = String::with_capacity(96);
-                                msg_str.push_str("Here is <@");
-                                msg_str.push_str(user_id.to_string().as_str());
-                                msg_str.push_str(">'s vocaroo link as an MP3 file. This is limited to 1 per message.");
+                            let mut msg_str = String::with_capacity(96);
+                            msg_str.push_str("Here is <@");
+                            msg_str.push_str(user_id.to_string().as_str());
+                            msg_str.push_str(">'s vocaroo link as an MP3 file. This is limited to 1 per message.");
 
-                                msg_builder.content(msg_str.as_str());
+                            msg_builder.content(msg_str.as_str());
 
-                                msg_builder.reference_message(msg_ref)
-                            })
-                            .await;
-                    }
-                    Err(error) => handle_vocaroo_error(error),
+                            msg_builder.reference_message(msg_ref)
+                        })
+                        .await;
                 }
-            });
+                Err(error) => handle_vocaroo_error(error),
+            }
         }
     }
 }
