@@ -27,7 +27,7 @@ reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"
 bytes = "^1.0"
 
 [patch.crates-io]
-serenity = { git = 'https://github.com/MelonShooter/serenity' }
+serenity = { git = 'https://github.com/serenity-rs/serenity' }
 #serenity = { path = "../serenity" }
 
 [profile.dev.package."*"]
