@@ -10,6 +10,9 @@ use super::util;
 
 #[command]
 #[bucket("intense")]
+#[description("Fetches the pronunciation of something given an optional country of origin as a flag.")]
+#[usage("<TERM> [COUNTRY FLAG]")]
+#[example("pollo")]
 async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     args.quoted();
 
