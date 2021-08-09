@@ -9,6 +9,7 @@ pub enum ArgumentParseErrorType<T: Ord + FromStr + Debug> {
     OutOfBounds(ArgumentOutOfBoundsError<T>),
     NotEnoughArguments(NotEnoughArgumentsError),
     ArgumentConversionError(ArgumentConversionError),
+    BadOption,
 }
 
 impl<T: Ord + FromStr + Debug> Display for ArgumentParseErrorType<T> {

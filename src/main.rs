@@ -140,7 +140,8 @@ async fn main() {
         .group(&commands::BIRTHDAY_GROUP)
         .group(&commands::EASTEREGG_GROUP)
         .group(&commands::VOCAROO_GROUP)
-        .group(&commands::CUSTOM_GROUP);
+        .group(&commands::CUSTOM_GROUP)
+        .group(&commands::LANGUAGE_GROUP);
 
     let songbird = Songbird::serenity();
 

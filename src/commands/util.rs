@@ -1,5 +1,7 @@
+use std::error::Error as StdError;
 use std::fmt::Debug;
 use std::fmt::Display;
+use std::hash::Hash;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -18,6 +20,7 @@ use serenity::model::id::RoleId;
 use serenity::model::id::UserId;
 use serenity::model::Permissions;
 use serenity::prelude::ModelError;
+use serenity::utils::Colour;
 use serenity::Error;
 use std::ops::Deref;
 
@@ -209,6 +212,72 @@ fn parse_role_mention(arg: &str) -> Option<u64> {
     }
 
     parse_mention(arg, &ROLE_MENTION_MATCHER)
+}
+
+async fn bad_option_message<'a, T: Iterator>(ctx: &Context, msg: &Message, arg_pos: u32, choices: T) -> Result<(), Box<dyn Send + Sync + StdError>>
+where
+    T::Item: Display,
+{
+    let bad_option_title = format!("Invalid argument #{}. Not one of the possible options.", arg_pos);
+
+    msg.channel_id
+        .send_message(&ctx.http, |m| {
+            m.embed(|embed| {
+                embed.title(bad_option_title);
+                embed.color(Colour::RED);
+
+                embed.field(
+                    "Possible options are",
+                    choices
+                        .map(|val| {
+                            let mut str = val.to_string();
+                            str.push(' ');
+
+                            str
+                        })
+                        .collect::<String>(),
+                    true,
+                )
+            })
+        })
+        .await?;
+
+    Ok(())
+}
+
+pub async fn parse_choices<T: Iterator>(
+    ctx: &Context,
+    msg: &Message,
+    arg_info: ArgumentInfo<'_>,
+    choices: T,
+) -> Result<T::Item, Box<dyn StdError + Send + Sync>>
+where
+    T::Item: Display + Hash + Eq + FromStr,
+{
+    let args = arg_info.args;
+    let arg_pos = arg_info.arg_pos;
+    let args_needed = arg_info.args_needed;
+
+    match args.parse::<T::Item>() {
+        Ok(arg) => {
+            args.advance();
+
+            Ok(arg)
+        }
+        Err(error) => {
+            if let ArgError::Eos = error {
+                error_util::not_enough_arguments(ctx, &msg.channel_id, arg_pos - 1, args_needed).await;
+
+                Err(Box::new(ArgumentParseErrorType::NotEnoughArguments::<u32>(NotEnoughArgumentsError::new(
+                    args_needed,
+                    arg_pos - 1,
+                ))))
+            } else {
+                bad_option_message(ctx, msg, arg_pos, choices).await?;
+                Err(Box::new(ArgumentParseErrorType::BadOption::<u32>))
+            }
+        }
+    }
 }
 
 async fn id_argument_to_role(

@@ -3,6 +3,7 @@ mod custom;
 mod easter_egg;
 pub mod error_util;
 mod help;
+mod language;
 mod util;
 pub mod vocaroo;
 
@@ -13,6 +14,7 @@ pub use birthday::MONTH_TO_NAME;
 pub use custom::CUSTOM_GROUP;
 pub use easter_egg::EASTEREGG_GROUP;
 pub use help::HELP;
+pub use language::LANGUAGE_GROUP;
 pub use util::*;
 pub use vocaroo::on_ready;
 pub use vocaroo::VOCAROO_GROUP;
