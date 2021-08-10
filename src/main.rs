@@ -101,7 +101,7 @@ fn setup_birthday_tracker(cache_and_http: Arc<CacheAndHttp>) {
 
 /*#[hook]
 async fn on_unrecognized_command(ctx: &Context, msg: &Message, _: &str) {
-    commands::error_util::unknown_command_message(ctx, &msg.channel_id).await;
+    commands::error_util::unknown_command_message(ctx, &msg.channel_id).await; // uncomment function for this to work in error_util.rs
 }*/
 
 #[hook]

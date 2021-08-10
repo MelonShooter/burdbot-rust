@@ -34,16 +34,6 @@ pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: &ChannelId, arg_cou
     util::send_message(ctx, ch, not_enough_arguments_message, "not_enough_arguments").await;
 }
 
-pub async fn invalid_argument(ctx: impl AsRef<Http>, ch: &ChannelId, arg_pos: u32, msg: &str, arg: &str) {
-    let invalid_argument_message = format!(
-        "Invalid argument #{} provided. \
-            {} {} was provided.",
-        arg_pos, msg, arg
-    );
-
-    util::send_message(ctx, ch, invalid_argument_message, "invalid_argument").await;
-}
-
 pub async fn check_within_range<T: Display, U: Display>(ctx: impl AsRef<Http>, ch: &ChannelId, arg: T, arg_pos: u32, start: U, end: U) {
     let invalid_range_message = format!(
         "Invalid argument #{} provided. \
@@ -86,8 +76,8 @@ pub async fn generic_fail(ctx: &Context, ch: &ChannelId) {
     util::send_message(ctx.http.clone(), ch, fail_message, "generic_fail").await;
 }
 
-pub async fn unknown_command_message(ctx: impl AsRef<Http>, ch: &ChannelId) {
+/*pub async fn unknown_command_message(ctx: impl AsRef<Http>, ch: &ChannelId) {
     let unknown_command_message = "Unknown command. Type the help command to get the list of commands.";
 
     util::send_message(ctx, ch, unknown_command_message, "unknown_command_message").await;
-}
+}*/
