@@ -141,6 +141,7 @@ async fn main() {
         .group(&commands::EASTEREGG_GROUP)
         .group(&commands::VOCAROO_GROUP)
         .group(&commands::CUSTOM_GROUP)
+        .group(&commands::ADMINISTRATIVE_GROUP)
         .group(&commands::LANGUAGE_GROUP);
 
     let songbird = Songbird::serenity();

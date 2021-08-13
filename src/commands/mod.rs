@@ -1,3 +1,4 @@
+mod administrative;
 mod birthday;
 mod custom;
 mod easter_egg;
@@ -7,6 +8,7 @@ mod language;
 mod util;
 pub mod vocaroo;
 
+pub use administrative::ADMINISTRATIVE_GROUP;
 pub use birthday::BirthdayInfoConfirmation;
 pub use birthday::BIRTHDAY_GROUP;
 pub use birthday::MONTH_TO_DAYS;
