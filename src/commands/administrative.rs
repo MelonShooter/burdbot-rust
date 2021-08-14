@@ -42,6 +42,8 @@ async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, a
 async fn stafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let target_id = parse_staff_log_member(ctx, msg, &mut args, 1, 1).await?.user.id;
 
+    // use special time thingy to display time
+
     Ok(())
 }
 

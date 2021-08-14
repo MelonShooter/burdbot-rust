@@ -53,10 +53,11 @@ fn create_sql_tables() {
             role_id INTEGER NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS bday_user_list (
-            user_id INTEGER UNIQUE NOT NULL,
-            bday_over_date TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES bday(user_id) ON DELETE CASCADE
+        CREATE TABLE IF NOT EXISTS staff_logs (
+            user_id INTEGER NOT NULL,
+            entry_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            reason TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS vocaroo_enabled (
@@ -68,6 +69,9 @@ fn create_sql_tables() {
 
         CREATE INDEX IF NOT EXISTS bday_over_date_index
             on bday_user_list (bday_over_date);
+
+        CREATE INDEX IF NOT EXISTS staff_log_index
+            on staff_logs (user_id);
     ";
 
     transaction.execute_batch(table_statements).unwrap();
