@@ -72,6 +72,9 @@ enum Country {
     DominicanRepublic,
     #[strum(serialize = "🇪🇸", serialize = "Spain", props(flag = "🇪🇸", index = "18"))]
     Spain,
+
+    // UNITED STATES MUST BE THE FIRST ENGLISH SPEAKING COUNTRY BY INDEX IN THIS LIST.
+
     #[strum(serialize = "🇺🇸", serialize = "United States", props(flag = "🇺🇸", index = "19"))]
     UnitedStates,
     #[strum(serialize = "🇨🇦", serialize = "Canada", props(flag = "🇨🇦", index = "20"))]
@@ -86,9 +89,15 @@ enum Country {
     NewZealand,
 }
 
-impl Default for Country {
-    fn default() -> Self {
-        Self::Argentina
+impl Country {
+    fn is_spanish(&self) -> bool {
+        lazy_static! {
+            static ref UNITED_STATES_INDEX: u64 = Country::UnitedStates.get_str("index").expect("Enum didn't have index").parse().expect("Enum index wasn't a number.");
+        }
+
+        let index: u64 = self.get_str("index").expect("Enum didn't have index").parse().expect("Enum index wasn't a number.");
+
+        index < *UNITED_STATES_INDEX
     }
 }
 
@@ -106,6 +115,12 @@ impl Into<NodeIndex> for Country {
                 .parse()
                 .expect("Enum index wasn't a number."),
         )
+    }
+}
+
+impl Default for Country {
+    fn default() -> Self {
+        Country::Argentina
     }
 }
 
@@ -158,19 +173,27 @@ fn get_link_and_country<'a>(entries: &'a ElementRef) -> Result<Option<Vec<ForvoR
     }
 }
 
-async fn get_all_recordings(term: &str) -> Result<[(Option<Vec<ForvoRecording>>, bool); 2], Box<dyn StdError + Send + Sync>> {
+async fn get_all_recordings(term: &str, requested_country: Option<Country>) -> Result<[(Option<Vec<ForvoRecording>>, bool); 2], Box<dyn StdError + Send + Sync>> {
     let mut recording_vec = [(None, true), (None, false)];
     let url = format!("https://forvo.com/word/{}/", term);
     let data = FORVO_CLIENT.get(url).send().await?.text().await?;
     let document = Html::parse_document(data.as_str());
     let language_containers = Selector::parse("div.language-container").expect("Bad CSS selector.");
-
-    // this selector needs to be further restricted to only include words, not sentences
+    let mut do_english = true;
+    let mut do_spanish = true;
+    
+    if let Some(country) = requested_country {
+        if country.is_spanish() {
+            do_english = false;
+        } else {
+            do_spanish = false;
+        }
+    }
 
     for element in document.select(&language_containers) {
         match element.value().id() {
-            Some("language-container-es") => recording_vec[0] = (get_link_and_country(&element)?, true),
-            Some("language-container-en") => recording_vec[1] = (get_link_and_country(&element)?, false),
+            Some("language-container-es") => if do_spanish {recording_vec[0] = (get_link_and_country(&element)?, true)},
+            Some("language-container-en") => if do_english {recording_vec[1] = (get_link_and_country(&element)?, false)},
             _ => (),
         }
     }
@@ -250,9 +273,8 @@ fn get_closest_recording_index(requested_country: Option<Country>, recordings: &
         }
     }
 
-    // Means that it never changed, which means that an English country default should be specified
     if closest_recording_index == usize::MAX {
-
+        return 0; // Means that you have recordings from other places.
     }
 
     closest_recording_index
@@ -279,14 +301,16 @@ pub async fn fetch_pronunciation(
             None
         };
         
-    let recordings_data = get_all_recordings(term.as_str()).await?;
+    let recordings_data = get_all_recordings(term.as_str(), requested_country).await?;
     let mut links = Vec::with_capacity(2);
     let mut recordings: Vec<_> = recordings_data.iter().map(|recording_option| {
         match recording_option {
             (Some(recordings), is_spanish) => {
                 let closest_recording_index = get_closest_recording_index(requested_country, recordings, *is_spanish);
                 let recording = &recordings[closest_recording_index];
-                let message = if requested_country == Some(recording.country) || requested_country.is_none() {
+                let no_special_message = requested_country.map_or(true, |c| c.is_spanish() != *is_spanish);
+
+                let message = if requested_country == Some(recording.country) || no_special_message {
                     format!("Here is the pronunciation of ``{}``. Country: {}.", term, recording.country.to_string())
                 } else {
                     format!(
