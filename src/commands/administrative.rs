@@ -241,7 +241,8 @@ async fn stafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 #[example("DELIBURD#7741 For being a bad burd")]
 #[aliases("addslog", "addsl", "asl")]
 async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let target_id = parse_staff_log_member(ctx, msg, &mut args, 1, 1).await?.user.id.0;
+    let target = parse_staff_log_member(ctx, msg, &mut args, 1, 1).await?;
+    let target_id = target.user.id.0;
     let reason = match args.remains() {
         Some(reason) => reason,
         None => {
@@ -251,13 +252,25 @@ async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRes
         }
     };
 
-    let connection = Connection::open(BURDBOT_DB)?;
-    let insert_query = "
-        INSERT INTO staff_logs
-            VALUES(?, ?, ?, ?);
-    ";
+    {
+        let connection = Connection::open(BURDBOT_DB)?;
+        let insert_query = "
+            INSERT INTO staff_logs
+                VALUES(?, ?, ?, ?);
+        ";
 
-    connection.execute(insert_query, params![target_id, msg.link(), None::<u8>, reason])?;
+        connection.execute(insert_query, params![target_id, msg.link(), None::<u8>, reason])?;
+    }
+
+    msg.channel_id
+        .send_message(ctx, |m| {
+            m.content("Added staff log.");
+
+            make_staff_log_embed(&msg.author, m, &target);
+
+            m
+        })
+        .await?;
 
     Ok(())
 }
