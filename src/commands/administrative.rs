@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
-use rusqlite::{Connection, Error};
+use rusqlite::{params, Connection, Error};
 use serenity::builder::CreateMessage;
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
@@ -99,7 +99,8 @@ fn get_staff_logs(id: u64) -> Result<Vec<Log>, Error> {
     let query = "
         SELECT *
         FROM staff_logs
-        WHERE user_id = ?;
+        WHERE user_id = ?
+        ORDER BY rowid;
     ";
     let mut statement = connection.prepare(query)?;
     let rows = statement
@@ -107,9 +108,16 @@ fn get_staff_logs(id: u64) -> Result<Vec<Log>, Error> {
             let original_link = row.get("original_link")?;
             let edited_link = row.get("last_edited_link")?;
 
-            Ok(Log::new(id, row.get("entry_id")?, original_link, edited_link, row.get("reason")?))
+            Ok(Log::new(id, 0, original_link, edited_link, row.get("reason")?))
         })?
-        .map(|row| row.expect("Unwrapping this row should always be ok."))
+        .enumerate()
+        .map(|(index, row_result)| {
+            let mut row = row_result.expect("Unwrapping this row should always be ok.");
+
+            row.entry_id = index + 1;
+
+            row
+        })
         .collect();
 
     Ok(rows)
@@ -136,7 +144,7 @@ fn format_field(log: &Log, is_first: bool) -> String {
         None => String::new(),
     };
 
-    if is_first {
+    if !is_first {
         format!(
             "**Log #{}**:\n**Logged on**: <t:{}:f>\n{}**Reason**: {}\n[See original log]({}){}",
             log.entry_id,
@@ -162,9 +170,7 @@ fn make_staff_log_embed(invoker: &User, message: &mut CreateMessage, member: &Me
     let id = member.user.id.0;
 
     match get_staff_logs(id) {
-        Ok(mut logs) => {
-            logs.sort_by(|a, b| a.entry_id.cmp(&b.entry_id));
-
+        Ok(logs) => {
             message.embed(|embed| {
                 let username = member.user.tag();
                 let nickname = member.display_name();
@@ -235,7 +241,23 @@ async fn stafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 #[example("DELIBURD#7741 For being a bad burd")]
 #[aliases("addslog", "addsl", "asl")]
 async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let target_id = parse_staff_log_member(ctx, msg, &mut args, 1, 1).await?.user.id;
+    let target_id = parse_staff_log_member(ctx, msg, &mut args, 1, 1).await?.user.id.0;
+    let reason = match args.remains() {
+        Some(reason) => reason,
+        None => {
+            msg.channel_id.say(ctx, "You must specify a reason for the log.").await?;
+
+            return Ok(());
+        }
+    };
+
+    let connection = Connection::open(BURDBOT_DB)?;
+    let insert_query = "
+        INSERT INTO staff_logs
+            VALUES(?, ?, ?, ?);
+    ";
+
+    connection.execute(insert_query, params![target_id, msg.link(), None::<u8>, reason])?;
 
     Ok(())
 }
