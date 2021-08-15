@@ -56,7 +56,8 @@ fn create_sql_tables() {
         CREATE TABLE IF NOT EXISTS staff_logs (
             user_id INTEGER NOT NULL,
             entry_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
+            original_link TEXT NOT NULL,
+            last_edited_link TEXT,
             reason TEXT NOT NULL
         );
 
