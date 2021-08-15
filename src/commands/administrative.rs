@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
 use rusqlite::{params, Connection, Error};
-use serenity::builder::CreateMessage;
+use serenity::builder::{CreateEmbed, CreateMessage};
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::{Args, CommandError, CommandResult};
@@ -15,7 +15,9 @@ use serenity::utils::Color;
 use crate::BURDBOT_DB;
 
 use super::error_util::error::{ArgumentConversionError, ArgumentParseErrorType};
-use super::{util, ArgumentInfo};
+use super::{util, ArgumentInfo, BoundedArgumentInfo};
+
+const GONE_WRONG: &str = "Something's gone wrong. <@367538590520967181> has been notified.";
 
 fn get_message_id_from_link(link: &str) -> u64 {
     lazy_static! {
@@ -40,14 +42,14 @@ fn get_message_id_from_link(link: &str) -> u64 {
 
 struct Log {
     pub user_id: u64,
-    pub entry_id: usize,
+    pub entry_id: i64,
     pub original_link: String,
     pub last_edited_link: Option<String>,
     pub reason: String,
 }
 
 impl Log {
-    pub fn new(user_id: u64, entry_id: usize, original_link: String, last_edited_link: Option<String>, reason: String) -> Log {
+    pub fn new(user_id: u64, entry_id: i64, original_link: String, last_edited_link: Option<String>, reason: String) -> Log {
         Log {
             user_id,
             entry_id,
@@ -97,10 +99,10 @@ async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, a
 fn get_staff_logs(id: u64) -> Result<Vec<Log>, Error> {
     let connection = Connection::open(BURDBOT_DB)?;
     let query = "
-        SELECT *
+        SELECT original_link, last_edited_link, reason
         FROM staff_logs
         WHERE user_id = ?
-        ORDER BY rowid;
+        ORDER BY entry_id;
     ";
     let mut statement = connection.prepare(query)?;
     let rows = statement
@@ -114,7 +116,7 @@ fn get_staff_logs(id: u64) -> Result<Vec<Log>, Error> {
         .map(|(index, row_result)| {
             let mut row = row_result.expect("Unwrapping this row should always be ok.");
 
-            row.entry_id = index + 1;
+            row.entry_id = index as i64 + 1;
 
             row
         })
@@ -139,8 +141,8 @@ fn format_field(log: &Log, is_first: bool) -> String {
         None => String::new(),
     };
 
-    let last_edited_link = match edited_time {
-        Some(last_edited_time) => format!("\n[See last edit]({})", last_edited_time),
+    let last_edited_link = match &log.last_edited_link {
+        Some(edit_link) => format!("\n[See last edit]({})", edit_link),
         None => String::new(),
     };
 
@@ -166,11 +168,16 @@ fn format_field(log: &Log, is_first: bool) -> String {
     }
 }
 
-fn make_staff_log_embed(invoker: &User, message: &mut CreateMessage, member: &Member) {
+fn make_staff_log_embed<F>(invoker: &User, message: &mut CreateMessage, member: &Member, func: F) -> i64
+where
+    F: FnOnce(&mut CreateEmbed, i64) -> &mut CreateEmbed,
+{
     let id = member.user.id.0;
 
     match get_staff_logs(id) {
         Ok(logs) => {
+            let log_count = logs.len() as i64;
+
             message.embed(|embed| {
                 let username = member.user.tag();
                 let nickname = member.display_name();
@@ -196,15 +203,33 @@ fn make_staff_log_embed(invoker: &User, message: &mut CreateMessage, member: &Me
                 embed.footer(|footer| {
                     footer.text(format!("Requested by: {}", invoker.tag()));
                     footer.icon_url(invoker.avatar_url().unwrap_or(invoker.default_avatar_url()))
-                })
+                });
+
+                func(embed, log_count)
             });
+
+            log_count
         }
         Err(error) => {
             error!("Error while making staff log embed: {:?}", error);
 
             message.content("Something's gone wrong. <@367538590520967181> has been notified.");
+
+            -1
         }
     }
+}
+
+fn add_log(user_id: u64, entry_id: i64, original_link: &str, reason: &str) -> Result<(), Error> {
+    let connection = Connection::open(BURDBOT_DB)?;
+    let insert_query = "
+            INSERT INTO staff_logs
+                VALUES(?, ?, ?, ?, ?);
+        ";
+
+    connection.execute(insert_query, params![user_id, entry_id, original_link, None::<u8>, reason])?;
+
+    Ok(())
 }
 
 #[command]
@@ -222,7 +247,7 @@ async fn stafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 
     msg.channel_id
         .send_message(&ctx, |m| {
-            make_staff_log_embed(&msg.author, m, &target);
+            make_staff_log_embed(&msg.author, m, &target, |e, _| e);
 
             m
         })
@@ -241,7 +266,7 @@ async fn stafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 #[example("DELIBURD#7741 For being a bad burd")]
 #[aliases("addslog", "addsl", "asl")]
 async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let target = parse_staff_log_member(ctx, msg, &mut args, 1, 1).await?;
+    let target = parse_staff_log_member(ctx, msg, &mut args, 1, 2).await?;
     let target_id = target.user.id.0;
     let reason = match args.remains() {
         Some(reason) => reason,
@@ -252,23 +277,36 @@ async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRes
         }
     };
 
-    {
-        let connection = Connection::open(BURDBOT_DB)?;
-        let insert_query = "
-            INSERT INTO staff_logs
-                VALUES(?, ?, ?, ?);
-        ";
-
-        connection.execute(insert_query, params![target_id, msg.link(), None::<u8>, reason])?;
-    }
+    let msg_link = msg.link();
 
     msg.channel_id
         .send_message(ctx, |m| {
             m.content("Added staff log.");
 
-            make_staff_log_embed(&msg.author, m, &target);
+            // Add the new log manually.
+            let entry_id = 1 + make_staff_log_embed(&msg.author, m, &target, |embed, log_count| {
+                let log = &Log::new(target_id, log_count + 1, msg_link.clone(), None, reason.to_string());
 
-            m
+                if log_count == 0 {
+                    embed.field("⁣Log #1:", format_field(log, true), false)
+                } else {
+                    embed.field("⁣", format_field(log, false), false)
+                }
+            });
+
+            // Means the staff log embed failed, so return early.
+            if entry_id == 0 {
+                return m;
+            }
+
+            match add_log(target_id, entry_id, msg_link.as_str(), reason) {
+                Ok(_) => m,
+                Err(error) => {
+                    error!("Error while making staff log embed: {:?}", error);
+
+                    m.content(GONE_WRONG)
+                }
+            }
         })
         .await?;
 
@@ -285,7 +323,44 @@ async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRes
 #[example("DELIBURD#7741 1 Threw too many presents")]
 #[aliases("editslog", "editsl", "esl")]
 async fn editstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let target_id = parse_staff_log_member(ctx, msg, &mut args, 1, 1).await?.user.id;
+    let target = parse_staff_log_member(ctx, msg, &mut args, 1, 3).await?;
+    let entry_id = util::parse_bounded_arg(ctx, msg, BoundedArgumentInfo::new(&mut args, 1, 3, 1, i64::MAX)).await?;
+    let target_id = target.user.id.0;
+    let reason = match args.remains() {
+        Some(reason) => reason,
+        None => {
+            msg.channel_id.say(ctx, "You must specify a reason for the log.").await?;
+
+            return Ok(());
+        }
+    };
+
+    let rows_changed;
+
+    {
+        let connection = Connection::open(BURDBOT_DB)?;
+        let update_query = "
+            UPDATE staff_logs
+                SET(last_edited_link, reason) = (?, ?)
+                WHERE user_id = ? AND entry_id = ?;
+        ";
+
+        rows_changed = connection.execute(update_query, params![msg.link(), reason, target_id, entry_id])?;
+    }
+
+    msg.channel_id
+        .send_message(ctx, |m| {
+            if rows_changed > 0 {
+                m.content("Edited staff log.");
+
+                make_staff_log_embed(&msg.author, m, &target, |e, _| e);
+
+                m
+            } else {
+                m.content("Could not find the given log entry. Please verify that this log entry exists.")
+            }
+        })
+        .await?;
 
     Ok(())
 }
@@ -300,7 +375,49 @@ async fn editstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRe
 #[example("DELIBURD#7741 1")]
 #[aliases("removeslog", "removesl", "rmsl")]
 async fn removestafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let target_id = parse_staff_log_member(ctx, msg, &mut args, 1, 1).await?.user.id;
+    let target = parse_staff_log_member(ctx, msg, &mut args, 1, 2).await?;
+    let entry_id = util::parse_bounded_arg(ctx, msg, BoundedArgumentInfo::new(&mut args, 2, 2, 1, i64::MAX)).await?;
+    let target_id = target.user.id.0;
+
+    let rows_changed;
+
+    {
+        let mut connection = Connection::open(BURDBOT_DB)?;
+        let transaction = connection.transaction()?;
+        let delete_query = "
+            DELETE FROM staff_logs
+            WHERE user_id = ? AND entry_id = ?;
+        ";
+
+        rows_changed = transaction.execute(delete_query, params![target_id, entry_id])?;
+
+        // Update the other entries after this entry id to decrement their ids.
+        if rows_changed != 0 {
+            let decrement_entry_ids = "
+                UPDATE staff_logs
+                    SET entry_id = entry_id - 1
+                    WHERE user_id = ? AND entry_id > ?;
+            ";
+
+            transaction.execute(decrement_entry_ids, params![target_id, entry_id])?;
+        }
+
+        transaction.commit()?;
+    }
+
+    msg.channel_id
+        .send_message(ctx, |m| {
+            if rows_changed > 0 {
+                m.content("Successfully removed entry from staff log.");
+
+                make_staff_log_embed(&msg.author, m, &target, |e, _| e);
+
+                m
+            } else {
+                m.content("Could not find the given log entry. Please verify that this log entry exists.")
+            }
+        })
+        .await?;
 
     Ok(())
 }
