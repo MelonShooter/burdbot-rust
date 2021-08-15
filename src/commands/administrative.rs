@@ -2,13 +2,14 @@ use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
 use rusqlite::{Connection, Error};
-use serenity::builder::{CreateEmbed, CreateMessage};
+use serenity::builder::CreateMessage;
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::{Args, CommandError, CommandResult};
 use serenity::model::channel::Message;
 use serenity::model::guild::Member;
 use serenity::model::id::MessageId;
+use serenity::model::prelude::User;
 use serenity::utils::Color;
 
 use crate::BURDBOT_DB;
@@ -157,7 +158,7 @@ fn format_field(log: &Log, is_first: bool) -> String {
     }
 }
 
-fn make_staff_log_embed(message: &mut CreateMessage, member: &Member) {
+fn make_staff_log_embed(invoker: &User, message: &mut CreateMessage, member: &Member) {
     let id = member.user.id.0;
 
     match get_staff_logs(id) {
@@ -177,16 +178,19 @@ fn make_staff_log_embed(message: &mut CreateMessage, member: &Member) {
                 });
 
                 if logs.is_empty() {
-                    embed.field("This user has no logs.", "", false)
+                    embed.description("This user has no logs.");
                 } else {
                     embed.field("⁣Log #1:", format_field(&logs[0], true), false);
 
                     for log in logs.iter().skip(1) {
                         embed.field("⁣", format_field(log, false), false);
                     }
-
-                    embed
                 }
+
+                embed.footer(|footer| {
+                    footer.text(format!("Requested by: {}", invoker.tag()));
+                    footer.icon_url(invoker.avatar_url().unwrap_or(invoker.default_avatar_url()))
+                })
             });
         }
         Err(error) => {
@@ -212,7 +216,7 @@ async fn stafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 
     msg.channel_id
         .send_message(&ctx, |m| {
-            make_staff_log_embed(m, &target);
+            make_staff_log_embed(&msg.author, m, &target);
 
             m
         })
