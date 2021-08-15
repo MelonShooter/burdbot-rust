@@ -174,7 +174,7 @@ fn make_staff_log_embed(invoker: &User, message: &mut CreateMessage, member: &Me
             message.embed(|embed| {
                 let username = member.user.tag();
                 let nickname = member.display_name();
-                let avatar = member.avatar_url().unwrap_or(member.user.default_avatar_url());
+                let avatar = member.user.avatar_url().unwrap_or(member.user.default_avatar_url());
 
                 embed.title("Staff Log");
                 embed.color(id_to_color(id));
