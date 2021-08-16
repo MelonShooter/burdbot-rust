@@ -125,36 +125,6 @@ async fn unbanfrommemes(ctx: &Context, msg: &Message, args: Args) -> CommandResu
     Ok(())
 }
 
-#[command]
-#[checks(is_server_helper_or_above)]
-#[only_in("guilds")]
-#[usage("<USER>")]
-#[example("367538590520967181")]
-#[example("DELIBURD#7741")]
-#[description("Ban a user from the NSFW channels.")]
-async fn banfromnsfw(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let message_to_send = banfromchannel(ctx, msg, args, &RoleId::from(805421773918306354), "NSFW").await?;
-
-    util::send_message(ctx, &msg.channel_id, message_to_send, "banfromnsfw").await;
-
-    Ok(())
-}
-
-#[command]
-#[checks(is_server_helper_or_above)]
-#[only_in("guilds")]
-#[usage("<USER>")]
-#[example("367538590520967181")]
-#[example("DELIBURD#7741")]
-#[description("Unban a user from the nsfw channels.")]
-async fn unbanfromnsfw(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let message_to_send = unbanfromchannel(ctx, msg, args, &RoleId::from(805421773918306354), "NSFW").await?;
-
-    util::send_message(ctx, &msg.channel_id, message_to_send, "unbanfromnsfw").await;
-
-    Ok(())
-}
-
 #[group]
-#[commands(banfrommemes, unbanfrommemes, banfromnsfw, unbanfromnsfw)]
+#[commands(banfrommemes, unbanfrommemes)]
 struct Custom;
