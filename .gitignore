@@ -3,5 +3,5 @@
 *.db
 TODO.txt
 .vscode
-build-debug.sh
+*.sh
 *.secret_rs
