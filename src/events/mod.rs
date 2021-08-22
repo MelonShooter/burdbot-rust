@@ -33,10 +33,12 @@ impl EventHandler for BurdBotEventHandler {
 
     async fn cache_ready(&self, context: Context, _guilds: Vec<GuildId>) {
         user_search_engine::on_cache_ready(&context).await;
+        spanish_english::on_cache_ready(&context).await;
     }
 
-    async fn voice_state_update(&self, context: Context, _guild_id: Option<GuildId>, _old_state: Option<VoiceState>, new_state: VoiceState) {
-        session_tracker::on_voice_state_update(new_state, &context).await;
+    async fn voice_state_update(&self, context: Context, _guild_id: Option<GuildId>, old_state: Option<VoiceState>, new_state: VoiceState) {
+        session_tracker::on_voice_state_update(&new_state, &context).await;
+        spanish_english::on_voice_state_update(old_state.as_ref(), &new_state, &context).await;
     }
 
     async fn guild_member_addition(&self, ctx: Context, guild_id: GuildId, new_member: Member) {

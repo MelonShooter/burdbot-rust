@@ -74,8 +74,8 @@ pub async fn is_tracker_enabled(context_data: RwLockReadGuard<'_, TypeMap>) -> b
     return *session_tracker_enabled;
 }
 
-pub async fn on_voice_state_update(new_state: VoiceState, context: &Context) {
-    if let Some(member) = new_state.member {
+pub async fn on_voice_state_update(new_state: &VoiceState, context: &Context) {
+    if let Some(member) = &new_state.member {
         if member.user.id.as_u64() != context.cache.current_user_id().await.as_u64() {
             return;
         }
