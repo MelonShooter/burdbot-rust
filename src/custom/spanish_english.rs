@@ -51,10 +51,10 @@ async fn control_channel_access(http: &Http, channel: &Channel, allow: bool) -> 
     .expect("Every channel should have an @everyone permission overwrite");
 
     if allow {
+        permission_overwrite.allow |= Permissions::READ_MESSAGES;
         permission_overwrite.deny &= !Permissions::READ_MESSAGES;
     } else {
         permission_overwrite.allow &= !Permissions::READ_MESSAGES;
-        permission_overwrite.deny |= Permissions::READ_MESSAGES;
     }
 
     match channel {
@@ -193,7 +193,7 @@ pub async fn on_voice_state_update(old_state: Option<&VoiceState>, new_state: &V
                     .get_mut(&teacher_id)
                     .expect("The teachers should always exist due to the match above and the lock.");
                 *teacher_task = Some(tokio::spawn(async move {
-                    time::sleep(Duration::from_secs(60 * 10)).await;
+                    time::sleep(Duration::from_secs(10)).await;
 
                     let mut write_data = data.write().await;
 
