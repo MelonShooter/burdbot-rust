@@ -193,7 +193,7 @@ pub async fn on_voice_state_update(old_state: Option<&VoiceState>, new_state: &V
                     .get_mut(&teacher_id)
                     .expect("The teachers should always exist due to the match above and the lock.");
                 *teacher_task = Some(tokio::spawn(async move {
-                    time::sleep(Duration::from_secs(10)).await;
+                    time::sleep(Duration::from_secs(60 * 10)).await;
 
                     let mut write_data = data.write().await;
 
