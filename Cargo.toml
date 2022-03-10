@@ -6,6 +6,9 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+proc-macro = true
+
 [dependencies]
 serenity = "^0.10"
 tokio = { version = "^1", features = ["rt-multi-thread", "time"] }
@@ -35,8 +38,8 @@ base64 = "^0.13"
 [patch.crates-io]
 audiopus = { git = 'https://github.com/DoumanAsh/audiopus/', branch = 'better_sys' }
 
+[profile.release]
+lto = true
+
 [profile.dev.package."*"]
 opt-level = 3
-
-[lib]
-proc-macro = true
