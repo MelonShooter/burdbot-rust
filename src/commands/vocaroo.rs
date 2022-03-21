@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use bytes::Bytes;
 use lazy_static::lazy_static;
-use log::warn;
+use log::error;
 use regex::Regex;
 use reqwest::Client;
 use rusqlite::{Connection, Error as SqliteError};
@@ -24,6 +24,8 @@ impl TypeMapKey for VocarooEnabled {
     type Value = HashSet<u64>;
 }
 
+#[non_exhaustive]
+#[derive(Debug)]
 enum VocarooError {
     FailedHead,
     FailedGet,
@@ -35,12 +37,12 @@ enum VocarooError {
 
 fn handle_vocaroo_error(error: VocarooError) {
     match error {
-        VocarooError::FailedHead => warn!("Failed Vocaroo HEAD request. Could mean they stopped accepting it."),
-        VocarooError::FailedGet => warn!("Failed Vocaroo GET request. Could mean this isn't the right URL anymore."),
-        VocarooError::NoContentLength => warn!("Vocaroo didn't send their content length in the HEAD request. This will break vocaroo conversions."),
-        VocarooError::BodyToBytesFailure => warn!("Could not convert response body to bytes."),
-        VocarooError::ContentLengthNotNumber => warn!("The content length returned was not a number."),
-        _ => (),
+        VocarooError::FailedHead => error!("Failed Vocaroo HEAD request. Could mean they stopped accepting it."),
+        VocarooError::FailedGet => error!("Failed Vocaroo GET request. Could mean this isn't the right URL anymore."),
+        VocarooError::NoContentLength => error!("Vocaroo didn't send their content length in the HEAD request. This will break vocaroo conversions."),
+        VocarooError::BodyToBytesFailure => error!("Could not convert response body to bytes."),
+        VocarooError::ContentLengthNotNumber => error!("The content length returned was not a number."),
+        _ => error!("Unknown vocaroo error encountered. Error: {:?}.", error),
     }
 }
 
