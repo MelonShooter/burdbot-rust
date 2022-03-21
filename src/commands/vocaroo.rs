@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use bytes::Bytes;
 use lazy_static::lazy_static;
-use log::error;
+use log::{error, warn};
 use regex::Regex;
 use reqwest::Client;
 use rusqlite::{Connection, Error as SqliteError};
@@ -10,9 +10,11 @@ use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::CommandResult;
 use serenity::model::channel::{Message, MessageReference};
+use serenity::model::id::UserId;
 use serenity::prelude::TypeMapKey;
+use serenity::Result as SerenityResult;
 
-use crate::BURDBOT_DB;
+use crate::{BURDBOT_DB, DELIBURD_ID};
 
 use super::util;
 
@@ -27,22 +29,62 @@ impl TypeMapKey for VocarooEnabled {
 #[non_exhaustive]
 #[derive(Debug)]
 enum VocarooError {
-    FailedHead,
-    FailedGet,
-    NoContentLength,
-    ContentLengthNotNumber,
-    BodyToBytesFailure,
-    OversizedFile,
+    FailedHead(String),
+    FailedGet(String),
+    FailedDownload(String, u16),
+    NoContentLength(String),
+    ContentLengthNotNumber(String),
+    BodyToBytesFailure(String),
+    OversizedFile(String),
 }
 
-fn handle_vocaroo_error(error: VocarooError) {
-    match error {
-        VocarooError::FailedHead => error!("Failed Vocaroo HEAD request. Could mean they stopped accepting it."),
-        VocarooError::FailedGet => error!("Failed Vocaroo GET request. Could mean this isn't the right URL anymore."),
-        VocarooError::NoContentLength => error!("Vocaroo didn't send their content length in the HEAD request. This will break vocaroo conversions."),
-        VocarooError::BodyToBytesFailure => error!("Could not convert response body to bytes."),
-        VocarooError::ContentLengthNotNumber => error!("The content length returned was not a number."),
-        _ => error!("Unknown vocaroo error encountered. Error: {:?}.", error),
+async fn dm_and_log(ctx: &Context, string: String, error: bool) -> SerenityResult<()> {
+    let str = string.as_str();
+
+    if error {
+        error!("{}", str);
+    } else {
+        warn!("{}", str);
+    }
+
+    let dm_channel = UserId::from(DELIBURD_ID).create_dm_channel(&ctx.http).await?;
+
+    dm_channel.say(&ctx.http, str).await?;
+
+    Ok(())
+}
+
+async fn handle_vocaroo_error(ctx: &Context, error: VocarooError) {
+    let mut is_error = true;
+
+    let error_message = match error {
+        VocarooError::FailedHead(link) => {
+            format!("Failed Vocaroo HEAD request trying to convert the link: {}. Could mean they stopped accepting it. This will break vocaroo conversions.", link)
+        }
+        VocarooError::FailedGet(link) => {
+            format!("Failed Vocaroo GET request trying to convert the link: {}. Could mean this isn't the right URL anymore. This will break vocaroo conversions.", link)
+        }
+        VocarooError::FailedDownload(link, status) => {
+            format!("Failed Vocaroo download trying to convert the link: {}. Response code {} was given. Check the function that resolves which CDN server vocaroo uses. Sample given in comment above handle_vocaroo_error.", link, status)
+        }
+        VocarooError::NoContentLength(link) => {
+            format!("Vocaroo didn't send their content length in the HEAD request while trying to convert the link: {}. This will break vocaroo conversions.", link)
+        }
+        VocarooError::BodyToBytesFailure(link) => format!(
+            "Could not convert response body to bytes while trying to convert the link: {}. This will break vocaroo conversions.",
+            link
+        ),
+        VocarooError::ContentLengthNotNumber(link) => {
+            format!("The content length returned by HEAD request was not a number while trying to convert the link: {}. This will break vocaroo converisons.", link)
+        }
+        VocarooError::OversizedFile(link) => {
+            is_error = false;
+            format!("Vocaroo file at link '{}' couldn't be converted. It is oversized ().", link)
+        }
+    };
+
+    if let Err(e) = dm_and_log(ctx, error_message, is_error).await {
+        error!("Error encountered DMing vocaroo error to DELIBURD. Error: {}", e);
     }
 }
 
@@ -52,36 +94,42 @@ async fn process_vocaroo_id(client: &Client, vocaroo_id: &str) -> Result<Bytes, 
 
     let head_response = match client.head(url_str).send().await.ok() {
         Some(response) => response,
-        None => return Err(VocarooError::FailedHead),
+        None => return Err(VocarooError::FailedHead(url)),
     };
 
     let content_length_str = match head_response.headers().get("Content-Length").map(|val| val.to_str()) {
         Some(parsed_result) => match parsed_result.ok() {
             Some(str) => str,
-            None => return Err(VocarooError::ContentLengthNotNumber),
+            None => return Err(VocarooError::ContentLengthNotNumber(url)),
         },
-        None => return Err(VocarooError::NoContentLength),
+        None => return Err(VocarooError::NoContentLength(url)),
     };
 
     let content_length = match content_length_str.parse::<u32>().ok() {
         Some(len) => len,
-        None => return Err(VocarooError::ContentLengthNotNumber),
+        None => return Err(VocarooError::ContentLengthNotNumber(url)),
     };
 
     if content_length <= MAX_VOCAROO_RECORDING_SIZE {
         let get_response = match client.get(url_str).send().await.ok() {
-            Some(response) => response,
-            None => return Err(VocarooError::FailedGet),
+            Some(response) => {
+                if response.status().is_success() {
+                    response
+                } else {
+                    return Err(VocarooError::FailedDownload(url, response.status().as_u16()));
+                }
+            }
+            None => return Err(VocarooError::FailedGet(url)),
         };
 
         let bytes = match get_response.bytes().await.ok() {
             Some(b) => b,
-            None => return Err(VocarooError::BodyToBytesFailure),
+            None => return Err(VocarooError::BodyToBytesFailure(url)),
         };
 
         Ok(bytes)
     } else {
-        Err(VocarooError::OversizedFile)
+        Err(VocarooError::OversizedFile(url))
     }
 }
 
@@ -91,7 +139,10 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
     let vocaroo_servers = data.get::<VocarooEnabled>();
 
     if let Some(servers) = vocaroo_servers {
-        let guild_id = msg.guild_id.unwrap();
+        let guild_id = match msg.guild_id {
+            Some(id) => id,
+            None => return,
+        };
         let id = guild_id.as_u64();
 
         if servers.contains(id) {
@@ -135,7 +186,7 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
                         })
                         .await;
                 }
-                Err(error) => handle_vocaroo_error(error),
+                Err(error) => handle_vocaroo_error(ctx, error).await,
             }
         }
     }
