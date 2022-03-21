@@ -6,12 +6,11 @@ mod secret;
 mod session_tracker;
 mod util;
 
-use std::collections::HashSet;
-use std::sync::Arc;
-use std::time::Duration;
-
+use ::time::UtcOffset;
 use async_ctrlc::CtrlC;
-use chrono::{Timelike, Utc};
+use chrono::{NaiveDate, TimeZone, Timelike, Utc};
+use chrono_tz::OffsetComponents;
+use chrono_tz::US::Pacific;
 use events::BurdBotEventHandler;
 use log::{debug, info, LevelFilter};
 use rusqlite::Connection;
@@ -27,6 +26,9 @@ use serenity::{CacheAndHttp, Client};
 use simple_logger::SimpleLogger;
 use songbird::driver::{Config, DecodeMode};
 use songbird::{SerenityInit, Songbird};
+use std::collections::HashSet;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::time;
 
 pub const BURDBOT_DB: &str = "burdbot.db";
@@ -118,11 +120,20 @@ async fn on_terminate(shard_manager: Arc<Mutex<ShardManager>>) {
     shard_manager.lock().await.shutdown_all().await;
 }
 
+fn get_pacific_offset() -> UtcOffset {
+    let local_date_time = Utc::now().with_timezone(&Pacific);
+    let timezone_offset = local_date_time.offset();
+    let total_offset = timezone_offset.base_utc_offset() + timezone_offset.dst_offset();
+
+    UtcOffset::from_whole_seconds(total_offset.num_seconds() as i32).expect("Offset not within valid range. This should never happen.")
+}
+
 #[tokio::main]
 async fn main() {
     SimpleLogger::new()
         .with_level(LevelFilter::Warn)
         .with_module_level("burdbot", LevelFilter::Debug)
+        .with_utc_offset(get_pacific_offset())
         .init()
         .unwrap();
 
