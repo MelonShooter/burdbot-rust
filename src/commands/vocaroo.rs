@@ -88,7 +88,7 @@ async fn handle_vocaroo_error(ctx: &Context, msg: &Message, error: VocarooError)
         }
     };
 
-    if let Err(err) = msg.react(&ctx.http, ReactionType::Unicode("❌".to_owned())).await {
+    if let Err(err) = msg.react(&ctx.http, '❌').await {
         let link = msg.link();
 
         debug!("Failed to react to vocaroo recording that errored. Error: {err}. Message link: {link}.");
