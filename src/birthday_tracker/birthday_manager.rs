@@ -31,7 +31,7 @@ fn get_server_role(transaction: &Transaction, guild_id: u64) -> Result<Option<u6
         .optional()
 }
 
-pub async fn add_birthday_to_db(ctx: &Context, channel_id: &ChannelId, bday_info: &BirthdayInfoConfirmation) -> Result<(), SerenitySQLiteError> {
+pub async fn add_birthday_to_db(ctx: &Context, channel_id: ChannelId, bday_info: &BirthdayInfoConfirmation) -> Result<(), SerenitySQLiteError> {
     let connection = Connection::open(BURDBOT_DB)?;
     let ins_stmt_str = if !bday_info.is_privileged {
         "
@@ -47,7 +47,7 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: &ChannelId, bday_info
 
     let user_id = bday_info.user_id;
     let channel_selector = |channel: &GuildChannel| *channel.guild_id.as_u64();
-    let guild_id = ctx.cache.guild_channel_field(*channel_id, channel_selector).await.unwrap();
+    let guild_id = ctx.cache.guild_channel_field(channel_id, channel_selector).await.unwrap();
     let bday_date_naive_local = NaiveDate::from_ymd(2021, bday_info.month, bday_info.day).and_hms(0, 0, 0);
     let bday_date_naive_utc = bday_date_naive_local - Duration::hours(bday_info.time_zone);
     let bday_date_time = BirthdayDateTime::new(bday_date_naive_utc.month(), bday_date_naive_utc.day(), bday_date_naive_utc.hour());
@@ -120,7 +120,7 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: &ChannelId, bday_info
     Ok(())
 }
 
-pub async fn get_birthday(ctx: &Context, channel_id: &ChannelId, user_id: u64) -> Result<(), SerenitySQLiteError> {
+pub async fn get_birthday(ctx: &Context, channel_id: ChannelId, user_id: u64) -> Result<(), SerenitySQLiteError> {
     let connection = Connection::open(BURDBOT_DB)?;
     let bday_select_str = "
             SELECT bday_date
@@ -161,7 +161,7 @@ pub async fn get_birthday(ctx: &Context, channel_id: &ChannelId, user_id: u64) -
     Ok(())
 }
 
-pub async fn remove_birthday(ctx: &Context, channel_id: &ChannelId, guild_id: u64, user_id: u64) -> Result<(), SerenitySQLiteError> {
+pub async fn remove_birthday(ctx: &Context, channel_id: ChannelId, guild_id: u64, user_id: u64) -> Result<(), SerenitySQLiteError> {
     let mut role_id = None;
     let rows_changed;
 

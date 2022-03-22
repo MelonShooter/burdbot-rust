@@ -9,7 +9,7 @@ use crate::DELIBURD_ID;
 
 pub mod error;
 
-pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: &ChannelId, arg_count: u32, args_needed: u32) {
+pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: ChannelId, arg_count: u32, args_needed: u32) {
     let args_needed_message = if args_needed != 1 { "s are" } else { " is" };
 
     let arg_count_message = if arg_count != 1 { "s were" } else { " was" };
@@ -23,7 +23,7 @@ pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: &ChannelId, arg_cou
     util::send_message(ctx, ch, not_enough_arguments_message, "not_enough_arguments").await;
 }
 
-pub async fn check_within_range<T: Display, U: Display>(ctx: impl AsRef<Http>, ch: &ChannelId, arg: T, arg_pos: u32, start: U, end: U) {
+pub async fn check_within_range<T: Display, U: Display>(ctx: impl AsRef<Http>, ch: ChannelId, arg: T, arg_pos: u32, start: U, end: U) {
     let invalid_range_message = format!(
         "Invalid argument #{} provided. \
             The range should be within {} and {} (inclusive). \
@@ -34,7 +34,7 @@ pub async fn check_within_range<T: Display, U: Display>(ctx: impl AsRef<Http>, c
     util::send_message(ctx, ch, invalid_range_message, "number_within_range").await;
 }
 
-async fn deliburd_in_server(ctx: &Context, ch: &ChannelId) -> bool {
+async fn deliburd_in_server(ctx: &Context, ch: ChannelId) -> bool {
     if let Ok(channel) = ch.to_channel(ctx).await {
         if let Some(guild_channel) = channel.guild() {
             if ctx.cache.member(guild_channel.guild_id, DELIBURD_ID).await.is_some() {
@@ -46,7 +46,7 @@ async fn deliburd_in_server(ctx: &Context, ch: &ChannelId) -> bool {
     false
 }
 
-pub async fn generic_fail(ctx: &Context, ch: &ChannelId) {
+pub async fn generic_fail(ctx: &Context, ch: ChannelId) {
     let fail_message;
 
     if deliburd_in_server(ctx, ch).await {
@@ -63,7 +63,7 @@ pub async fn generic_fail(ctx: &Context, ch: &ChannelId) {
     util::send_message(ctx.http.clone(), ch, fail_message, "generic_fail").await;
 }
 
-/*pub async fn unknown_command_message(ctx: impl AsRef<Http>, ch: &ChannelId) {
+/*pub async fn unknown_command_message(ctx: impl AsRef<Http>, ch: ChannelId) {
     let unknown_command_message = "Unknown command. Type the help command to get the list of commands.";
 
     util::send_message(ctx, ch, unknown_command_message, "unknown_command_message").await;

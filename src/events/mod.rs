@@ -89,7 +89,7 @@ impl VoiceEventHandler for BurdBotVoiceEventHandler {
             }
 
             EventContext::ClientDisconnect(ClientDisconnect { user_id }) => {
-                voice_handler::on_client_disconnect(self, user_id);
+                voice_handler::on_client_disconnect(self, *user_id);
             }
 
             _ => {}

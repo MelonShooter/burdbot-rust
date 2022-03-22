@@ -258,7 +258,7 @@ async fn do_music_check(ctx: &Context, message: &Message) {
             let msg_str = "Please put music bot commands in <#247135634265735168> as they do not work here. \
             Por favor, poné los comandos de música en <#247135634265735168>. No funcionan por acá.";
 
-            commands::send_message(ctx, &message.channel_id, msg_str, "on_message_receive").await;
+            commands::send_message(ctx, message.channel_id, msg_str, "on_message_receive").await;
 
             return;
         }

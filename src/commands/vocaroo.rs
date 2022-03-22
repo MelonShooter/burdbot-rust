@@ -269,14 +269,14 @@ async fn enablevocarootomp3(ctx: &Context, msg: &Message) -> CommandResult {
 
         let enabled_str = "Enabled Vocaroo to MP3 conversions.";
 
-        util::send_message(ctx, &msg.channel_id, enabled_str, "enablevocarootomp3").await;
+        util::send_message(ctx, msg.channel_id, enabled_str, "enablevocarootomp3").await;
 
         return Ok(());
     }
 
     let already_enabled_str = "Vocaroo to MP3 conversions are already enabled on this server.";
 
-    util::send_message(ctx, &msg.channel_id, already_enabled_str, "enablevocarootomp3").await;
+    util::send_message(ctx, msg.channel_id, already_enabled_str, "enablevocarootomp3").await;
 
     Ok(())
 }
@@ -296,7 +296,7 @@ async fn isvocarootomp3enabled(ctx: &Context, msg: &Message) -> CommandResult {
         "Vocaroo to MP3 conversions are disabled in this server."
     };
 
-    util::send_message(ctx, &msg.channel_id, response, "isvocarootomp3enabled").await;
+    util::send_message(ctx, msg.channel_id, response, "isvocarootomp3enabled").await;
 
     Ok(())
 }
@@ -325,14 +325,14 @@ async fn disablevocarootomp3(ctx: &Context, msg: &Message) -> CommandResult {
 
         let disabled_str = "Disabled Vocaroo to MP3 conversions.";
 
-        util::send_message(ctx, &msg.channel_id, disabled_str, "disablevocarootomp3").await;
+        util::send_message(ctx, msg.channel_id, disabled_str, "disablevocarootomp3").await;
 
         return Ok(());
     }
 
     let already_enabled_str = "Vocaroo to MP3 conversions are already disabled on this server.";
 
-    util::send_message(ctx, &msg.channel_id, already_enabled_str, "disablevocarootomp3").await;
+    util::send_message(ctx, msg.channel_id, already_enabled_str, "disablevocarootomp3").await;
 
     Ok(())
 }

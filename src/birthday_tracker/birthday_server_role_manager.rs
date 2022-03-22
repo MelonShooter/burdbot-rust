@@ -23,7 +23,7 @@ pub fn handle_update_birthday_roles_error(error: &SerenitySQLiteError) {
     }
 }
 
-pub async fn set_birthday_role(ctx: &Context, channel_id: &ChannelId, guild_id: u64, role_id: u64) -> Result<(), RusqliteError> {
+pub async fn set_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u64, role_id: u64) -> Result<(), RusqliteError> {
     let connection = Connection::open(BURDBOT_DB)?;
     let insert_string = "
         INSERT OR REPLACE INTO bday_role_list
@@ -65,7 +65,7 @@ fn get_birthday_role_id_trans(connection: &Transaction, guild_id: u64) -> Result
     connection.query_row(select_string, [guild_id], |row| row.get::<_, u64>(0)).optional()
 }
 
-pub async fn get_birthday_role(ctx: &Context, channel_id: &ChannelId, guild_id: u64) -> Result<(), SerenitySQLiteError> {
+pub async fn get_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u64) -> Result<(), SerenitySQLiteError> {
     let connection = Connection::open(BURDBOT_DB)?;
     let role_id_option = get_birthday_role_id_conn(&connection, guild_id)?;
 
@@ -140,7 +140,7 @@ fn handle_db_birthday_removal(guild_id: u64) -> Result<Option<(Vec<u64>, u64)>, 
     Ok(Some((deleted_users, bday_role_id)))
 }
 
-pub async fn remove_birthday_role(ctx: &Context, channel_id: &ChannelId, guild_id: u64) -> Result<(), SerenitySQLiteError> {
+pub async fn remove_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u64) -> Result<(), SerenitySQLiteError> {
     let db_removal_result = handle_db_birthday_removal(guild_id)?;
 
     if db_removal_result.is_none() {

@@ -148,7 +148,7 @@ async fn parse_term(ctx: &Context, msg: &Message, args: &mut Args) -> Result<Str
     match args.current() {
         Some(arg) => Ok(urlencoding::encode(arg)),
         None => {
-            error_util::not_enough_arguments(ctx, &msg.channel_id, 0, 1).await;
+            error_util::not_enough_arguments(ctx, msg.channel_id, 0, 1).await;
 
             Err(NotEnoughArgumentsError::new(1, 0))
         }

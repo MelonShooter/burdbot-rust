@@ -76,7 +76,7 @@ where
     match args.parse::<T>() {
         Ok(month_number) => {
             if month_number < start || month_number > end {
-                error_util::check_within_range(ctx, &msg.channel_id, month_number, arg_pos, start, end).await;
+                error_util::check_within_range(ctx, msg.channel_id, month_number, arg_pos, start, end).await;
 
                 Err(ArgumentParseErrorType::OutOfBounds(ArgumentOutOfBoundsError::new(
                     start,
@@ -93,7 +93,7 @@ where
         Err(error) => {
             if let ArgError::Eos = error {
                 // Error thrown because we've reached the end.
-                error_util::not_enough_arguments(ctx, &msg.channel_id, arg_pos - 1, args_needed).await;
+                error_util::not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
                 Err(ArgumentParseErrorType::NotEnoughArguments(NotEnoughArgumentsError::new(
                     args_needed,
@@ -101,7 +101,7 @@ where
                 )))
             } else {
                 // Must be a parse error.
-                error_util::check_within_range(ctx, &msg.channel_id, args.current().unwrap(), arg_pos, start, end).await;
+                error_util::check_within_range(ctx, msg.channel_id, args.current().unwrap(), arg_pos, start, end).await;
 
                 Err(ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(
                     args.current().unwrap().to_owned(),
@@ -163,7 +163,7 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
         }
         Err(error) => {
             if let ArgError::Eos = error {
-                error_util::not_enough_arguments(ctx, &msg.channel_id, arg_pos - 1, args_needed).await;
+                error_util::not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
                 return Err(ArgumentParseErrorType::NotEnoughArguments(NotEnoughArgumentsError::new(
                     args_needed,
@@ -197,7 +197,7 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
 
     let msg_str = format!("Invalid argument #{}. Could not find any user with that name or ID.", arg_pos);
 
-    send_message(ctx, &msg.channel_id, msg_str, "parse_member").await;
+    send_message(ctx, msg.channel_id, msg_str, "parse_member").await;
 
     Err(ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(
         arg.to_owned(),
@@ -264,7 +264,7 @@ where
         }
         Err(error) => {
             if let ArgError::Eos = error {
-                error_util::not_enough_arguments(ctx, &msg.channel_id, arg_pos - 1, args_needed).await;
+                error_util::not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
                 Err(Box::new(ArgumentParseErrorType::NotEnoughArguments::<u32>(NotEnoughArgumentsError::new(
                     args_needed,
@@ -308,7 +308,7 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
         }
         Err(error) => {
             if let ArgError::Eos = error {
-                error_util::not_enough_arguments(ctx, &msg.channel_id, arg_pos - 1, args_needed).await;
+                error_util::not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
                 return Err(ArgumentParseErrorType::NotEnoughArguments(NotEnoughArgumentsError::new(
                     args_needed,
@@ -330,14 +330,14 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
 
     let msg_str = format!("Invalid argument #{}. Could not find any role with that ID.", arg_pos);
 
-    send_message(ctx, &msg.channel_id, msg_str, "parse_role").await;
+    send_message(ctx, msg.channel_id, msg_str, "parse_role").await;
 
     Err(ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(
         arg.to_owned(),
     )))
 }
 
-pub async fn send_message(ctx: impl AsRef<Http>, ch: &ChannelId, msg: impl Display, function_name: &str) {
+pub async fn send_message(ctx: impl AsRef<Http>, ch: ChannelId, msg: impl Display, function_name: &str) {
     if let Err(Error::Model(ModelError::MessageTooLong(_))) = ch.say(ctx, msg).await {
         error!("{}() message too long! This shouldn't ever happen.", function_name);
     }

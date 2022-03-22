@@ -57,7 +57,7 @@ pub fn on_speaking_update(event_handler: &BurdBotVoiceEventHandler, speaking: &b
     }
 }
 
-pub fn on_client_disconnect(event_handler: &BurdBotVoiceEventHandler, user_id: &UserId) {
+pub fn on_client_disconnect(event_handler: &BurdBotVoiceEventHandler, user_id: UserId) {
     let mut user_id_to_start = event_handler.user_id_to_start.write().unwrap();
     let mut ssrc_to_user_id = event_handler.ssrc_to_user_id.write().unwrap();
     let user_id_number = &(user_id.0);

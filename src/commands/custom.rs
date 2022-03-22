@@ -7,12 +7,12 @@ use serenity::utils::Color;
 
 use super::{util, ArgumentInfo};
 
-async fn banfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_id: &RoleId, ch_name: &'a str) -> Result<String, CommandError> {
+async fn banfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_id: RoleId, ch_name: &'a str) -> Result<String, CommandError> {
     let mut target = util::parse_member(ctx, msg, ArgumentInfo::new(&mut args, 1, 1)).await?;
     let target_name = target.user.name.clone();
     let target_id = target.user.id;
 
-    Ok(if target.roles.contains(role_id) {
+    Ok(if target.roles.contains(&role_id) {
         format!("{} ({}) already is banned from the {} channel(s).", target_name, target_id, ch_name)
     } else {
         match target.add_role(&ctx, role_id).await {
@@ -41,12 +41,12 @@ async fn banfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_i
     })
 }
 
-async fn unbanfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_id: &RoleId, ch_name: &'a str) -> Result<String, CommandError> {
+async fn unbanfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_id: RoleId, ch_name: &'a str) -> Result<String, CommandError> {
     let mut target = util::parse_member(ctx, msg, ArgumentInfo::new(&mut args, 1, 1)).await?;
     let target_name = target.user.name.clone();
     let target_id = target.user.id;
 
-    Ok(if !target.roles.contains(role_id) {
+    Ok(if !target.roles.contains(&role_id) {
         format!(
             "{} ({}) was not banned from the {} channel(s) in the first place.",
             target_name, target_id, ch_name
@@ -103,9 +103,9 @@ async fn is_server_helper_or_above(ctx: &Context, msg: &Message) -> Result<(), R
 #[example("DELIBURD#7741")]
 #[description("Ban a user from the memes channel.")]
 async fn banfrommemes(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let message_to_send = banfromchannel(ctx, msg, args, &RoleId::from(863822767702409216), "memes").await?;
+    let message_to_send = banfromchannel(ctx, msg, args, RoleId::from(863822767702409216), "memes").await?;
 
-    util::send_message(ctx, &msg.channel_id, message_to_send, "banfrommemes").await;
+    util::send_message(ctx, msg.channel_id, message_to_send, "banfrommemes").await;
 
     Ok(())
 }
@@ -118,9 +118,9 @@ async fn banfrommemes(ctx: &Context, msg: &Message, args: Args) -> CommandResult
 #[example("DELIBURD#7741")]
 #[description("Unban a user from the memes channel.")]
 async fn unbanfrommemes(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let message_to_send = unbanfromchannel(ctx, msg, args, &RoleId::from(863822767702409216), "memes").await?;
+    let message_to_send = unbanfromchannel(ctx, msg, args, RoleId::from(863822767702409216), "memes").await?;
 
-    util::send_message(ctx, &msg.channel_id, message_to_send, "unbanfrommemes").await;
+    util::send_message(ctx, msg.channel_id, message_to_send, "unbanfrommemes").await;
 
     Ok(())
 }

@@ -87,9 +87,7 @@ pub async fn on_member_remove(ctx: &Context, guild_id: u64, user_id: u64) {
     let mut data = ctx.data.write().await;
 
     if let Some(search_engine) = data.get_mut::<UserSearchEngine>().and_then(|engines| engines.get_mut(&guild_id)) {
-        let id = &user_id;
-
-        search_engine.delete(id);
+        search_engine.delete(&user_id);
     }
 }
 

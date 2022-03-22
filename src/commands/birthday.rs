@@ -172,7 +172,7 @@ async fn set_birthday(context: &Context, message: &Message, mut args: Args, targ
 
     let channel_id = message.channel_id;
 
-    util::send_message(context, &channel_id, birthday_set_message, "setbirthday").await;
+    util::send_message(context, channel_id, birthday_set_message, "setbirthday").await;
 
     let ctx_data = context.data.clone();
     let ctx_http = context.http.clone();
@@ -183,7 +183,7 @@ async fn set_birthday(context: &Context, message: &Message, mut args: Args, targ
         let data = ctx_data.read().await;
         let mut birthday_info_map = data.get::<BirthdayInfoConfirmationKey>().unwrap().write().await;
 
-        util::send_message(&ctx_http, &channel_id, "Add birthday request expired.", "setbirthday").await;
+        util::send_message(&ctx_http, channel_id, "Add birthday request expired.", "setbirthday").await;
 
         birthday_info_map.remove(&author_id);
     });
@@ -215,13 +215,13 @@ async fn birthdayconfirm(context: &Context, message: &Message) -> CommandResult 
         if let Some(info) = birthday_info_map.get(message.author.id.as_u64()) {
             info.handle.abort(); // Abort the request expired message
 
-            if let Err(error) = add_birthday_to_db(context, &message.channel_id, info).await {
+            if let Err(error) = add_birthday_to_db(context, message.channel_id, info).await {
                 match error {
                     Error::SerenityError(errors) => error!("Serenity error while adding birthday to db: {}", errors[0]),
                     Error::SQLiteError(error) => error!("SQLite error while adding birthday to db: {}", error),
                 }
 
-                error_util::generic_fail(context, &message.channel_id).await;
+                error_util::generic_fail(context, message.channel_id).await;
             }
 
             return Ok(());
@@ -235,7 +235,7 @@ async fn birthdayconfirm(context: &Context, message: &Message) -> CommandResult 
         crate::PREFIX
     );
 
-    util::send_message(context, &message.channel_id, set_first_message, "birthdayconfirm").await;
+    util::send_message(context, message.channel_id, set_first_message, "birthdayconfirm").await;
 
     Ok(())
 }
@@ -252,10 +252,9 @@ async fn birthdayconfirm(context: &Context, message: &Message) -> CommandResult 
 async fn removeuserbirthday(context: &Context, message: &Message, mut args: Args) -> CommandResult {
     let arg_info = ArgumentInfo::new(&mut args, 1, 1);
     let user_id = util::parse_member(context, message, arg_info).await?.user.id.0;
-    let channel_id = message.channel_id;
     let guild_id = message.guild_id.unwrap().0;
 
-    birthday_tracker::remove_birthday(context, &channel_id, guild_id, user_id).await?;
+    birthday_tracker::remove_birthday(context, message.channel_id, guild_id, user_id).await?;
 
     Ok(())
 }
@@ -266,10 +265,9 @@ async fn removeuserbirthday(context: &Context, message: &Message, mut args: Args
 #[aliases("getmybday")]
 #[bucket("db_operations")]
 async fn getmybirthday(context: &Context, message: &Message) -> CommandResult {
-    let channel_id = message.channel_id;
     let user_id = message.author.id.0;
 
-    birthday_tracker::get_birthday(context, &channel_id, user_id).await?;
+    birthday_tracker::get_birthday(context, message.channel_id, user_id).await?;
 
     Ok(())
 }
@@ -284,11 +282,10 @@ async fn getmybirthday(context: &Context, message: &Message) -> CommandResult {
 #[aliases("getusrbday", "getusrbirthday", "getuserbday")]
 #[bucket("db_operations")]
 async fn getuserbirthday(context: &Context, message: &Message, mut args: Args) -> CommandResult {
-    let channel_id = message.channel_id;
     let arg_info = ArgumentInfo::new(&mut args, 1, 1);
     let member = util::parse_member(context, message, arg_info).await?;
 
-    birthday_tracker::get_birthday(context, &channel_id, member.user.id.0).await?;
+    birthday_tracker::get_birthday(context, message.channel_id, member.user.id.0).await?;
 
     Ok(())
 }
@@ -307,7 +304,7 @@ async fn setserverbirthdayrole(context: &Context, message: &Message, mut args: A
     let role_id = util::parse_role(context, message, arg_info).await?.id.0;
     let guild_id = message.guild_id.unwrap().0;
 
-    birthday_tracker::set_birthday_role(context, &message.channel_id, guild_id, role_id).await?;
+    birthday_tracker::set_birthday_role(context, message.channel_id, guild_id, role_id).await?;
 
     Ok(())
 }
@@ -321,7 +318,7 @@ async fn setserverbirthdayrole(context: &Context, message: &Message, mut args: A
 async fn getserverbirthdayrole(context: &Context, message: &Message) -> CommandResult {
     let guild_id = message.guild_id.unwrap().0;
 
-    birthday_tracker::get_birthday_role(context, &message.channel_id, guild_id).await?;
+    birthday_tracker::get_birthday_role(context, message.channel_id, guild_id).await?;
 
     Ok(())
 }
@@ -335,7 +332,7 @@ async fn getserverbirthdayrole(context: &Context, message: &Message) -> CommandR
 async fn removeserverbirthdayrole(context: &Context, message: &Message) -> CommandResult {
     let guild_id = message.guild_id.unwrap().0;
 
-    birthday_tracker::remove_birthday_role(context, &message.channel_id, guild_id).await?;
+    birthday_tracker::remove_birthday_role(context, message.channel_id, guild_id).await?;
 
     Ok(())
 }
