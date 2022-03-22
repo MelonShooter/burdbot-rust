@@ -113,15 +113,13 @@ pub fn obfuscated_command(_arguments: TokenStream, input_stream: TokenStream) ->
     let mut value = String::with_capacity(128);
     let mut code = "";
 
-    if let Stmt::Expr(expr) = statement {
-        if let Expr::Lit(expr_lit) = expr {
-            if let Lit::Str(lit) = expr_lit.lit {
-                value.push('{');
-                value.push_str(lit.value().as_str());
-                value.push('}');
+    if let Stmt::Expr(Expr::Lit(expr_lit)) = statement {
+        if let Lit::Str(lit) = expr_lit.lit {
+            value.push('{');
+            value.push_str(lit.value().as_str());
+            value.push('}');
 
-                code = value.as_str();
-            }
+            code = value.as_str();
         }
     }
 

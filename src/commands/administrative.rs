@@ -32,16 +32,13 @@ fn get_message_id_from_link(link: &str) -> u64 {
         unsanitized_message_id = &unsanitized_message_id[0..slash_pos];
     }
 
-    let message_id = unsanitized_message_id.parse().expect(
+    unsanitized_message_id.parse().expect(
         "Message ID could not be parsed in link. \
     This should never happen.",
-    );
-
-    message_id
+    )
 }
 
 struct Log {
-    pub user_id: u64,
     pub entry_id: i64,
     pub original_link: String,
     pub last_edited_link: Option<String>,
@@ -49,9 +46,8 @@ struct Log {
 }
 
 impl Log {
-    pub fn new(user_id: u64, entry_id: i64, original_link: String, last_edited_link: Option<String>, reason: String) -> Log {
+    pub fn new(entry_id: i64, original_link: String, last_edited_link: Option<String>, reason: String) -> Log {
         Log {
-            user_id,
             entry_id,
             original_link,
             last_edited_link,
@@ -110,7 +106,7 @@ fn get_staff_logs(id: u64) -> Result<Vec<Log>, Error> {
             let original_link = row.get("original_link")?;
             let edited_link = row.get("last_edited_link")?;
 
-            Ok(Log::new(id, 0, original_link, edited_link, row.get("reason")?))
+            Ok(Log::new(0, original_link, edited_link, row.get("reason")?))
         })?
         .enumerate()
         .map(|(index, row_result)| {
@@ -181,7 +177,7 @@ where
             message.embed(|embed| {
                 let username = member.user.tag();
                 let nickname = member.display_name();
-                let avatar = member.user.avatar_url().unwrap_or(member.user.default_avatar_url());
+                let avatar = member.user.avatar_url().unwrap_or_else(|| member.user.default_avatar_url());
 
                 embed.title("Staff Log");
                 embed.color(id_to_color(id));
@@ -202,7 +198,7 @@ where
 
                 embed.footer(|footer| {
                     footer.text(format!("Requested by: {}", invoker.tag()));
-                    footer.icon_url(invoker.avatar_url().unwrap_or(invoker.default_avatar_url()))
+                    footer.icon_url(invoker.avatar_url().unwrap_or_else(|| invoker.default_avatar_url()))
                 });
 
                 func(embed, log_count)
@@ -285,7 +281,7 @@ async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRes
 
             // Add the new log manually.
             let entry_id = 1 + make_staff_log_embed(&msg.author, m, &target, |embed, log_count| {
-                let log = &Log::new(target_id, log_count + 1, msg_link.clone(), None, reason.to_string());
+                let log = &Log::new(log_count + 1, msg_link.clone(), None, reason.to_string());
 
                 if log_count == 0 {
                     embed.field("⁣Log #1:", format_field(log, true), false)

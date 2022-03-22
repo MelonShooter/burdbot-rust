@@ -37,14 +37,12 @@ async fn control_channel_access(http: &Http, channel: &Channel, allow: bool) -> 
         Channel::Guild(ch) => ch
             .permission_overwrites
             .iter()
-            .filter(|p| p.kind == PermissionOverwriteType::Role(everyone_id))
-            .next()
+            .find(|p| p.kind == PermissionOverwriteType::Role(everyone_id))
             .cloned(),
         Channel::Category(cat) => cat
             .permission_overwrites
             .iter()
-            .filter(|p| p.kind == PermissionOverwriteType::Role(everyone_id))
-            .next()
+            .find(|p| p.kind == PermissionOverwriteType::Role(everyone_id))
             .cloned(),
         _ => None,
     }
@@ -89,7 +87,7 @@ async fn get_english_class_channels(cache: impl AsRef<Cache>) -> Vec<Channel> {
     }
 }
 
-async fn get_teachers_present(ctx: &Context, english_channels: &Vec<Channel>) -> Vec<u64> {
+async fn get_teachers_present(ctx: &Context, english_channels: &[Channel]) -> Vec<u64> {
     let mut teachers = Vec::new();
 
     for ch in english_channels {
@@ -115,17 +113,14 @@ async fn get_teachers_present(ctx: &Context, english_channels: &Vec<Channel>) ->
                     })
                     .await;
 
-                match members_roles {
-                    Some(members_roles) => {
-                        let role_id = RoleId::from(ENGLISH_TEACHER_ROLE_ID);
+                if let Some(members_roles) = members_roles {
+                    let role_id = RoleId::from(ENGLISH_TEACHER_ROLE_ID);
 
-                        for (id, roles) in members_roles {
-                            if roles.contains(&role_id) {
-                                teachers.push(id);
-                            }
+                    for (id, roles) in members_roles {
+                        if roles.contains(&role_id) {
+                            teachers.push(id);
                         }
                     }
-                    _ => (),
                 }
             }
         }
@@ -197,12 +192,9 @@ pub async fn on_voice_state_update(old_state: Option<&VoiceState>, new_state: &V
 
                     let mut write_data = data.write().await;
 
-                    match write_data.get_mut::<Teachers>() {
-                        Some(teachers) => {
-                            control_english_channel_access(http, get_english_class_channels(cache).await, false).await;
-                            teachers.remove(&teacher_id);
-                        }
-                        None => (),
+                    if let Some(teachers) = write_data.get_mut::<Teachers>() {
+                        control_english_channel_access(http, get_english_class_channels(cache).await, false).await;
+                        teachers.remove(&teacher_id);
                     };
                 }));
             }
@@ -221,22 +213,19 @@ pub async fn on_voice_state_update(old_state: Option<&VoiceState>, new_state: &V
             None => None,
         };
 
-        match teacher_id {
-            Some(id) => {
-                let teachers = match write_data.get_mut::<Teachers>() {
-                    Some(teachers) => teachers,
-                    None => return,
-                };
+        if let Some(id) = teacher_id {
+            let teachers = match write_data.get_mut::<Teachers>() {
+                Some(teachers) => teachers,
+                None => return,
+            };
 
-                let join_handle_to_cancel = teachers.insert(id.0, None);
+            let join_handle_to_cancel = teachers.insert(id.0, None);
 
-                if let Some(join_handle) = join_handle_to_cancel.flatten() {
-                    join_handle.abort();
-                }
-
-                control_english_channel_access(ctx.http.clone(), get_english_class_channels(ctx).await, true).await;
+            if let Some(join_handle) = join_handle_to_cancel.flatten() {
+                join_handle.abort();
             }
-            None => return,
+
+            control_english_channel_access(ctx.http.clone(), get_english_class_channels(ctx).await, true).await;
         }
     }
 }

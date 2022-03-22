@@ -58,7 +58,7 @@ async fn join_target_voice_channel(manager: &Arc<Songbird>) {
 
             handler.add_global_event(
                 CoreEvent::ClientDisconnect.into(),
-                BurdBotVoiceEventHandler::new(ssrc_user_to_id.clone(), user_id_to_start.clone()),
+                BurdBotVoiceEventHandler::new(ssrc_user_to_id, user_id_to_start),
             );
         }
         Err(err) => match err {
@@ -71,7 +71,7 @@ async fn join_target_voice_channel(manager: &Arc<Songbird>) {
 pub async fn is_tracker_enabled(context_data: RwLockReadGuard<'_, TypeMap>) -> bool {
     let session_tracker_enabled = context_data.get::<SessionTrackerEnabler>().unwrap();
 
-    return *session_tracker_enabled;
+    *session_tracker_enabled
 }
 
 pub async fn on_voice_state_update(new_state: &VoiceState, context: &Context) {
@@ -89,8 +89,12 @@ pub async fn on_voice_state_update(new_state: &VoiceState, context: &Context) {
         return;
     }
 
-    if let None = new_state.channel_id.filter(|id| id == &ChannelId::from(TARGET_VOICE_CHANNEL_ID)) {
-        join_target_voice_channel_with_context(&context).await;
+    if new_state
+        .channel_id
+        .filter(|id| id == &ChannelId::from(TARGET_VOICE_CHANNEL_ID))
+        .is_none()
+    {
+        join_target_voice_channel_with_context(context).await;
     }
 }
 
@@ -98,6 +102,6 @@ pub async fn on_ready(context: &Context) {
     let mut context_data = context.data.write().await;
     context_data.insert::<SessionTrackerEnabler>(false);
     if is_tracker_enabled(context_data.downgrade()).await {
-        join_target_voice_channel_with_context(&context).await;
+        join_target_voice_channel_with_context(context).await;
     }
 }

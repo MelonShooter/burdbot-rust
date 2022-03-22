@@ -119,7 +119,6 @@ fn handle_db_birthday_removal(guild_id: u64) -> Result<Option<(Vec<u64>, u64)>, 
         WHERE guild_id = ?;
     ";
 
-    let bday_role_id;
     let mut deleted_users;
     let bday_role_id_option = get_birthday_role_id_trans(&transaction, guild_id)?;
 
@@ -127,7 +126,7 @@ fn handle_db_birthday_removal(guild_id: u64) -> Result<Option<(Vec<u64>, u64)>, 
         return Ok(None);
     }
 
-    bday_role_id = bday_role_id_option.unwrap();
+    let bday_role_id = bday_role_id_option.unwrap();
 
     {
         let mut rows_statement = transaction.prepare(user_id_query_string)?;

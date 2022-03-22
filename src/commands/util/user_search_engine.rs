@@ -12,11 +12,10 @@ impl TypeMapKey for UserSearchEngine {
     type Value = HashMap<u64, SimSearch<u64>>;
 }
 
-fn add_member_to_search_engine(nick_option: &Option<String>, search_engine: &mut SimSearch<u64>, id: u64, name: &String, tag: &String) {
-    if let Some(nick) = nick_option {
-        search_engine.insert_tokens(id, &[nick.as_str(), name.as_str(), tag.as_str()]);
-    } else {
-        search_engine.insert_tokens(id, &[name.as_str(), tag.as_str()]);
+fn add_member_to_search_engine(nick_option: Option<&str>, search_engine: &mut SimSearch<u64>, id: u64, name: &str, tag: &str) {
+    match nick_option {
+        Some(nick) => search_engine.insert_tokens(id, &[nick, name, tag]),
+        None => search_engine.insert_tokens(id, &[name, tag]),
     }
 }
 
@@ -27,12 +26,11 @@ async fn add_guild_to_search_engine(ctx: &Context, guild_id: GuildId, user_searc
     let guild_adder = |guild: &Guild| {
         for (user_id, member) in guild.members.iter() {
             let id = *user_id.as_u64();
-            let user = &member.user;
-            let nick = &member.nick;
-            let name = &user.name;
-            let tag = &user.tag();
+            let nick = member.nick.as_deref();
+            let name = member.user.name.as_str();
+            let tag = member.user.tag();
 
-            add_member_to_search_engine(nick, &mut search_engine, id, name, tag);
+            add_member_to_search_engine(nick, &mut search_engine, id, name, tag.as_str());
         }
 
         user_search_map.insert(guild.id.0, search_engine);
@@ -74,44 +72,32 @@ pub async fn on_cache_ready(ctx: &Context) {
 
 pub async fn on_member_add(ctx: &Context, guild_id: u64, member: Member) {
     let mut data = ctx.data.write().await;
-    let search_engines_option = data.get_mut::<UserSearchEngine>();
 
-    if let Some(search_engines) = search_engines_option {
-        let search_engine_option = search_engines.get_mut(&guild_id);
+    if let Some(search_engine) = data.get_mut::<UserSearchEngine>().and_then(|engines| engines.get_mut(&guild_id)) {
+        let id = member.user.id.0;
+        let nick = member.nick.as_deref();
+        let name = member.user.name.as_str();
+        let tag = member.user.tag();
 
-        if let Some(search_engine) = search_engine_option {
-            let nick = member.nick;
-            let id = member.user.id.0;
-            let name = &member.user.name;
-            let tag = &member.user.tag();
-
-            add_member_to_search_engine(&nick, search_engine, id, name, tag);
-        }
+        add_member_to_search_engine(nick, search_engine, id, name, tag.as_str());
     }
 }
 
 pub async fn on_member_remove(ctx: &Context, guild_id: u64, user_id: u64) {
     let mut data = ctx.data.write().await;
-    let search_engines_option = data.get_mut::<UserSearchEngine>();
 
-    if let Some(search_engines) = search_engines_option {
-        let search_engine_option = search_engines.get_mut(&guild_id);
+    if let Some(search_engine) = data.get_mut::<UserSearchEngine>().and_then(|engines| engines.get_mut(&guild_id)) {
+        let id = &user_id;
 
-        if let Some(search_engine) = search_engine_option {
-            let id = &user_id;
-
-            search_engine.delete(id);
-        }
+        search_engine.delete(id);
     }
 }
 
 pub async fn user_id_search(ctx: &Context, guild_id: u64, user_str: &str) -> Option<Vec<u64>> {
     let data = ctx.data.clone();
     let data_read_lock = data.read().await;
-    let search_engine_option = data_read_lock.get::<UserSearchEngine>().and_then(|map| map.get(&guild_id));
-
-    match search_engine_option {
-        Some(search_engine) => Some(search_engine.search(user_str)),
-        None => None,
-    }
+    data_read_lock
+        .get::<UserSearchEngine>()
+        .and_then(|map| map.get(&guild_id))
+        .map(|search_engine| search_engine.search(user_str))
 }

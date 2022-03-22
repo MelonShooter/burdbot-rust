@@ -14,12 +14,12 @@ use reqwest::Error;
 use scraper::ElementRef;
 use scraper::Html;
 use scraper::Selector;
+use std::fmt::Display;
 use strum::EnumProperty;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use strum_macros::EnumProperty;
 use strum_macros::EnumString;
-use std::fmt::Display;
 
 use serenity::client::Context;
 use serenity::framework::standard::Args;
@@ -74,7 +74,6 @@ enum Country {
     Spain,
 
     // UNITED STATES MUST BE THE FIRST ENGLISH SPEAKING COUNTRY BY INDEX IN THIS LIST.
-
     #[strum(serialize = "🇺🇸", serialize = "United States", props(flag = "🇺🇸", index = "19"))]
     UnitedStates,
     #[strum(serialize = "🇨🇦", serialize = "Canada", props(flag = "🇨🇦", index = "20"))]
@@ -92,10 +91,18 @@ enum Country {
 impl Country {
     fn is_spanish(&self) -> bool {
         lazy_static! {
-            static ref UNITED_STATES_INDEX: u64 = Country::UnitedStates.get_str("index").expect("Enum didn't have index").parse().expect("Enum index wasn't a number.");
+            static ref UNITED_STATES_INDEX: u64 = Country::UnitedStates
+                .get_str("index")
+                .expect("Enum didn't have index")
+                .parse()
+                .expect("Enum index wasn't a number.");
         }
 
-        let index: u64 = self.get_str("index").expect("Enum didn't have index").parse().expect("Enum index wasn't a number.");
+        let index: u64 = self
+            .get_str("index")
+            .expect("Enum didn't have index")
+            .parse()
+            .expect("Enum index wasn't a number.");
 
         index < *UNITED_STATES_INDEX
     }
@@ -107,10 +114,11 @@ impl Display for Country {
     }
 }
 
-impl Into<NodeIndex> for Country {
-    fn into(self) -> NodeIndex {
+impl From<Country> for NodeIndex {
+    fn from(country: Country) -> Self {
         NodeIndex::new(
-            self.get_str("index")
+            country
+                .get_str("index")
                 .expect("Enum didn't have index.")
                 .parse()
                 .expect("Enum index wasn't a number."),
@@ -142,27 +150,27 @@ async fn parse_term(ctx: &Context, msg: &Message, args: &mut Args) -> Result<Str
         None => {
             error_util::not_enough_arguments(ctx, &msg.channel_id, 0, 1).await;
 
-            Err(NotEnoughArgumentsError::new(1, 0).into())
+            Err(NotEnoughArgumentsError::new(1, 0))
         }
     }
 }
 
-fn get_link_and_country<'a>(entries: &'a ElementRef) -> Result<Option<Vec<ForvoRecording>>, Box<dyn StdError + Send + Sync>> {
+fn get_link_and_country(entries: &ElementRef) -> Result<Option<Vec<ForvoRecording>>, Box<dyn StdError + Send + Sync>> {
     lazy_static! {
         static ref FORVO_HTML_MATCHER: Regex = Regex::new(r"(?s)Play\(\d+,'(\w+=*).*?'h'\);return.*? from ([a-zA-Z ]+)").unwrap();
     }
 
     let mut recordings = Vec::new();
-    
+
     for capture in FORVO_HTML_MATCHER.captures_iter(entries.inner_html().as_str()) {
         let url_base64_data = capture.get(1).expect("Capture group 1 didn't exist.");
         let country = match capture.get(2).expect("Capture group 2 didn't exist.").as_str().parse::<Country>() {
             Ok(c) => c,
-            Err(_) => continue
+            Err(_) => continue,
         };
-        
+
         let url_data = String::from_utf8(base64::decode(url_base64_data.as_str())?)?;
-        
+
         recordings.push(ForvoRecording::new(country, format!("https://forvo.com/mp3/{}", url_data)))
     }
 
@@ -173,27 +181,24 @@ fn get_link_and_country<'a>(entries: &'a ElementRef) -> Result<Option<Vec<ForvoR
     }
 }
 
-async fn get_all_recordings(term: &str, requested_country: Option<Country>) -> Result<[(Option<Vec<ForvoRecording>>, bool); 2], Box<dyn StdError + Send + Sync>> {
+async fn get_all_recordings(
+    term: &str,
+    requested_country: Option<Country>,
+) -> Result<[(Option<Vec<ForvoRecording>>, bool); 2], Box<dyn StdError + Send + Sync>> {
     let mut recording_vec = [(None, true), (None, false)];
     let url = format!("https://forvo.com/word/{}/", term);
     let data = FORVO_CLIENT.get(url).send().await?.text().await?;
     let document = Html::parse_document(data.as_str());
     let language_containers = Selector::parse("div.language-container").expect("Bad CSS selector.");
-    let mut do_english = true;
-    let mut do_spanish = true;
-    
-    if let Some(country) = requested_country {
-        if country.is_spanish() {
-            do_english = false;
-        } else {
-            do_spanish = false;
-        }
-    }
+    let (do_english, do_spanish) = match requested_country {
+        Some(country) => (!country.is_spanish(), country.is_spanish()),
+        None => (true, true),
+    };
 
     for element in document.select(&language_containers) {
-        match element.value().id() {
-            Some("language-container-es") => if do_spanish {recording_vec[0] = (get_link_and_country(&element)?, true)},
-            Some("language-container-en") => if do_english {recording_vec[1] = (get_link_and_country(&element)?, false)},
+        match (element.value().id(), do_spanish, do_english) {
+            (Some("language-container-es"), true, _) => recording_vec[0] = (get_link_and_country(&element)?, true),
+            (Some("language-container-en"), _, true) => recording_vec[1] = (get_link_and_country(&element)?, false),
             _ => (),
         }
     }
@@ -205,7 +210,7 @@ async fn get_pronunciation_from_link(forvo_recording: &str) -> Result<Vec<u8>, E
     Ok(FORVO_CLIENT.get(forvo_recording).send().await?.bytes().await?.to_vec())
 }
 
-fn get_closest_recording_index(requested_country: Option<Country>, recordings: &Vec<ForvoRecording>, is_spanish: bool) -> usize {
+fn get_closest_recording_index(requested_country: Option<Country>, recordings: &[ForvoRecording], is_spanish: bool) -> usize {
     lazy_static! {
         static ref COUNTRY_GRAPH: UnGraph<Country, u32> = UnGraph::from_edges(&[
             (Country::Argentina, Country::Uruguay, 0),
@@ -248,7 +253,13 @@ fn get_closest_recording_index(requested_country: Option<Country>, recordings: &
 
     let country = match requested_country {
         Some(country) => country,
-        None => if is_spanish {Country::Argentina} else {Country::UnitedStates},
+        None => {
+            if is_spanish {
+                Country::Argentina
+            } else {
+                Country::UnitedStates
+            }
+        }
     };
 
     let mut accent_difference_lock = ACCENT_DIFFERENCES.lock().unwrap();
@@ -296,11 +307,11 @@ pub async fn fetch_pronunciation(
     args.advance();
 
     let requested_country = if args.remaining() >= 1 {
-            Some(commands::parse_choices(ctx, msg, ArgumentInfo::new(args, 1, 2), Country::iter()).await?)
-        } else {
-            None
-        };
-        
+        Some(commands::parse_choices(ctx, msg, ArgumentInfo::new(args, 1, 2), Country::iter()).await?)
+    } else {
+        None
+    };
+
     let recordings_data = get_all_recordings(term.as_str(), requested_country).await?;
     let mut links = Vec::with_capacity(2);
     let mut recordings: Vec<_> = recordings_data.iter().map(|recording_option| {
@@ -311,11 +322,11 @@ pub async fn fetch_pronunciation(
                 let no_special_message = requested_country.map_or(true, |c| c.is_spanish() != *is_spanish);
 
                 let message = if requested_country == Some(recording.country) || no_special_message {
-                    format!("Here is the pronunciation of ``{}``. Country: {}.", term, recording.country.to_string())
+                    format!("Here is the pronunciation of ``{}``. Country: {}.", term, recording.country)
                 } else {
                     format!(
                         "Here is the pronunciation of ``{}``. The pronunciation from the country closest in terms of accent to the requested country is {}.",
-                        term, recording.country.to_string()
+                        term, recording.country
                     )
                 };
 
@@ -325,19 +336,11 @@ pub async fn fetch_pronunciation(
             },
             _ => None,
         }
-        
     }).collect();
 
-    let mut index = 0;
-
-    for recording_option in recordings.iter_mut() {
-        if let Some(recording_data) = recording_option {
-            recording_data.recording = Arc::new(get_pronunciation_from_link(links[index]).await?);
-
-            index += 1;
-        }
+    for (index, recording_data) in recordings.iter_mut().flatten().enumerate() {
+        recording_data.recording = Arc::new(get_pronunciation_from_link(links[index]).await?);
     }
-    
 
     Ok(recordings)
 }

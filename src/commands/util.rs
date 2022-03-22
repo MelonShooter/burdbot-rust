@@ -119,7 +119,7 @@ where
         mention_matcher
             .captures(arg)
             .and_then(|captures| captures.get(1))
-            .and_then(|mat| Some(mat.as_str().parse::<u64>().unwrap()))
+            .map(|mat| mat.as_str().parse::<u64>().unwrap())
     } else {
         None
     }
@@ -143,9 +143,7 @@ async fn id_argument_to_member(
         .clone()
         .member(guild_id, user_id)
         .await
-        .ok_or(ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(
-            arg.to_owned(),
-        )));
+        .ok_or_else(|| ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
 }
 
 pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<Member, ArgumentParseErrorType<u32>> {
@@ -290,9 +288,7 @@ async fn id_argument_to_role(
         .clone()
         .role(guild_id, role_id)
         .await
-        .ok_or(ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(
-            arg.to_owned(),
-        )));
+        .ok_or_else(|| ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
 }
 
 pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<Role, ArgumentParseErrorType<u32>> {
@@ -342,10 +338,8 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
 }
 
 pub async fn send_message(ctx: impl AsRef<Http>, ch: &ChannelId, msg: impl Display, function_name: &str) {
-    if let Err(error) = ch.say(ctx, msg).await {
-        if let Error::Model(ModelError::MessageTooLong(_)) = error {
-            error!("{}() message too long! This shouldn't ever happen.", function_name);
-        }
+    if let Err(Error::Model(ModelError::MessageTooLong(_))) = ch.say(ctx, msg).await {
+        error!("{}() message too long! This shouldn't ever happen.", function_name);
     }
 }
 

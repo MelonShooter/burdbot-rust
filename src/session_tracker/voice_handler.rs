@@ -38,7 +38,7 @@ pub fn on_speaking_state_update(event_handler: &BurdBotVoiceEventHandler, user_i
         let user_id = id.0;
 
         ssrc_to_user_id.insert(*ssrc, user_id);
-        user_id_to_start.entry(user_id).or_insert(Instant::now());
+        user_id_to_start.entry(user_id).or_insert_with(Instant::now);
     }
 }
 
@@ -49,7 +49,7 @@ pub fn on_speaking_update(event_handler: &BurdBotVoiceEventHandler, speaking: &b
 
     if let Some(id) = user_id {
         if *speaking {
-            user_id_to_start.entry(*id).or_insert(Instant::now());
+            user_id_to_start.entry(*id).or_insert_with(Instant::now);
         } else if let Some(start_time) = user_id_to_start.get(id) {
             write_duration_with_error(start_time, id);
             user_id_to_start.remove(id);

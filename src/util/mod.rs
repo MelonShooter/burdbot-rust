@@ -38,7 +38,7 @@ pub fn decode_aes_bytes(encoded_input: Vec<u8>) -> String {
         let mut idx = 0;
 
         if start == 0 {
-            while idx < block_vec.len() && block_vec[idx] == '0' as u8 {
+            while idx < block_vec.len() && block_vec[idx] == b'0' {
                 idx += 1;
             }
         }

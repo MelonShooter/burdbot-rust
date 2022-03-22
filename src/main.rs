@@ -8,7 +8,7 @@ mod util;
 
 use ::time::UtcOffset;
 use async_ctrlc::CtrlC;
-use chrono::{NaiveDate, TimeZone, Timelike, Utc};
+use chrono::{Timelike, Utc};
 use chrono_tz::OffsetComponents;
 use chrono_tz::US::Pacific;
 use events::BurdBotEventHandler;
@@ -170,7 +170,7 @@ async fn main() {
         .framework(framework)
         .intents(GatewayIntents::all())
         .event_handler(BurdBotEventHandler)
-        .register_songbird_with(songbird.into())
+        .register_songbird_with(songbird)
         .await
         .expect("Couldn't build client.");
 

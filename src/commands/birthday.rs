@@ -85,7 +85,7 @@ async fn setmybirthday(context: &Context, message: &Message, mut args: Args) -> 
     let guild_id = message.guild_id.unwrap();
     let user_id = message.author.id;
     let permissions = util::get_member_permissions(cache, guild_id, user_id).await;
-    let is_privileged_option = permissions.and_then(|perms| Some(perms.manage_roles()));
+    let is_privileged_option = permissions.map(|perms| perms.manage_roles());
 
     if let Some(is_privileged) = is_privileged_option {
         set_birthday(context, message, args, message.author.id.0, is_privileged).await
@@ -146,10 +146,9 @@ async fn set_birthday(context: &Context, message: &Message, mut args: Args, targ
     } else {
         time_zone_string = time_zone.to_string();
     };
-    let birthday_set_message;
 
-    if !is_privileged {
-        birthday_set_message = format!(
+    let birthday_set_message = if !is_privileged {
+        format!(
             "Your birthday will be set as ``{} {}``. You will get the birthday role for 24 \
                 hours starting at 0:00 UTC{} of that day. Are you sure this is what you want? You won't be able to change this again \
                 unless a moderator does it for you. Type ``{}birthdayconfirm`` to confirm this. This will expire in 30 seconds.",
@@ -157,9 +156,9 @@ async fn set_birthday(context: &Context, message: &Message, mut args: Args, targ
             day,
             time_zone_string,
             crate::PREFIX
-        );
+        )
     } else {
-        birthday_set_message = format!(
+        format!(
             "{}'s birthday will be set as ``{} {}``. They will get the birthday role for 24 \
                 hours starting at 0:00 UTC{} of that day. Are you sure this is what you want? \
                 Type ``{}birthdayconfirm`` to confirm this. This will expire in 30 seconds.",
@@ -168,8 +167,8 @@ async fn set_birthday(context: &Context, message: &Message, mut args: Args, targ
             day,
             time_zone_string,
             crate::PREFIX
-        );
-    }
+        )
+    };
 
     let channel_id = message.channel_id;
 

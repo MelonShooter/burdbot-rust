@@ -10,20 +10,9 @@ use crate::DELIBURD_ID;
 pub mod error;
 
 pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: &ChannelId, arg_count: u32, args_needed: u32) {
-    let args_needed_message;
-    let arg_count_message;
+    let args_needed_message = if args_needed != 1 { "s are" } else { " is" };
 
-    if args_needed != 1 {
-        args_needed_message = "s are";
-    } else {
-        args_needed_message = " is";
-    }
-
-    if arg_count != 1 {
-        arg_count_message = "s were";
-    } else {
-        arg_count_message = " was";
-    }
+    let arg_count_message = if arg_count != 1 { "s were" } else { " was" };
 
     let not_enough_arguments_message = format!(
         "Invalid number of arguments provided. \
@@ -62,15 +51,13 @@ pub async fn generic_fail(ctx: &Context, ch: &ChannelId) {
 
     if deliburd_in_server(ctx, ch).await {
         fail_message = format!("Something went wrong. <@{}> has been notified about this.", DELIBURD_ID);
+    } else if let Some(owner) = ctx.cache.user(DELIBURD_ID).await {
+        fail_message = format!("Something went wrong. Please contact the owner of the bot, {}.", owner.tag());
     } else {
-        if let Some(owner) = ctx.cache.user(DELIBURD_ID).await {
-            fail_message = format!("Something went wrong. Please contact the owner of the bot, {}.", owner.tag());
-        } else {
-            fail_message = format!(
-                "Something went wrong. Please contact the owner of the bot. Their user ID is {}.",
-                DELIBURD_ID
-            );
-        }
+        fail_message = format!(
+            "Something went wrong. Please contact the owner of the bot. Their user ID is {}.",
+            DELIBURD_ID
+        );
     }
 
     util::send_message(ctx.http.clone(), ch, fail_message, "generic_fail").await;

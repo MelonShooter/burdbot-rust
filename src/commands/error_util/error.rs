@@ -63,12 +63,14 @@ impl<T: Ord + FromStr + Debug> Error for ArgumentOutOfBoundsError<T> {}
 
 #[derive(Debug)]
 pub struct ArgumentConversionError {
-    original_value: String,
+    _original_value: String,
 }
 
 impl ArgumentConversionError {
     pub fn new(original_value: String) -> ArgumentConversionError {
-        ArgumentConversionError { original_value }
+        ArgumentConversionError {
+            _original_value: original_value,
+        }
     }
 }
 

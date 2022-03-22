@@ -33,19 +33,17 @@ fn get_server_role(transaction: &Transaction, guild_id: u64) -> Result<Option<u6
 
 pub async fn add_birthday_to_db(ctx: &Context, channel_id: &ChannelId, bday_info: &BirthdayInfoConfirmation) -> Result<(), SerenitySQLiteError> {
     let connection = Connection::open(BURDBOT_DB)?;
-    let ins_stmt_str;
-
-    if !bday_info.is_privileged {
-        ins_stmt_str = "
+    let ins_stmt_str = if !bday_info.is_privileged {
+        "
             INSERT OR IGNORE INTO bday
             VALUES (?, ?, ?);
-        ";
+        "
     } else {
-        ins_stmt_str = "
+        "
             INSERT OR REPLACE INTO bday
             VALUES (?, ?, ?);
-        ";
-    }
+        "
+    };
 
     let user_id = bday_info.user_id;
     let cache = ctx.cache.clone();
@@ -208,16 +206,13 @@ pub async fn remove_birthday(ctx: &Context, channel_id: &ChannelId, guild_id: u6
         }
     }
     // Give this message only if their bday was actually found
-    let message;
-
-    // Means a birthday was deleted
-    if rows_changed > 0 {
-        message = format!("{}'s birthday was removed.", user_id);
+    let message = if rows_changed > 0 {
+        format!("{}'s birthday was removed.", user_id)
     } else {
-        message = format!("No birthday was found for {}.", user_id);
-    }
+        format!("No birthday was found for {}.", user_id)
+    };
 
-    commands::send_message(ctx, &channel_id, message, "remove_birthday").await;
+    commands::send_message(ctx, channel_id, message, "remove_birthday").await;
 
     Ok(())
 }

@@ -10,7 +10,7 @@ use rusqlite::{Connection, Error as SqliteError};
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::CommandResult;
-use serenity::model::channel::{Message, MessageReference, ReactionType};
+use serenity::model::channel::{Message, MessageReference};
 use serenity::model::id::UserId;
 use serenity::prelude::TypeMapKey;
 use serenity::Result as SerenityResult;
@@ -101,7 +101,7 @@ async fn process_vocaroo_id(ctx: &Context, client: &Client, vocaroo_id: &str) ->
     let url = format!("https://media.vocaroo.com/mp3/{vocaroo_id}");
 
     match download_vocaroo(client, url).await {
-        Ok(bytes) => return Ok(bytes),
+        Ok(bytes) => Ok(bytes),
         Err(err) => match err {
             VocarooError::FailedDownload(link, status) => {
                 let msg = format!("Warning: Failed to download vocaroo recording from https://media.vocaroo.com for link: {link}. Status {status} given. Falling back to https://media1.vocaroo.com... If status 404 was given, this probably just means the vocaroo recording expired unless the fallback link is successful. If the fallback link is successful, then this means you should check the rules again to see if they're accurate now. The JS code currently doesn't actually match which CDN server to use but it appears all new recordings are at https://media.vocaroo.com, not https://media1.vocaroo.com. Check the current code by looking up usages of 'mediaMP3FileURL' on the site's JS code in the script at the bottom of the body.");
@@ -110,7 +110,7 @@ async fn process_vocaroo_id(ctx: &Context, client: &Client, vocaroo_id: &str) ->
 
                 download_vocaroo(client, format!("https://media1.vocaroo.com/mp3/{vocaroo_id}")).await
             }
-            _ => return Err(err),
+            _ => Err(err),
         },
     }
 }

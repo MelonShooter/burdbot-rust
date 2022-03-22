@@ -99,11 +99,9 @@ fn get_and_delete_old_bdays(transaction: &Transaction, date_time: DateTime<Utc>)
 
 fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> Result<Vec<(u64, u64, u64)>, SQLiteError> {
     let mut query_info = Vec::new();
-    let mut user_selection_statement;
-
-    if curr_date_time.month() != 1 || curr_date_time.day() != 1 {
+    let mut user_selection_statement = if curr_date_time.month() != 1 || curr_date_time.day() != 1 {
         // If not Jan. 1
-        user_selection_statement = transaction.prepare(
+        transaction.prepare(
             "
                 SELECT 
                     bday.user_id, 
@@ -114,10 +112,10 @@ fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> Re
                     INNER JOIN bday_role_list ON bday.guild_id = bday_role_list.guild_id
                 WHERE bday_date < ? AND bday_date > ?;
             ",
-        )?;
+        )?
     } else {
         // If Jan. 1, we must ensure wrapping around is okay.
-        user_selection_statement = transaction.prepare(
+        transaction.prepare(
             "
                     SELECT 
                         bday.user_id, 
@@ -128,8 +126,8 @@ fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> Re
                         INNER JOIN bday_role_list ON bday.guild_id = bday_role_list.guild_id
                     WHERE bday_date < ? OR bday_date > ?;
                 ",
-        )?;
-    } // 6-15-4 < 6-18-12 AND 6-15-4 > 6-17-11
+        )?
+    }; // 6-15-4 < 6-18-12 AND 6-15-4 > 6-17-11
 
     let earliest_date_time = curr_date_time - Duration::hours(25); // Checks 23 hrs or less away
     let curr_date_time_fmt = BirthdayDateTime::from(curr_date_time);
