@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use chrono::{DateTime, Datelike, Duration, Utc};
 use rusqlite::{params, Connection};
 use rusqlite::{Error as SQLiteError, Transaction};
@@ -15,9 +13,10 @@ struct DatabaseRoleInfo {
     addition_list: Vec<(u64, u64, u64)>,
 }
 
-pub async fn update_birthday_roles(http: Arc<Http>) -> Result<(), SerenitySQLiteError> {
+pub async fn update_birthday_roles<T: AsRef<Http>>(http: T) -> Result<(), SerenitySQLiteError> {
     let user_role_info = update_bday_db_roles()?;
     let mut error_vector_option = None;
+    let http = http.as_ref();
 
     for (user_id, guild_id, role_id) in user_role_info.removal_list {
         if let Err(error) = http.remove_member_role(guild_id, user_id, role_id).await {
@@ -149,13 +148,12 @@ fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> Re
     ",
     )?;
 
-    for row in rows {
-        let bday_data = row.unwrap();
-        let bday_date_time = bday_data.3.one_day_ahead();
-        let rows_changed = insertion_statement.execute(params![bday_data.0, bday_date_time])?;
+    for (user_id, guild_id, bday_role_id, bday_date) in rows.flatten() {
+        let bday_date_time = bday_date.one_day_ahead();
+        let rows_changed = insertion_statement.execute(params![user_id, bday_date_time])?;
 
         if rows_changed != 0 {
-            query_info.push((bday_data.0, bday_data.1, bday_data.2));
+            query_info.push((user_id, guild_id, bday_role_id));
         }
     }
 

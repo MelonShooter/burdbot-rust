@@ -46,9 +46,8 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: &ChannelId, bday_info
     };
 
     let user_id = bday_info.user_id;
-    let cache = ctx.cache.clone();
     let channel_selector = |channel: &GuildChannel| *channel.guild_id.as_u64();
-    let guild_id = cache.guild_channel_field(*channel_id, channel_selector).await.unwrap();
+    let guild_id = ctx.cache.guild_channel_field(*channel_id, channel_selector).await.unwrap();
     let bday_date_naive_local = NaiveDate::from_ymd(2021, bday_info.month, bday_info.day).and_hms(0, 0, 0);
     let bday_date_naive_utc = bday_date_naive_local - Duration::hours(bday_info.time_zone);
     let bday_date_time = BirthdayDateTime::new(bday_date_naive_utc.month(), bday_date_naive_utc.day(), bday_date_naive_utc.hour());
@@ -75,20 +74,20 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: &ChannelId, bday_info
             ",
         )?;
 
-        let role_query = role_check_query.query_row([guild_id], |row| Ok(row.get::<_, u64>(0))).optional()?;
-
-        if let Some(role_id_result) = role_query {
-            role_id_option = Some(role_id_result?);
-            message = format!("{}'s birthday has been saved.", user_id);
-        } else {
-            // Means role doesn't exist in roles table
-            role_id_option = None;
-            message = format!(
-                "{}'s birthday has been saved, but this server doesn't have a birthday role. \
+        match role_check_query.query_row([guild_id], |row| Ok(row.get::<_, u64>(0))).optional()? {
+            Some(role_id_result) => {
+                role_id_option = Some(role_id_result?);
+                message = format!("{}'s birthday has been saved.", user_id);
+            }
+            None => {
+                role_id_option = None;
+                message = format!(
+                    "{}'s birthday has been saved, but this server doesn't have a birthday role. \
                     Please ask a staff member to set one.",
-                user_id
-            );
-        }
+                    user_id
+                );
+            }
+        };
     }
 
     if let Some(role_id) = role_id_option {
@@ -105,7 +104,7 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: &ChannelId, bday_info
 
             connection.execute(insertion_statement, params!(user_id, bday_date_time))?;
 
-            if let Err(error) = ctx.http.clone().add_member_role(guild_id, user_id, role_id).await {
+            if let Err(error) = ctx.http.add_member_role(guild_id, user_id, role_id).await {
                 warn!(
                     "Error while trying to add role to user while adding bday to db. Likely not a concern \
                         considering this most likely occurred because the role was removed while \
@@ -131,11 +130,9 @@ pub async fn get_birthday(ctx: &Context, channel_id: &ChannelId, user_id: u64) -
         .query_row(bday_select_str, [user_id], |row| row.get::<_, BirthdayDateTime>(0))
         .optional()?;
 
-    let msg;
-
     if let Some(bday) = bday_option {
         channel_id
-            .send_message(ctx.http.clone(), |msg| {
+            .send_message(&ctx.http, |msg| {
                 msg.embed(|embed| {
                     let now = Utc::now();
                     let naive_timestamp = NaiveDate::from_ymd(now.year(), bday.month, bday.day).and_hms(bday.hour, 0, 0);
@@ -154,10 +151,10 @@ pub async fn get_birthday(ctx: &Context, channel_id: &ChannelId, user_id: u64) -
             })
             .await?;
     } else {
-        msg = format!("No birthday found from the user {}", user_id);
+        let msg = format!("No birthday found from the user {}", user_id);
 
         channel_id
-            .send_message(ctx.http.clone(), |message| message.embed(|embed| embed.description(msg)))
+            .send_message(&ctx.http, |message| message.embed(|embed| embed.description(msg)))
             .await?;
     }
 
@@ -193,10 +190,8 @@ pub async fn remove_birthday(ctx: &Context, channel_id: &ChannelId, guild_id: u6
         transaction.commit()?;
     }
 
-    let http = ctx.http.clone();
-
     if let Some(id) = role_id {
-        if let Err(error) = http.remove_member_role(guild_id, user_id, id).await {
+        if let Err(error) = ctx.http.remove_member_role(guild_id, user_id, id).await {
             warn!(
                 "Error while trying to remove birthday from database. Likely not a concern \
                     considering this most likely occurred because the role was removed while \

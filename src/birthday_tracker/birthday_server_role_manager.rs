@@ -11,16 +11,15 @@ use super::role_updater;
 const NO_BIRTHDAY_SERVER_ROLE: &str = "This server has no birthday role currently.";
 
 pub fn handle_update_birthday_roles_error(error: &SerenitySQLiteError) {
-    if let SerenitySQLiteError::SerenityError(err) = error {
-        warn!(
+    match error {
+        SerenitySQLiteError::SerenityError(err) => warn!(
             "Error from SQLite or while adding or removing birthday roles. \
                             Couldn't add or remove roles from these people. \
                             Here is a vector of those errors.\
                             (Probably safe to ignore): {:?}",
             err
-        );
-    } else {
-        error!("Error from SQLite or while adding or removing birthday roles: {:?}", error);
+        ),
+        _ => error!("Error from SQLite or while adding or removing birthday roles: {:?}", error),
     }
 }
 
@@ -33,7 +32,7 @@ pub async fn set_birthday_role(ctx: &Context, channel_id: &ChannelId, guild_id: 
 
     connection.execute(insert_string, [guild_id, role_id])?;
 
-    if let Err(error) = role_updater::update_birthday_roles(ctx.http.clone()).await {
+    if let Err(error) = role_updater::update_birthday_roles(&ctx.http).await {
         handle_update_birthday_roles_error(&error);
     }
 
@@ -67,13 +66,8 @@ fn get_birthday_role_id_trans(connection: &Transaction, guild_id: u64) -> Result
 }
 
 pub async fn get_birthday_role(ctx: &Context, channel_id: &ChannelId, guild_id: u64) -> Result<(), SerenitySQLiteError> {
-    let role_id_option;
-
-    {
-        let connection = Connection::open(BURDBOT_DB)?;
-
-        role_id_option = get_birthday_role_id_conn(&connection, guild_id)?;
-    }
+    let connection = Connection::open(BURDBOT_DB)?;
+    let role_id_option = get_birthday_role_id_conn(&connection, guild_id)?;
 
     if let Some(role_id) = role_id_option {
         if is_actual_role(ctx, guild_id, role_id).await {
@@ -121,12 +115,10 @@ fn handle_db_birthday_removal(guild_id: u64) -> Result<Option<(Vec<u64>, u64)>, 
 
     let mut deleted_users;
     let bday_role_id_option = get_birthday_role_id_trans(&transaction, guild_id)?;
-
-    if bday_role_id_option.is_none() {
-        return Ok(None);
-    }
-
-    let bday_role_id = bday_role_id_option.unwrap();
+    let bday_role_id = match bday_role_id_option {
+        Some(id) => id,
+        None => return Ok(None),
+    };
 
     {
         let mut rows_statement = transaction.prepare(user_id_query_string)?;
@@ -162,7 +154,7 @@ pub async fn remove_birthday_role(ctx: &Context, channel_id: &ChannelId, guild_i
     for deleted_user in deleted_users {
         let mut error_vec = Vec::new();
 
-        if let Err(error) = ctx.http.clone().remove_member_role(guild_id, deleted_user, role_id).await {
+        if let Err(error) = ctx.http.remove_member_role(guild_id, deleted_user, role_id).await {
             error_vec.push(error);
         }
 
