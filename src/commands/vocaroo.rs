@@ -209,7 +209,7 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
                         .await;
 
                     if let Err(e) = msg_result {
-                        warn!("Couldn't send vocaroo message in channel {channel_id} because of error: {:?}", e)
+                        warn!("Couldn't send vocaroo message in channel {channel_id} because of error: {:?}", e);
                     }
                 }
                 Err(error) => handle_vocaroo_error(ctx, msg, error).await,
