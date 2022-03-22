@@ -10,9 +10,8 @@ use crate::DELIBURD_ID;
 pub mod error;
 
 pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: ChannelId, arg_count: u32, args_needed: u32) {
-    let args_needed_message = if args_needed != 1 { "s are" } else { " is" };
-
-    let arg_count_message = if arg_count != 1 { "s were" } else { " was" };
+    let args_needed_message = if args_needed == 1 { " is" } else { "s are" };
+    let arg_count_message = if arg_count == 1 { " was" } else { "s were" };
 
     let not_enough_arguments_message = format!(
         "Invalid number of arguments provided. \

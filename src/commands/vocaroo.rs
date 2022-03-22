@@ -5,6 +5,7 @@ use bytes::Bytes;
 use lazy_static::lazy_static;
 use log::{debug, error, warn};
 use regex::Regex;
+use reqwest::header::HeaderValue;
 use reqwest::Client;
 use rusqlite::{Connection, Error as SqliteError};
 use serenity::client::Context;
@@ -121,7 +122,7 @@ async fn download_vocaroo(client: &Client, url: String) -> Result<Bytes, Vocaroo
         Some(response) => response,
         None => return Err(VocarooError::FailedHead(url)),
     };
-    let content_length_str = match head_response.headers().get("Content-Length").map(|val| val.to_str()) {
+    let content_length_str = match head_response.headers().get("Content-Length").map(HeaderValue::to_str) {
         Some(parsed_result) => match parsed_result.ok() {
             Some(str) => str,
             None => return Err(VocarooError::ContentLengthNotNumber(url)),
@@ -192,7 +193,7 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
 
             match process_vocaroo_id(ctx, &VOCAROO_CLIENT, vocaroo_id.as_str()).await {
                 Ok(vocaroo_data) => {
-                    let _ = channel_id
+                    let msg_result = channel_id
                         .send_message(&http, |msg_builder| {
                             msg_builder.add_file((&vocaroo_data[..], "vocaroo-to-mp3.mp3"));
 
@@ -206,6 +207,10 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
                             msg_builder.reference_message(msg_ref)
                         })
                         .await;
+
+                    if let Err(e) = msg_result {
+                        warn!("Couldn't send vocaroo message in channel {channel_id} because of error: {:?}", e)
+                    }
                 }
                 Err(error) => handle_vocaroo_error(ctx, msg, error).await,
             }

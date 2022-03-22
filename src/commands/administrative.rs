@@ -73,9 +73,7 @@ impl Log {
 async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, arg_pos: u32, args_needed: u32) -> Result<Member, CommandError> {
     let member = util::parse_member(ctx, msg, ArgumentInfo::new(args, arg_pos, args_needed)).await?;
 
-    if member.user != msg.author {
-        Ok(member)
-    } else {
+    if member.user == msg.author {
         args.rewind();
 
         let arg = args.current().expect("Argument that should exist doesn't.").to_string();
@@ -89,6 +87,8 @@ async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, a
         Err(Box::new(ArgumentParseErrorType::ArgumentConversionError::<u32>(
             ArgumentConversionError::new(arg),
         )))
+    } else {
+        Ok(member)
     }
 }
 
@@ -142,10 +142,9 @@ fn format_field(log: &Log, is_first: bool) -> String {
         None => String::new(),
     };
 
-    if !is_first {
+    if is_first {
         format!(
-            "**Log #{}**:\n**Logged on**: <t:{}:f>\n{}**Reason**: {}\n[See original log]({}){}",
-            log.entry_id,
+            "**Logged on**: <t:{}:f>\n{}**Reason**: {}\n[See original log]({}){}",
             log.get_original_time(),
             last_edited_text,
             log.reason,
@@ -154,7 +153,8 @@ fn format_field(log: &Log, is_first: bool) -> String {
         )
     } else {
         format!(
-            "**Logged on**: <t:{}:f>\n{}**Reason**: {}\n[See original log]({}){}",
+            "**Log #{}**:\n**Logged on**: <t:{}:f>\n{}**Reason**: {}\n[See original log]({}){}",
+            log.entry_id,
             log.get_original_time(),
             last_edited_text,
             log.reason,

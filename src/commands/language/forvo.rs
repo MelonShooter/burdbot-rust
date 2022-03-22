@@ -89,7 +89,7 @@ enum Country {
 }
 
 impl Country {
-    fn is_spanish(&self) -> bool {
+    fn is_spanish(self) -> bool {
         lazy_static! {
             static ref UNITED_STATES_INDEX: u64 = Country::UnitedStates
                 .get_str("index")
@@ -171,7 +171,7 @@ fn get_link_and_country(entries: &ElementRef) -> Result<Option<Vec<ForvoRecordin
 
         let url_data = String::from_utf8(base64::decode(url_base64_data.as_str())?)?;
 
-        recordings.push(ForvoRecording::new(country, format!("https://forvo.com/mp3/{}", url_data)))
+        recordings.push(ForvoRecording::new(country, format!("https://forvo.com/mp3/{}", url_data)));
     }
 
     if recordings.is_empty() {
@@ -292,7 +292,7 @@ fn get_closest_recording_index(requested_country: Option<Country>, recordings: &
 }
 
 #[derive(Debug)]
-pub struct ForvoRecordingData {
+pub struct RecordingData {
     pub recording: Arc<Vec<u8>>,
     pub message: String,
 }
@@ -301,7 +301,7 @@ pub async fn fetch_pronunciation(
     ctx: &Context,
     msg: &Message,
     args: &mut Args,
-) -> Result<Vec<Option<ForvoRecordingData>>, Box<dyn StdError + Send + Sync>> {
+) -> Result<Vec<Option<RecordingData>>, Box<dyn StdError + Send + Sync>> {
     let term = parse_term(ctx, msg, args).await?;
 
     args.advance();
@@ -332,7 +332,7 @@ pub async fn fetch_pronunciation(
 
                 links.push(recording.recording_link.as_str());
 
-                Some(ForvoRecordingData {recording: Arc::new(Vec::new()), message })
+                Some(RecordingData {recording: Arc::new(Vec::new()), message })
             },
             _ => None,
         }

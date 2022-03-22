@@ -345,21 +345,24 @@ pub async fn send_message(ctx: impl AsRef<Http>, ch: ChannelId, msg: impl Displa
 
 pub async fn get_member_permissions(cache: Arc<Cache>, guild_id: GuildId, user_id: impl Into<UserId>) -> Option<Permissions> {
     let roles_accessor = |member: &Member| member.roles.clone();
-    let roles_option = cache.member_field(guild_id, user_id, roles_accessor).await;
 
-    if let Some(roles) = roles_option {
-        let mut permission = Permissions::empty();
+    match cache.member_field(guild_id, user_id, roles_accessor).await {
+        Some(roles) => {
+            let mut permission = Permissions::empty();
 
-        for role_id in roles {
-            let role_option = cache.role(guild_id, role_id).await;
+            for role_id in roles {
+                let role_permission = cache
+                    .guild_field(guild_id, |guild| guild.roles.get(&role_id).map(|role| role.permissions))
+                    .await
+                    .flatten();
 
-            if let Some(role) = role_option {
-                permission |= role.permissions;
+                if let Some(role_permission) = role_permission {
+                    permission |= role_permission;
+                }
             }
-        }
 
-        Some(permission)
-    } else {
-        None
+            Some(permission)
+        }
+        None => None,
     }
 }

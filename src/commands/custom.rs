@@ -46,12 +46,7 @@ async fn unbanfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role
     let target_name = target.user.name.clone();
     let target_id = target.user.id;
 
-    Ok(if !target.roles.contains(&role_id) {
-        format!(
-            "{} ({}) was not banned from the {} channel(s) in the first place.",
-            target_name, target_id, ch_name
-        )
-    } else {
+    Ok(if target.roles.contains(&role_id) {
         match target.remove_role(&ctx, role_id).await {
             Ok(_) => {
                 ChannelId::from(873845572975603792)
@@ -75,6 +70,11 @@ async fn unbanfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role
                 target_name, target_id, ch_name
             ),
         }
+    } else {
+        format!(
+            "{} ({}) was not banned from the {} channel(s) in the first place.",
+            target_name, target_id, ch_name
+        )
     })
 }
 
@@ -85,14 +85,12 @@ async fn is_server_helper_or_above(ctx: &Context, msg: &Message) -> Result<(), R
         Err(_) => return Err(Reason::Unknown),
     };
 
-    match author
+    author
         .roles
         .iter()
         .any(|id| id.0 == 243854949522472971 || id.0 == 258806166770024449 || id.0 == 258819531193974784)
-    {
-        true => Ok(()),
-        false => Err(Reason::Log("User is lower than a server helper.".to_owned())),
-    }
+        .then(|| ())
+        .ok_or_else(|| Reason::Log("User is lower than a server helper.".to_owned()))
 }
 
 #[command]

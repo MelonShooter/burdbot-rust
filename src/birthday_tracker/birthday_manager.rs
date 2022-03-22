@@ -33,14 +33,14 @@ fn get_server_role(transaction: &Transaction, guild_id: u64) -> Result<Option<u6
 
 pub async fn add_birthday_to_db(ctx: &Context, channel_id: ChannelId, bday_info: &BirthdayInfoConfirmation) -> Result<(), SerenitySQLiteError> {
     let connection = Connection::open(BURDBOT_DB)?;
-    let ins_stmt_str = if !bday_info.is_privileged {
+    let ins_stmt_str = if bday_info.is_privileged {
         "
-            INSERT OR IGNORE INTO bday
-            VALUES (?, ?, ?);
+        INSERT OR REPLACE INTO bday
+        VALUES (?, ?, ?);
         "
     } else {
         "
-            INSERT OR REPLACE INTO bday
+            INSERT OR IGNORE INTO bday
             VALUES (?, ?, ?);
         "
     };
@@ -184,7 +184,7 @@ pub async fn remove_birthday(ctx: &Context, channel_id: ChannelId, guild_id: u64
 
         // If more than 1 row changed then we deleted a foreign key too from bday_user_list
         if rows_changed > 1 {
-            role_id = get_server_role(&transaction, guild_id)?
+            role_id = get_server_role(&transaction, guild_id)?;
         }
 
         transaction.commit()?;

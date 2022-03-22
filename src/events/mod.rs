@@ -81,11 +81,11 @@ impl VoiceEventHandler for BurdBotVoiceEventHandler {
     async fn act(&self, context: &EventContext<'_>) -> Option<Event> {
         match context {
             EventContext::SpeakingStateUpdate(Speaking { ssrc, user_id, .. }) => {
-                voice_handler::on_speaking_state_update(self, user_id, ssrc);
+                voice_handler::on_speaking_state_update(self, user_id, *ssrc);
             }
 
             EventContext::SpeakingUpdate { speaking, ssrc } => {
-                voice_handler::on_speaking_update(self, speaking, ssrc);
+                voice_handler::on_speaking_update(self, *speaking, *ssrc);
             }
 
             EventContext::ClientDisconnect(ClientDisconnect { user_id }) => {

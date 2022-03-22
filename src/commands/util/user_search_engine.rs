@@ -24,7 +24,7 @@ async fn add_guild_to_search_engine(ctx: &Context, guild_id: GuildId, user_searc
     let mut search_engine = SimSearch::new_with(search_options);
     let cache = ctx.cache.clone();
     let guild_adder = |guild: &Guild| {
-        for (user_id, member) in guild.members.iter() {
+        for (user_id, member) in &guild.members {
             let id = *user_id.as_u64();
             let nick = member.nick.as_deref();
             let name = member.user.name.as_str();

@@ -39,7 +39,7 @@ async fn join_target_voice_channel(manager: &Arc<Songbird>) {
     let (handler_lock, conn_result) = manager.join(target_guild, target_voice_channel).await;
 
     match conn_result {
-        Ok(_) => {
+        Ok(()) => {
             let mut handler = handler_lock.lock().await;
             let ssrc_user_to_id = Arc::new(RwLock::new(BiHashMap::new()));
             let user_id_to_start = Arc::new(RwLock::new(HashMap::new()));
@@ -68,10 +68,8 @@ async fn join_target_voice_channel(manager: &Arc<Songbird>) {
     }
 }
 
-pub async fn is_tracker_enabled(context_data: RwLockReadGuard<'_, TypeMap>) -> bool {
-    let session_tracker_enabled = context_data.get::<SessionTrackerEnabler>().unwrap();
-
-    *session_tracker_enabled
+fn is_tracker_enabled(context_data: &RwLockReadGuard<'_, TypeMap>) -> bool {
+    *context_data.get::<SessionTrackerEnabler>().unwrap()
 }
 
 pub async fn on_voice_state_update(new_state: &VoiceState, context: &Context) {
@@ -85,7 +83,7 @@ pub async fn on_voice_state_update(new_state: &VoiceState, context: &Context) {
 
     let context_data = context.data.read().await;
 
-    if !is_tracker_enabled(context_data).await {
+    if !is_tracker_enabled(&context_data) {
         return;
     }
 
@@ -101,7 +99,7 @@ pub async fn on_voice_state_update(new_state: &VoiceState, context: &Context) {
 pub async fn on_ready(context: &Context) {
     let mut context_data = context.data.write().await;
     context_data.insert::<SessionTrackerEnabler>(false);
-    if is_tracker_enabled(context_data.downgrade()).await {
+    if is_tracker_enabled(&context_data.downgrade()) {
         join_target_voice_channel_with_context(context).await;
     }
 }

@@ -19,7 +19,7 @@ pub fn handle_update_birthday_roles_error(error: &SerenitySQLiteError) {
                             (Probably safe to ignore): {:?}",
             err
         ),
-        _ => error!("Error from SQLite or while adding or removing birthday roles: {:?}", error),
+        SerenitySQLiteError::SQLiteError(_) => error!("Error from SQLite or while adding or removing birthday roles: {:?}", error),
     }
 }
 

@@ -76,7 +76,7 @@ async fn get_english_class_channels(cache: impl AsRef<Cache>) -> Vec<Channel> {
     match cache.as_ref().guild_channels(SPANISH_ENGLISH_SERVER_ID).await {
         Some(guild_channels) => {
             for (_, channel) in guild_channels {
-                if channel.category_id.map(|c| c == ENGLISH_CLASS_CATEGORY_ID).unwrap_or(false) {
+                if channel.category_id.map_or(false, |c| c == ENGLISH_CLASS_CATEGORY_ID) {
                     channels.push(Channel::Guild(channel));
                 }
             }
