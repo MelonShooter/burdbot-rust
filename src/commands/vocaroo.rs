@@ -157,8 +157,7 @@ async fn download_vocaroo(client: &Client, url: String) -> Result<Bytes, Vocaroo
 }
 
 pub async fn on_message_received(ctx: &Context, msg: &Message) {
-    let data_lock = ctx.data.clone();
-    let data = data_lock.read().await;
+    let data = ctx.data.read().await;
     let vocaroo_servers = data.get::<VocarooEnabled>();
 
     if let Some(servers) = vocaroo_servers {
@@ -186,7 +185,6 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
                 vocaroo_id = id.to_owned();
             }
 
-            let http = ctx.http.clone();
             let msg_ref = MessageReference::from(msg);
             let channel_id = msg.channel_id;
             let user_id = msg.author.id.0;
@@ -194,7 +192,7 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
             match process_vocaroo_id(ctx, &VOCAROO_CLIENT, vocaroo_id.as_str()).await {
                 Ok(vocaroo_data) => {
                     let msg_result = channel_id
-                        .send_message(&http, |msg_builder| {
+                        .send_message(&ctx.http, |msg_builder| {
                             msg_builder.add_file((&vocaroo_data[..], "vocaroo-to-mp3.mp3"));
 
                             let mut msg_str = String::with_capacity(96);
@@ -244,8 +242,7 @@ pub async fn on_ready(ctx: &Context) {
     let vocaroo_servers = get_all_vocaroo_servers();
 
     if let Ok(servers) = vocaroo_servers {
-        let data_lock = ctx.data.clone();
-        let mut data = data_lock.write().await;
+        let mut data = ctx.data.write().await;
 
         data.insert::<VocarooEnabled>(servers);
     }
@@ -254,8 +251,7 @@ pub async fn on_ready(ctx: &Context) {
 #[command]
 #[bucket("db_operations")]
 async fn enablevocarootomp3(ctx: &Context, msg: &Message) -> CommandResult {
-    let data_lock = ctx.data.clone();
-    let mut data = data_lock.write().await;
+    let mut data = ctx.data.write().await;
     let vocaroo_servers = match data.get_mut::<VocarooEnabled>() {
         Some(servers) => servers,
         None => return Ok(()),
@@ -288,8 +284,7 @@ async fn enablevocarootomp3(ctx: &Context, msg: &Message) -> CommandResult {
 
 #[command]
 async fn isvocarootomp3enabled(ctx: &Context, msg: &Message) -> CommandResult {
-    let data_lock = ctx.data.clone();
-    let mut data = data_lock.write().await;
+    let mut data = ctx.data.write().await;
     let vocaroo_servers = match data.get_mut::<VocarooEnabled>() {
         Some(servers) => servers,
         None => return Ok(()),
@@ -309,8 +304,7 @@ async fn isvocarootomp3enabled(ctx: &Context, msg: &Message) -> CommandResult {
 #[command]
 #[bucket("db_operations")]
 async fn disablevocarootomp3(ctx: &Context, msg: &Message) -> CommandResult {
-    let data_lock = ctx.data.clone();
-    let mut data = data_lock.write().await;
+    let mut data = ctx.data.write().await;
     let vocaroo_servers = match data.get_mut::<VocarooEnabled>() {
         Some(servers) => servers,
         None => return Ok(()),

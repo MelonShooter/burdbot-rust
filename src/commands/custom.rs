@@ -9,14 +9,20 @@ use super::{util, ArgumentInfo};
 
 async fn banfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_id: RoleId, ch_name: &'a str) -> Result<String, CommandError> {
     let mut target = util::parse_member(ctx, msg, ArgumentInfo::new(&mut args, 1, 1)).await?;
-    let target_name = target.user.name.clone();
     let target_id = target.user.id;
 
     Ok(if target.roles.contains(&role_id) {
-        format!("{} ({}) already is banned from the {} channel(s).", target_name, target_id, ch_name)
+        format!(
+            "{} ({}) already is banned from the {} channel(s).",
+            target.user.name.as_str(),
+            target_id,
+            ch_name
+        )
     } else {
         match target.add_role(&ctx, role_id).await {
-            Ok(_) => {
+            Ok(()) => {
+                let target_name = target.user.name.as_str();
+
                 ChannelId::from(873845572975603792)
                     .send_message(&ctx, |create_msg| {
                         create_msg.embed(|embed| {
@@ -35,7 +41,9 @@ async fn banfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_i
             Err(_) => format!(
                 "Failed to ban {} ({}) from the {} channel(s). Check that the user exists \
                 and that the bot has the Manage Roles permission.",
-                target_name, target_id, ch_name
+                target.user.name.as_str(),
+                target_id,
+                ch_name
             ),
         }
     })
@@ -43,12 +51,13 @@ async fn banfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_i
 
 async fn unbanfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_id: RoleId, ch_name: &'a str) -> Result<String, CommandError> {
     let mut target = util::parse_member(ctx, msg, ArgumentInfo::new(&mut args, 1, 1)).await?;
-    let target_name = target.user.name.clone();
     let target_id = target.user.id;
 
     Ok(if target.roles.contains(&role_id) {
         match target.remove_role(&ctx, role_id).await {
             Ok(_) => {
+                let target_name = target.user.name.as_str();
+
                 ChannelId::from(873845572975603792)
                     .send_message(&ctx, |create_msg| {
                         create_msg.embed(|embed| {
@@ -67,13 +76,17 @@ async fn unbanfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role
             Err(_) => format!(
                 "Failed to unban {} ({}) from the {} channel(s). Check that the user exists \
                 and that the bot has the Manage Roles permission.",
-                target_name, target_id, ch_name
+                target.user.name.as_str(),
+                target_id,
+                ch_name
             ),
         }
     } else {
         format!(
             "{} ({}) was not banned from the {} channel(s) in the first place.",
-            target_name, target_id, ch_name
+            target.user.name.as_str(),
+            target_id,
+            ch_name
         )
     })
 }

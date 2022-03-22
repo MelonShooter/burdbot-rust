@@ -6,7 +6,7 @@ use std::time::Duration;
 use log::error;
 use serenity::client::{Cache, Context};
 use serenity::http::Http;
-use serenity::model::channel::{Channel, Message, PermissionOverwriteType};
+use serenity::model::channel::{Channel, ChannelType, Message, PermissionOverwriteType};
 use serenity::model::id::{ChannelId, RoleId};
 use serenity::model::prelude::VoiceState;
 use serenity::model::Permissions;
@@ -90,6 +90,9 @@ async fn get_english_class_channels(cache: impl AsRef<Cache>) -> Vec<Channel> {
 async fn get_teachers_present(ctx: &Context, english_channels: &[Channel]) -> Vec<u64> {
     let mut teachers = Vec::new();
 
+    // TODO: refactor so that just channel IDs are used, not channels. then figure out how to change it so that it's not as inefficient
+
+    // goes through english channels, finds all users in VC, filters, and collects them, mapping them as Vec<(u64, Vec<RoleId>)>
     for ch in english_channels {
         if let Channel::Guild(channel) = ch {
             if !channel.is_text_based() {
@@ -172,9 +175,9 @@ pub async fn on_voice_state_update(old_state: Option<&VoiceState>, new_state: &V
             teachers.contains_key(&teacher_id)
         };
 
+        let data = ctx.data.clone();
         let cache = ctx.cache.clone();
         let http = ctx.http.clone();
-        let data = ctx.data.clone();
 
         if is_teacher_leaving {
             let teachers = write_data

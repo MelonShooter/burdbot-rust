@@ -25,18 +25,15 @@ const TARGET_GUILD_ID: u64 = 720900352018219039;
 const TARGET_VOICE_CHANNEL_ID: u64 = 720900352597033053;
 
 async fn join_target_voice_channel_with_context(context: &Context) {
-    let manager = songbird::get(context)
-        .await
-        .expect("Songbird Voice client placed in at initialisation.")
-        .clone();
+    let manager = songbird::get(context).await.expect("Songbird Voice client placed in at initialisation.");
 
     join_target_voice_channel(&manager).await;
 }
 
-async fn join_target_voice_channel(manager: &Arc<Songbird>) {
+async fn join_target_voice_channel<T: AsRef<Songbird>>(manager: T) {
     let target_guild: GuildId = GuildId::from(TARGET_GUILD_ID);
     let target_voice_channel: ChannelId = ChannelId::from(TARGET_VOICE_CHANNEL_ID);
-    let (handler_lock, conn_result) = manager.join(target_guild, target_voice_channel).await;
+    let (handler_lock, conn_result) = manager.as_ref().join(target_guild, target_voice_channel).await;
 
     match conn_result {
         Ok(()) => {

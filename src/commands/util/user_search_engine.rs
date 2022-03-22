@@ -22,7 +22,6 @@ fn add_member_to_search_engine(nick_option: Option<&str>, search_engine: &mut Si
 async fn add_guild_to_search_engine(ctx: &Context, guild_id: GuildId, user_search_map: &mut HashMap<u64, SimSearch<u64>>) {
     let search_options = SearchOptions::new().stop_words(vec!["#".to_string()]);
     let mut search_engine = SimSearch::new_with(search_options);
-    let cache = ctx.cache.clone();
     let guild_adder = |guild: &Guild| {
         for (user_id, member) in &guild.members {
             let id = *user_id.as_u64();
@@ -36,7 +35,7 @@ async fn add_guild_to_search_engine(ctx: &Context, guild_id: GuildId, user_searc
         user_search_map.insert(guild.id.0, search_engine);
     };
 
-    cache.guild_field(guild_id, guild_adder).await;
+    ctx.cache.guild_field(guild_id, guild_adder).await;
 }
 
 pub async fn on_self_join(ctx: &Context, guild_id: GuildId) {
@@ -58,10 +57,9 @@ pub async fn on_self_leave(ctx: &Context, guild_id: u64) {
 }
 
 pub async fn on_cache_ready(ctx: &Context) {
-    let cache = ctx.cache.clone();
-    let mut user_search_map = HashMap::with_capacity(cache.guild_count().await);
+    let mut user_search_map = HashMap::with_capacity(ctx.cache.guild_count().await);
 
-    for guild in cache.guilds().await {
+    for guild in ctx.cache.guilds().await {
         add_guild_to_search_engine(ctx, guild, &mut user_search_map).await;
     }
 
@@ -92,8 +90,7 @@ pub async fn on_member_remove(ctx: &Context, guild_id: u64, user_id: u64) {
 }
 
 pub async fn user_id_search(ctx: &Context, guild_id: u64, user_str: &str) -> Option<Vec<u64>> {
-    let data = ctx.data.clone();
-    let data_read_lock = data.read().await;
+    let data_read_lock = ctx.data.read().await;
     data_read_lock
         .get::<UserSearchEngine>()
         .and_then(|map| map.get(&guild_id))

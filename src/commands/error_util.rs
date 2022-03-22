@@ -59,7 +59,7 @@ pub async fn generic_fail(ctx: &Context, ch: ChannelId) {
         );
     }
 
-    util::send_message(ctx.http.clone(), ch, fail_message, "generic_fail").await;
+    util::send_message(&ctx.http, ch, fail_message, "generic_fail").await;
 }
 
 /*pub async fn unknown_command_message(ctx: impl AsRef<Http>, ch: ChannelId) {

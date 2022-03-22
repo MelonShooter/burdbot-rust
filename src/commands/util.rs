@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::str::FromStr;
-use std::sync::Arc;
 
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -13,7 +12,6 @@ use serenity::framework::standard::{ArgError, Args};
 use serenity::http::Http;
 use serenity::model::channel::Message;
 use serenity::model::guild::Member;
-use serenity::model::guild::Role;
 use serenity::model::id::ChannelId;
 use serenity::model::id::GuildId;
 use serenity::model::id::RoleId;
@@ -133,14 +131,14 @@ fn parse_user_mention(arg: &str) -> Option<u64> {
     parse_mention(arg, &USER_MENTION_MATCHER)
 }
 
-async fn id_argument_to_member(
-    cache: Arc<Cache>,
+async fn id_argument_to_member<T: AsRef<Cache>>(
+    cache: T,
     arg: &str,
     guild_id: impl Into<GuildId>,
     user_id: impl Into<UserId>,
 ) -> Result<Member, ArgumentParseErrorType<u32>> {
     return cache
-        .clone()
+        .as_ref()
         .member(guild_id, user_id)
         .await
         .ok_or_else(|| ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
@@ -148,14 +146,14 @@ async fn id_argument_to_member(
 
 pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<Member, ArgumentParseErrorType<u32>> {
     let args = arg_info.args;
-    let cache = ctx.cache.clone();
+    let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();
     let arg_pos = arg_info.arg_pos;
     let args_needed = arg_info.args_needed;
 
     match args.parse::<u64>() {
         Ok(user_id) => {
-            if let Ok(member) = id_argument_to_member(cache.clone(), args.current().unwrap(), guild_id, user_id).await {
+            if let Ok(member) = id_argument_to_member(cache, args.current().unwrap(), guild_id, user_id).await {
                 args.advance();
 
                 return Ok(member);
@@ -176,7 +174,7 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
     let arg = args.current().unwrap();
 
     if let Some(user_id) = parse_user_mention(arg) {
-        if let Ok(member) = id_argument_to_member(cache.clone(), arg, guild_id, user_id).await {
+        if let Ok(member) = id_argument_to_member(cache, arg, guild_id, user_id).await {
             args.advance();
 
             return Ok(member);
@@ -185,7 +183,7 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
 
     if let Some(user_vec) = user_search_engine::user_id_search(ctx, guild_id.0, arg).await {
         for user_id in user_vec {
-            let member_result = id_argument_to_member(cache.clone(), arg, guild_id, user_id).await;
+            let member_result = id_argument_to_member(cache, arg, guild_id, user_id).await;
 
             if let Ok(member) = member_result {
                 args.advance();
@@ -278,32 +276,33 @@ where
     }
 }
 
-async fn id_argument_to_role(
-    cache: Arc<Cache>,
+async fn id_argument_to_role<T: AsRef<Cache>>(
+    cache: T,
     arg: &str,
     guild_id: impl Into<GuildId>,
     role_id: impl Into<RoleId>,
-) -> Result<Role, ArgumentParseErrorType<u32>> {
+) -> Result<RoleId, ArgumentParseErrorType<u32>> {
     return cache
-        .clone()
-        .role(guild_id, role_id)
+        .as_ref()
+        .guild_field(guild_id, |guild| guild.roles.get(&role_id.into()).map(|role| role.id))
         .await
+        .flatten()
         .ok_or_else(|| ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
 }
 
-pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<Role, ArgumentParseErrorType<u32>> {
+pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<RoleId, ArgumentParseErrorType<u32>> {
     let args = arg_info.args;
-    let cache = ctx.cache.clone();
+    let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();
     let arg_pos = arg_info.arg_pos;
     let args_needed = arg_info.args_needed;
 
     match args.parse::<u64>() {
         Ok(user_id) => {
-            if let Ok(role) = id_argument_to_role(cache.clone(), args.current().unwrap(), guild_id, user_id).await {
+            if let Ok(role_id) = id_argument_to_role(cache, args.current().unwrap(), guild_id, user_id).await {
                 args.advance();
 
-                return Ok(role);
+                return Ok(role_id);
             }
         }
         Err(error) => {
@@ -321,10 +320,10 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
     let arg = args.current().unwrap();
 
     if let Some(user_id) = parse_role_mention(arg) {
-        if let Ok(role) = id_argument_to_role(cache.clone(), arg, guild_id, user_id).await {
+        if let Ok(role_id) = id_argument_to_role(cache, arg, guild_id, user_id).await {
             args.advance();
 
-            return Ok(role);
+            return Ok(role_id);
         }
     }
 
@@ -343,26 +342,19 @@ pub async fn send_message(ctx: impl AsRef<Http>, ch: ChannelId, msg: impl Displa
     }
 }
 
-pub async fn get_member_permissions(cache: Arc<Cache>, guild_id: GuildId, user_id: impl Into<UserId>) -> Option<Permissions> {
-    let roles_accessor = |member: &Member| member.roles.clone();
-
-    match cache.member_field(guild_id, user_id, roles_accessor).await {
-        Some(roles) => {
-            let mut permission = Permissions::empty();
-
-            for role_id in roles {
-                let role_permission = cache
-                    .guild_field(guild_id, |guild| guild.roles.get(&role_id).map(|role| role.permissions))
-                    .await
-                    .flatten();
-
-                if let Some(role_permission) = role_permission {
-                    permission |= role_permission;
-                }
-            }
-
-            Some(permission)
-        }
-        None => None,
-    }
+pub async fn get_member_permissions<T: AsRef<Cache>>(cache: T, guild_id: GuildId, user_id: impl Into<UserId>) -> Option<Permissions> {
+    cache
+        .as_ref()
+        .guild_field(guild_id, |guild| {
+            guild.members.get(&user_id.into()).map(|member| {
+                member
+                    .roles
+                    .iter()
+                    .map(|id| guild.roles.get(&id).map(|role| role.permissions)) // Map role ID to Permissions
+                    .flatten()
+                    .fold(Permissions::empty(), |acc, permissions| acc | permissions)
+            })
+        })
+        .await
+        .flatten()
 }

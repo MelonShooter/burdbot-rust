@@ -81,7 +81,10 @@ fn create_sql_tables() {
     transaction.commit().unwrap();
 }
 
-fn setup_birthday_tracker(cache_and_http: Arc<CacheAndHttp>) {
+fn setup_birthday_tracker<T: AsRef<CacheAndHttp>>(cache_and_http: T) {
+    let cache_and_http = cache_and_http.as_ref();
+    let http = cache_and_http.http.clone();
+
     tokio::spawn(async move {
         loop {
             let seconds = 3600 - Utc::now().num_seconds_from_midnight() % 3600; // Get time in seconds until next hour.
@@ -99,7 +102,7 @@ fn setup_birthday_tracker(cache_and_http: Arc<CacheAndHttp>) {
                 time::sleep(Duration::from_secs(10)).await;
             }*/
 
-            if let Err(error) = birthday_tracker::update_birthday_roles(cache_and_http.http.clone()).await {
+            if let Err(error) = birthday_tracker::update_birthday_roles(http.clone()).await {
                 birthday_tracker::handle_update_birthday_roles_error(&error);
             }
         }
@@ -174,7 +177,7 @@ async fn main() {
         .await
         .expect("Couldn't build client.");
 
-    let cache = client.cache_and_http.clone();
+    let cache = &client.cache_and_http;
     let shard_manager = client.shard_manager.clone();
 
     setup_birthday_tracker(cache);

@@ -82,7 +82,7 @@ impl TypeMapKey for BirthdayInfoConfirmationKey {
 async fn setmybirthday(context: &Context, message: &Message, mut args: Args) -> CommandResult {
     args.trimmed();
 
-    let cache = context.cache.clone();
+    let cache = &context.cache;
     let guild_id = message.guild_id.unwrap();
     let user_id = message.author.id;
     let permissions = util::get_member_permissions(cache, guild_id, user_id).await;
@@ -302,7 +302,7 @@ async fn getuserbirthday(context: &Context, message: &Message, mut args: Args) -
 #[bucket("very_intense")]
 async fn setserverbirthdayrole(context: &Context, message: &Message, mut args: Args) -> CommandResult {
     let arg_info = ArgumentInfo::new(&mut args, 1, 1);
-    let role_id = util::parse_role(context, message, arg_info).await?.id.0;
+    let role_id = util::parse_role(context, message, arg_info).await?.0;
     let guild_id = message.guild_id.unwrap().0;
 
     birthday_tracker::set_birthday_role(context, message.channel_id, guild_id, role_id).await?;
