@@ -182,6 +182,7 @@ dependencies = [
  "bytes 1.1.0",
  "chrono",
  "chrono-tz",
+ "futures",
  "hex",
  "lazy_static",
  "log 0.4.14",

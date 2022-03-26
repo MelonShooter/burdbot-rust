@@ -1,5 +1,3 @@
-use std::error::Error as StdError;
-use std::fmt::Debug;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::str::FromStr;
@@ -20,37 +18,39 @@ use serenity::model::Permissions;
 use serenity::prelude::ModelError;
 use serenity::utils::Colour;
 use serenity::Error;
+use serenity::Result as SerenityResult;
 use std::ops::Deref;
 
 use log::error;
 
 use super::error_util;
+use super::error_util::error::BadOptionError;
 use super::error_util::error::{ArgumentConversionError, ArgumentOutOfBoundsError, ArgumentParseErrorType, NotEnoughArgumentsError};
 
 pub mod user_search_engine;
 
 pub struct ArgumentInfo<'a> {
     args: &'a mut Args,
-    arg_pos: u32,
-    args_needed: u32,
+    arg_pos: usize,
+    args_needed: usize,
 }
 
 impl ArgumentInfo<'_> {
-    pub fn new(args: &mut Args, arg_pos: u32, args_needed: u32) -> ArgumentInfo<'_> {
+    pub fn new(args: &mut Args, arg_pos: usize, args_needed: usize) -> ArgumentInfo<'_> {
         ArgumentInfo { args, arg_pos, args_needed }
     }
 }
 
-pub struct BoundedArgumentInfo<'a, T: Ord + FromStr + Debug + Display + Copy> {
+pub struct BoundedArgumentInfo<'a> {
     args: &'a mut Args,
-    arg_pos: u32,
-    args_needed: u32,
-    start: T,
-    end: T,
+    arg_pos: usize,
+    args_needed: usize,
+    start: i64,
+    end: i64,
 }
 
-impl<T: Ord + FromStr + Debug + Display + Copy> BoundedArgumentInfo<'_, T> {
-    pub fn new(args: &mut Args, arg_pos: u32, args_needed: u32, start: T, end: T) -> BoundedArgumentInfo<'_, T> {
+impl BoundedArgumentInfo<'_> {
+    pub fn new(args: &mut Args, arg_pos: usize, args_needed: usize, start: i64, end: i64) -> BoundedArgumentInfo<'_> {
         BoundedArgumentInfo {
             args,
             arg_pos,
@@ -61,17 +61,14 @@ impl<T: Ord + FromStr + Debug + Display + Copy> BoundedArgumentInfo<'_, T> {
     }
 }
 
-pub async fn parse_bounded_arg<T>(ctx: impl AsRef<Http>, msg: &Message, arg_info: BoundedArgumentInfo<'_, T>) -> Result<T, ArgumentParseErrorType<T>>
-where
-    T: Ord + FromStr + Debug + Display + Copy,
-{
+pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: BoundedArgumentInfo<'_>) -> Result<i64, ArgumentParseErrorType> {
     let start = arg_info.start;
     let end = arg_info.end;
     let args = arg_info.args;
     let arg_pos = arg_info.arg_pos;
     let args_needed = arg_info.args_needed;
 
-    match args.parse::<T>() {
+    match args.parse::<i64>() {
         Ok(month_number) => {
             if month_number < start || month_number > end {
                 error_util::check_within_range(ctx, msg.channel_id, month_number, arg_pos, start, end).await;
@@ -136,7 +133,7 @@ async fn id_argument_to_member<T: AsRef<Cache>>(
     arg: &str,
     guild_id: impl Into<GuildId>,
     user_id: impl Into<UserId>,
-) -> Result<Member, ArgumentParseErrorType<u32>> {
+) -> Result<Member, ArgumentParseErrorType> {
     return cache
         .as_ref()
         .member(guild_id, user_id)
@@ -144,7 +141,7 @@ async fn id_argument_to_member<T: AsRef<Cache>>(
         .ok_or_else(|| ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
 }
 
-pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<Member, ArgumentParseErrorType<u32>> {
+pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<Member, ArgumentParseErrorType> {
     let args = arg_info.args;
     let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();
@@ -210,43 +207,36 @@ fn parse_role_mention(arg: &str) -> Option<u64> {
     parse_mention(arg, &ROLE_MENTION_MATCHER)
 }
 
-async fn bad_option_message<'a, T: Iterator>(ctx: &Context, msg: &Message, arg_pos: u32, choices: T) -> Result<(), Box<dyn Send + Sync + StdError>>
+async fn bad_option_message<'a, T: Iterator>(ctx: &Context, msg: &Message, arg_pos: usize, choices: T) -> String
 where
     T::Item: Display,
 {
+    let choices = choices.map(|choice| choice.to_string() + " ").collect::<String>();
     let bad_option_title = format!("Invalid argument #{}. Not one of the possible options.", arg_pos);
 
-    msg.channel_id
+    let res = msg
+        .channel_id
         .send_message(&ctx.http, |m| {
             m.embed(|embed| {
                 embed.title(bad_option_title);
                 embed.color(Colour::RED);
 
-                embed.field(
-                    "Possible options are",
-                    choices
-                        .map(|val| {
-                            let mut str = val.to_string();
-                            str.push(' ');
-
-                            str
-                        })
-                        .collect::<String>(),
-                    true,
-                )
+                embed.field("Possible options are", choices.as_str(), true)
             })
         })
-        .await?;
+        .await;
 
-    Ok(())
+    check_message_sending(res, "bad_option_message");
+
+    choices
 }
 
-pub async fn parse_choices<T: Iterator>(
+pub async fn parse_choices<T: IntoIterator>(
     ctx: &Context,
     msg: &Message,
     arg_info: ArgumentInfo<'_>,
     choices: T,
-) -> Result<T::Item, Box<dyn StdError + Send + Sync>>
+) -> Result<T::Item, ArgumentParseErrorType>
 where
     T::Item: Display + Hash + Eq + FromStr,
 {
@@ -264,13 +254,14 @@ where
             if let ArgError::Eos = error {
                 error_util::not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
-                Err(Box::new(ArgumentParseErrorType::NotEnoughArguments::<u32>(NotEnoughArgumentsError::new(
+                Err(ArgumentParseErrorType::NotEnoughArguments(NotEnoughArgumentsError::new(
                     args_needed,
                     arg_pos - 1,
-                ))))
+                )))
             } else {
-                bad_option_message(ctx, msg, arg_pos, choices).await?;
-                Err(Box::new(ArgumentParseErrorType::BadOption::<u32>))
+                let options = bad_option_message(ctx, msg, arg_pos, choices.into_iter()).await;
+
+                Err(ArgumentParseErrorType::BadOption(BadOptionError::new(arg_pos, options)))
             }
         }
     }
@@ -281,7 +272,7 @@ async fn id_argument_to_role<T: AsRef<Cache>>(
     arg: &str,
     guild_id: impl Into<GuildId>,
     role_id: impl Into<RoleId>,
-) -> Result<RoleId, ArgumentParseErrorType<u32>> {
+) -> Result<RoleId, ArgumentParseErrorType> {
     return cache
         .as_ref()
         .guild_field(guild_id, |guild| guild.roles.get(&role_id.into()).map(|role| role.id))
@@ -290,7 +281,7 @@ async fn id_argument_to_role<T: AsRef<Cache>>(
         .ok_or_else(|| ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
 }
 
-pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<RoleId, ArgumentParseErrorType<u32>> {
+pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<RoleId, ArgumentParseErrorType> {
     let args = arg_info.args;
     let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();
@@ -336,10 +327,16 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
     )))
 }
 
-pub async fn send_message(ctx: impl AsRef<Http>, ch: ChannelId, msg: impl Display, function_name: &str) {
-    if let Err(Error::Model(ModelError::MessageTooLong(_))) = ch.say(ctx, msg).await {
+fn check_message_sending(res: SerenityResult<Message>, function_name: &str) {
+    if let Err(Error::Model(ModelError::MessageTooLong(_))) = res {
         error!("{}() message too long! This shouldn't ever happen.", function_name);
     }
+}
+
+pub async fn send_message(ctx: impl AsRef<Http>, ch: ChannelId, msg: impl Display, function_name: &str) {
+    let ctx = ctx.as_ref();
+
+    check_message_sending(ch.say(ctx, msg).await, function_name);
 }
 
 pub async fn get_member_permissions<T: AsRef<Cache>>(cache: T, guild_id: GuildId, user_id: impl Into<UserId>) -> Option<Permissions> {

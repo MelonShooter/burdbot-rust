@@ -6,7 +6,7 @@ use std::time::Duration;
 use log::error;
 use serenity::client::{Cache, Context};
 use serenity::http::Http;
-use serenity::model::channel::{Channel, ChannelType, Message, PermissionOverwriteType};
+use serenity::model::channel::{Channel, Message, PermissionOverwriteType};
 use serenity::model::id::{ChannelId, RoleId};
 use serenity::model::prelude::VoiceState;
 use serenity::model::Permissions;

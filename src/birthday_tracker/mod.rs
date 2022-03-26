@@ -28,7 +28,7 @@ impl BirthdayDateTime {
     }
 
     fn one_day_ahead(&self) -> BirthdayDateTime {
-        let mut day = (self.day + 1) % (commands::MONTH_TO_DAYS[self.month as usize] + 1);
+        let mut day = (self.day + 1) % (commands::MONTH_TO_DAYS[self.month as usize] as u32 + 1);
         let mut month = self.month;
 
         if day == 0 {

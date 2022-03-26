@@ -1,15 +1,63 @@
+use std::error::Error;
 use std::fmt::Display;
 
+use log::{error, warn};
 use serenity::client::Context;
 use serenity::http::Http;
-use serenity::model::id::ChannelId;
+use serenity::model::id::{ChannelId, UserId};
+use serenity::Error as SerenityError;
 
 use crate::commands::util;
 use crate::DELIBURD_ID;
 
 pub mod error;
 
-pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: ChannelId, arg_count: u32, args_needed: u32) {
+async fn dm_and_log<T: AsRef<str> + Display>(ctx: &Context, string: T, issue_type: IssueType) -> Result<(), SerenityError> {
+    match issue_type {
+        IssueType::Warning => warn!("{string}"),
+        IssueType::Error => error!("{string}"),
+    }
+
+    let dm_channel = UserId::from(DELIBURD_ID).create_dm_channel(&ctx.http).await?;
+
+    dm_channel.say(&ctx.http, string).await?;
+
+    Ok(())
+}
+
+async fn dm_and_log_handled<T: AsRef<str> + Display>(ctx: &Context, error_message: T, issue_type: IssueType) {
+    if let Err(e) = dm_and_log(ctx, error_message, issue_type).await {
+        error!("Error encountered DMing error to DELIBURD. Error: {e}");
+    }
+}
+
+#[derive(Debug)]
+pub enum IssueType {
+    Warning,
+    Error,
+}
+
+pub async fn dm_issue<S, T: Error>(
+    ctx: &Context,
+    identifier: &str,
+    result: Result<S, T>,
+    additional_info: &str,
+    issue_type: IssueType,
+) -> Result<S, T> {
+    dm_issue_no_return(ctx, identifier, &result, additional_info, issue_type).await;
+
+    result
+}
+
+pub async fn dm_issue_no_return<S, T: Error>(ctx: &Context, identifier: &str, result: &Result<S, T>, additional_info: &str, issue_type: IssueType) {
+    if let Err(err) = result {
+        let message = format!("Error encountered in the command/module '{identifier}'. Error: {err}\nAdditional information: {additional_info}");
+
+        dm_and_log_handled(ctx, message, issue_type).await;
+    }
+}
+
+pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: ChannelId, arg_count: usize, args_needed: usize) {
     let args_needed_message = if args_needed == 1 { " is" } else { "s are" };
     let arg_count_message = if arg_count == 1 { " was" } else { "s were" };
 
@@ -22,7 +70,7 @@ pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: ChannelId, arg_coun
     util::send_message(ctx, ch, not_enough_arguments_message, "not_enough_arguments").await;
 }
 
-pub async fn check_within_range<T: Display, U: Display>(ctx: impl AsRef<Http>, ch: ChannelId, arg: T, arg_pos: u32, start: U, end: U) {
+pub async fn check_within_range<T: Display, U: Display>(ctx: impl AsRef<Http>, ch: ChannelId, arg: T, arg_pos: usize, start: U, end: U) {
     let invalid_range_message = format!(
         "Invalid argument #{} provided. \
             The range should be within {} and {} (inclusive). \

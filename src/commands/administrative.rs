@@ -70,7 +70,7 @@ impl Log {
     }
 }
 
-async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, arg_pos: u32, args_needed: u32) -> Result<Member, CommandError> {
+async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, arg_pos: usize, args_needed: usize) -> Result<Member, CommandError> {
     let member = util::parse_member(ctx, msg, ArgumentInfo::new(args, arg_pos, args_needed)).await?;
 
     if member.user == msg.author {
@@ -84,9 +84,9 @@ async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, a
 
         msg.channel_id.send_message(ctx, |msg| msg.content(reply)).await?;
 
-        Err(Box::new(ArgumentParseErrorType::ArgumentConversionError::<u32>(
-            ArgumentConversionError::new(arg),
-        )))
+        Err(Box::new(ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(
+            arg,
+        ))))
     } else {
         Ok(member)
     }

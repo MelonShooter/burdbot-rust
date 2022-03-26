@@ -1,12 +1,41 @@
 mod forvo;
 
+use futures::future::join_all;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
 use serenity::framework::standard::macros::group;
 use serenity::framework::standard::{Args, CommandResult};
 use serenity::model::channel::Message;
+use strum::IntoEnumIterator;
+use util::ArgumentInfo;
 
+use crate::commands;
+use crate::commands::error_util::IssueType;
+use crate::commands::language::forvo::Country;
+
+use super::error_util;
+use super::error_util::error::NotEnoughArgumentsError;
 use super::util;
+
+async fn parse_term(ctx: &Context, msg: &Message, args: &mut Args) -> Result<String, NotEnoughArgumentsError> {
+    match args.current() {
+        Some(arg) => Ok(urlencoding::encode(arg)),
+        None => {
+            error_util::not_enough_arguments(ctx, msg.channel_id, 0, 1).await;
+
+            Err(NotEnoughArgumentsError::new(1, 0))
+        }
+    }
+}
+
+fn get_pronounce_message(term: &str, country: Country, requested_country: Option<Country>) -> String {
+    match requested_country.filter(|&c| c != country) {
+        Some(country) => format!(
+            "Here is the pronunciation of ``{term}``. The pronunciation from the country closest in terms of accent to the requested country is {country}."
+        ),
+        _ => format!("Here is the pronunciation of ``{term}``. Country: {country}."),
+    }
+}
 
 #[command]
 #[bucket("intense")]
@@ -16,26 +45,67 @@ use super::util;
 async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     args.quoted();
 
-    let pronunciation_data = forvo::fetch_pronunciation(ctx, msg, &mut args).await?;
+    let term = parse_term(ctx, msg, &mut args).await?; // Word to pronounce
 
-    match &pronunciation_data[..] {
-        &[None, None] => util::send_message(ctx, msg.channel_id, "No pronunciation found for the given term.", "pronounce").await,
-        _ => {
-            for pronunciation in pronunciation_data {
-                match pronunciation {
-                    Some(data) => {
-                        let recording = data.recording.clone();
+    args.advance();
 
-                        msg.channel_id
-                            .send_message(&ctx.http, |msg| {
-                                msg.content(data.message);
-                                msg.add_file((&recording[..], "forvo.mp3"))
-                            })
-                            .await?;
-                    }
-                    None => continue,
-                };
-            }
+    let requested_country = if args.remaining() >= 1 {
+        Some(commands::parse_choices(ctx, msg, ArgumentInfo::new(&mut args, 1, 2), Country::iter()).await?)
+    } else {
+        None
+    };
+
+    let data_res = forvo::fetch_pronunciation(term.as_str(), requested_country).await;
+    let info = format!("The term that caused this error was: {term}");
+    let mut pronunciation_data = error_util::dm_issue(ctx, "pronounce", data_res, info.as_str(), IssueType::Error).await?;
+
+    // TODO: CHANGE ERROR HANDLING FOR VOCAROO??
+
+    let mut recording_futures = Vec::new();
+
+    for recording_data_res in &mut pronunciation_data {
+        let recording = error_util::dm_issue(
+            ctx,
+            "pronounce",
+            recording_data_res.as_mut().map_err(|err| &*err),
+            info.as_str(),
+            IssueType::Error,
+        )
+        .await;
+
+        if let Ok(recording) = recording {
+            recording_futures.push(recording.get_recording());
+        }
+    }
+
+    if recording_futures.is_empty() {
+        util::send_message(ctx, msg.channel_id, "No pronunciation found for the given term.", "pronounce").await;
+
+        return Ok(());
+    }
+
+    let recordings_res_vec = join_all(recording_futures).await;
+
+    for recordings_res in recordings_res_vec {
+        error_util::dm_issue_no_return(ctx, "pronounce", &recordings_res, info.as_str(), IssueType::Error).await;
+    }
+
+    for recording_res in pronunciation_data {
+        if let Ok(mut recording) = recording_res {
+            let term = recording.term;
+            let country = recording.country;
+            let data = if recording.has_recording() {
+                recording.get_recording().await.expect("Recordings should always exist here.")
+            } else {
+                continue;
+            };
+
+            msg.channel_id
+                .send_message(&ctx.http, |msg| {
+                    msg.content(get_pronounce_message(term, country, requested_country));
+                    msg.add_file((data, "forvo.mp3"))
+                })
+                .await?;
         }
     }
 

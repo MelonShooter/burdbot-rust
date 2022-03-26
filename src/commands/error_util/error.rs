@@ -2,33 +2,52 @@ use rusqlite::Error as SQLiteError;
 use serenity::Error as SerenityError;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
-use std::str::FromStr;
 
 #[derive(Debug)]
-pub enum ArgumentParseErrorType<T: Ord + FromStr + Debug> {
-    OutOfBounds(ArgumentOutOfBoundsError<T>),
+pub enum ArgumentParseErrorType {
+    OutOfBounds(ArgumentOutOfBoundsError),
     NotEnoughArguments(NotEnoughArgumentsError),
     ArgumentConversionError(ArgumentConversionError),
-    BadOption,
+    BadOption(BadOptionError),
 }
 
-impl<T: Ord + FromStr + Debug> Display for ArgumentParseErrorType<T> {
+impl Display for ArgumentParseErrorType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{:?}", self))
     }
 }
 
-impl<T: Ord + FromStr + Debug> Error for ArgumentParseErrorType<T> {}
+impl Error for ArgumentParseErrorType {}
+
+#[derive(Debug, Clone)]
+pub struct BadOptionError {
+    pub arg_pos: usize,
+    pub choices: String,
+}
+
+impl BadOptionError {
+    pub(in crate::commands) fn new(arg_pos: usize, choices: String) -> Self {
+        Self { arg_pos, choices }
+    }
+}
+
+impl Display for BadOptionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?}", self))
+    }
+}
+
+impl Error for BadOptionError {}
 
 #[derive(Debug)]
 pub struct NotEnoughArgumentsError {
-    pub min_args: u32,
-    pub args_provided: u32,
+    pub min_args: usize,
+    pub args_provided: usize,
 }
 
 impl NotEnoughArgumentsError {
-    pub fn new(min_args: u32, args_provided: u32) -> NotEnoughArgumentsError {
-        NotEnoughArgumentsError { min_args, args_provided }
+    pub fn new(min_args: usize, args_provided: usize) -> Self {
+        Self { min_args, args_provided }
     }
 }
 
@@ -41,25 +60,25 @@ impl Display for NotEnoughArgumentsError {
 impl Error for NotEnoughArgumentsError {}
 
 #[derive(Debug)]
-pub struct ArgumentOutOfBoundsError<T: Ord + FromStr + Debug> {
-    pub lower: T,
-    pub upper: T,
-    pub argument: T,
+pub struct ArgumentOutOfBoundsError {
+    pub lower: i64,
+    pub upper: i64,
+    pub argument: i64,
 }
 
-impl<T: Ord + FromStr + Debug> ArgumentOutOfBoundsError<T> {
-    pub fn new(lower: T, upper: T, argument: T) -> ArgumentOutOfBoundsError<T> {
-        ArgumentOutOfBoundsError { lower, upper, argument }
+impl ArgumentOutOfBoundsError {
+    pub fn new(lower: i64, upper: i64, argument: i64) -> Self {
+        Self { lower, upper, argument }
     }
 }
 
-impl<T: Ord + FromStr + Debug> Display for ArgumentOutOfBoundsError<T> {
+impl Display for ArgumentOutOfBoundsError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{:?}", self))
     }
 }
 
-impl<T: Ord + FromStr + Debug> Error for ArgumentOutOfBoundsError<T> {}
+impl Error for ArgumentOutOfBoundsError {}
 
 #[derive(Debug)]
 pub struct ArgumentConversionError {
@@ -67,8 +86,8 @@ pub struct ArgumentConversionError {
 }
 
 impl ArgumentConversionError {
-    pub fn new(original_value: String) -> ArgumentConversionError {
-        ArgumentConversionError {
+    pub fn new(original_value: String) -> Self {
+        Self {
             _original_value: original_value,
         }
     }
