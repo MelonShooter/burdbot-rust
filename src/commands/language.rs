@@ -1,7 +1,9 @@
 mod forvo;
 
 use futures::future::join_all;
-use log::warn;
+use futures::stream;
+use futures::StreamExt;
+use log::debug;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
 use serenity::framework::standard::macros::group;
@@ -14,6 +16,8 @@ use crate::commands;
 use crate::commands::error_util::IssueType;
 use crate::commands::language::forvo::Country;
 use crate::commands::language::forvo::ForvoError;
+
+use self::forvo::ForvoResult;
 
 use super::error_util;
 use super::error_util::error::NotEnoughArgumentsError;
@@ -32,11 +36,31 @@ async fn parse_term(ctx: &Context, msg: &Message, args: &mut Args) -> Result<Str
 
 fn get_pronounce_message(term: &str, country: Country, requested_country: Option<Country>) -> String {
     match requested_country.filter(|&c| c != country) {
-        Some(country) => format!(
+        Some(_) => {
+            format!(
             "Here is the pronunciation of ``{term}``. The pronunciation from the country closest in terms of accent to the requested country is {country}."
-        ),
+        )
+        }
         _ => format!("Here is the pronunciation of ``{term}``. Country: {country}."),
     }
+}
+
+async fn send_forvo_recording(ctx: &Context, msg: &Message, term: &str, country: Country, data: &[u8], requested_country: Option<Country>) {
+    let result = msg
+        .channel_id
+        .send_message(&ctx.http, |msg| {
+            msg.content(get_pronounce_message(term, country, requested_country));
+            msg.add_file((data, "forvo.mp3"))
+        })
+        .await;
+
+    if let Err(err) = result {
+        debug!("Couldn't send forvo message due to error: {:?}", err)
+    }
+}
+
+async fn handle_recording_error<T>(ctx: &Context, recording: ForvoResult<T>, info: &str) -> Option<T> {
+    error_util::dm_issue(ctx, "pronounce", recording, info, IssueType::Error).await.ok()
 }
 
 #[command]
@@ -59,19 +83,19 @@ async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 
     let data_res = forvo::fetch_pronunciation(term.as_str(), requested_country).await;
     let info = format!("The term that caused this error was: {term}");
-    let mut pronunciation_data = error_util::dm_issue(ctx, "pronounce", data_res, info.as_str(), IssueType::Error).await?;
+    let pronunciation_data = error_util::dm_issue(ctx, "pronounce", data_res, info.as_str(), IssueType::Error).await?;
 
-    // TODO: CHANGE ERROR HANDLING FOR VOCAROO??
+    // TODO: CHANGE ERROR HANDLING FOR VOCAROO??, add limit to how large these recordings can be
 
     let mut recording_futures = Vec::new();
 
-    for recording_data_res in &mut pronunciation_data {
-        let res = recording_data_res.as_mut().map_err(|err| &*err);
+    for recording_data_res in pronunciation_data {
+        let res = recording_data_res;
 
         match res {
-            Err(ForvoError::InvalidMatchedCountry(_)) => warn!("{:?}", res),
+            Err(ForvoError::InvalidMatchedCountry(_)) => debug!("{:?}", res),
             Err(_) => error_util::dm_issue_no_return(ctx, "pronounce", &res, info.as_str(), IssueType::Error).await,
-            Ok(recording) => recording_futures.push(recording.get_recording()),
+            Ok(recording) => recording_futures.push(recording),
         }
     }
 
@@ -81,32 +105,12 @@ async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
         return Ok(());
     }
 
-    let recordings_res_vec = join_all(recording_futures).await;
-
-    for recordings_res in recordings_res_vec {
-        error_util::dm_issue_no_return(ctx, "pronounce", &recordings_res, info.as_str(), IssueType::Error).await;
-    }
-
-    for recording_res in pronunciation_data {
-        if let Ok(mut recording) = recording_res {
-            let term = recording.term;
-            let country = recording.country;
-            let data = if recording.has_recording() {
-                recording.get_recording().await.expect("Recordings should always exist here.")
-            } else {
-                continue;
-            };
-
-            // join the 2 msg sends too
-
-            msg.channel_id
-                .send_message(&ctx.http, |msg| {
-                    msg.content(get_pronounce_message(term, country, requested_country));
-                    msg.add_file((data, "forvo.mp3"))
-                })
-                .await?;
-        }
-    }
+    stream::iter(join_all(recording_futures.iter_mut().map(|r| r.get_recording())).await)
+        .filter_map(|r| handle_recording_error(ctx, r, info.as_str()))
+        .for_each_concurrent(None, |(data, country, term)| async move {
+            send_forvo_recording(ctx, msg, term, country, data, requested_country).await;
+        })
+        .await;
 
     Ok(())
 }

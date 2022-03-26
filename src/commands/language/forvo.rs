@@ -29,7 +29,7 @@ lazy_static! {
     static ref FORVO_CLIENT: Client = Client::new();
 }
 
-type ForvoResult<T> = Result<T, ForvoError>;
+pub type ForvoResult<T> = Result<T, ForvoError>;
 type PossibleForvoRecording = ForvoResult<ForvoRecording>;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -302,16 +302,12 @@ impl<'a> RecordingData<'a> {
         }
     }
 
-    pub fn has_recording(&self) -> bool {
-        self.recording.is_some()
-    }
-
-    pub async fn get_recording(&mut self) -> ForvoResult<&[u8]> {
+    pub async fn get_recording(&mut self) -> ForvoResult<(&[u8], Country, &str)> {
         if let None = self.recording {
             self.recording = Some(get_pronunciation_from_link(self.recording_link.as_str()).await?);
         }
 
-        Ok(self.recording.as_deref().unwrap())
+        Ok((self.recording.as_deref().unwrap(), self.country, self.term))
     }
 }
 
