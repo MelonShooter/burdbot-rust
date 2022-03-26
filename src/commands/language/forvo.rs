@@ -151,8 +151,9 @@ fn get_language_recording(captures: Captures, regex: &'static str, language: Lan
     let country = captures
         .get(2)
         .ok_or_else(|| ForvoError::BadCountryRegexMatching(ForvoRegexCaptureError::new(regex, 2, ForvoCaptureType::Country)))?
-        .as_str()
-        .parse::<Country>()?;
+        .as_str();
+    //.trim(); // Necessary because some countries have leading/trailing whitespace for whatever reason.
+    let country = country.parse::<Country>()?;
 
     let decoded_bytes = base64::decode(url_base64_data.as_str())?;
     let decoded_link = String::from_utf8(decoded_bytes)?;
@@ -214,10 +215,10 @@ fn recording_to_distance<T: DerefMut<Target = HashMap<(Country, Country), u32>>>
         Language::Spanish => Country::Argentina,
     });
 
-    match accent_difference_map.get(&(recording.country, country)) {
+    let dist = match accent_difference_map.get(&(country, recording.country)) {
         Some(&distance) => distance,
         None => {
-            let distance_map = algo::dijkstra(country_graph, recording.country.into(), None, |e| *e.weight());
+            let distance_map = algo::dijkstra(country_graph, country.into(), None, |e| *e.weight());
             let mut recording_distance: Option<u32> = None;
 
             for (node_idx, distance) in distance_map {
@@ -225,7 +226,7 @@ fn recording_to_distance<T: DerefMut<Target = HashMap<(Country, Country), u32>>>
 
                 accent_difference_map.insert((country, target_country), distance);
 
-                if target_country == country {
+                if target_country == recording.country {
                     recording_distance = Some(distance);
                 }
             }
@@ -234,24 +235,26 @@ fn recording_to_distance<T: DerefMut<Target = HashMap<(Country, Country), u32>>>
 
             recording_distance.unwrap()
         }
-    }
+    };
+
+    dist
 }
 
 fn get_closest_recording<'a>(requested_country: Option<Country>, recordings: &[PossibleForvoRecording]) -> Option<&ForvoRecording> {
     lazy_static! {
         static ref COUNTRY_GRAPH: UnGraph<Country, u32> = UnGraph::from_edges(&[
-            (Country::Argentina, Country::Uruguay, 0),
+            (Country::Argentina, Country::Uruguay, 1),
             (Country::Argentina, Country::Chile, 3),
             (Country::Argentina, Country::Peru, 3),
             (Country::Argentina, Country::Paraguay, 2),
             (Country::Chile, Country::Bolivia, 3),
-            (Country::Bolivia, Country::Peru, 0),
+            (Country::Bolivia, Country::Peru, 1),
             (Country::Peru, Country::Paraguay, 3),
-            (Country::Bolivia, Country::Ecuador, 1),
+            (Country::Bolivia, Country::Ecuador, 2),
             (Country::Ecuador, Country::Colombia, 4),
-            (Country::Colombia, Country::Venezuela, 0),
-            (Country::Venezuela, Country::DominicanRepublic, 1),
-            (Country::Venezuela, Country::Cuba, 1),
+            (Country::Colombia, Country::Venezuela, 1),
+            (Country::Venezuela, Country::DominicanRepublic, 2),
+            (Country::Venezuela, Country::Cuba, 2),
             (Country::DominicanRepublic, Country::Cuba, 1),
             (Country::Colombia, Country::Panama, 4),
             (Country::Panama, Country::CostaRica, 1),
@@ -300,7 +303,7 @@ impl<'a> RecordingData<'a> {
     }
 
     pub fn has_recording(&self) -> bool {
-        self.recording == None
+        self.recording.is_some()
     }
 
     pub async fn get_recording(&mut self) -> ForvoResult<&[u8]> {

@@ -1,6 +1,7 @@
 mod forvo;
 
 use futures::future::join_all;
+use log::warn;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
 use serenity::framework::standard::macros::group;
@@ -12,6 +13,7 @@ use util::ArgumentInfo;
 use crate::commands;
 use crate::commands::error_util::IssueType;
 use crate::commands::language::forvo::Country;
+use crate::commands::language::forvo::ForvoError;
 
 use super::error_util;
 use super::error_util::error::NotEnoughArgumentsError;
@@ -64,17 +66,12 @@ async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
     let mut recording_futures = Vec::new();
 
     for recording_data_res in &mut pronunciation_data {
-        let recording = error_util::dm_issue(
-            ctx,
-            "pronounce",
-            recording_data_res.as_mut().map_err(|err| &*err),
-            info.as_str(),
-            IssueType::Error,
-        )
-        .await;
+        let res = recording_data_res.as_mut().map_err(|err| &*err);
 
-        if let Ok(recording) = recording {
-            recording_futures.push(recording.get_recording());
+        match res {
+            Err(ForvoError::InvalidMatchedCountry(_)) => warn!("{:?}", res),
+            Err(_) => error_util::dm_issue_no_return(ctx, "pronounce", &res, info.as_str(), IssueType::Error).await,
+            Ok(recording) => recording_futures.push(recording.get_recording()),
         }
     }
 
@@ -99,6 +96,8 @@ async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
             } else {
                 continue;
             };
+
+            // join the 2 msg sends too
 
             msg.channel_id
                 .send_message(&ctx.http, |msg| {
