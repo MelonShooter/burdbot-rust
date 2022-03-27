@@ -180,7 +180,7 @@ fn to_opposite_tuple(b: bool) -> (bool, bool) {
 /// Possible for outer vec to be empty, techinically not possible for inner vec to be empty, but take it into account anyways
 async fn get_all_recordings(term: &str, requested_country: Option<Country>) -> ForvoResult<Vec<Vec<PossibleForvoRecording>>> {
     let url = format!("https://forvo.com/word/{}/", term);
-    let data = FORVO_CLIENT.get(url).send().await?.text().await?;
+    let data = FORVO_CLIENT.get(url).send().await?.text().await.unwrap_err().clone();
     let document = Html::parse_document(data.as_str());
     let language_containers = Selector::parse("div.language-container").expect("Bad CSS selector.");
     let (do_english, do_spanish) = match requested_country {

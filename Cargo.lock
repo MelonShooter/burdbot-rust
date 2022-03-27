@@ -199,6 +199,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "syn",
+ "thiserror",
  "time 0.3.7",
  "tokio",
  "urlencoding",

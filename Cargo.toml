@@ -37,6 +37,7 @@ petgraph = "^0.6.0"
 strum = "^0.21"
 strum_macros = "^0.21"
 base64 = "^0.13"
+thiserror = "^1"
 
 [patch.crates-io]
 audiopus = { git = 'https://github.com/DoumanAsh/audiopus/', branch = 'better_sys' }

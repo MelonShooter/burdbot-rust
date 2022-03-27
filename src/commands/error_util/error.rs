@@ -1,45 +1,42 @@
 use rusqlite::Error as SQLiteError;
 use serenity::Error as SerenityError;
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
+use thiserror::Error;
 
-#[derive(Debug)]
-pub enum ArgumentParseErrorType {
-    OutOfBounds(ArgumentOutOfBoundsError),
-    NotEnoughArguments(NotEnoughArgumentsError),
-    ArgumentConversionError(ArgumentConversionError),
-    BadOption(BadOptionError),
+use crate::commands::ConversionType;
+
+#[derive(Error, Debug)]
+pub enum ArgumentParseError {
+    #[error("{0}")]
+    OutOfBounds(#[from] ArgumentOutOfBoundsError),
+    #[error("{0}")]
+    NotEnoughArguments(#[from] NotEnoughArgumentsError),
+    #[error("{0}")]
+    ArgumentConversionError(#[from] ArgumentConversionError),
+    #[error("{0}")]
+    BadOption(#[from] BadOptionError),
 }
 
-impl Display for ArgumentParseErrorType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
-    }
-}
-
-impl Error for ArgumentParseErrorType {}
-
-#[derive(Debug, Clone)]
+#[derive(Error, Debug, Clone)]
+#[error("Invalid choice in argument #{arg_pos}. Choices are {choices}. The argument provided was {provided_choice}")]
 pub struct BadOptionError {
     pub arg_pos: usize,
+    pub provided_choice: String,
     pub choices: String,
 }
 
 impl BadOptionError {
-    pub(in crate::commands) fn new(arg_pos: usize, choices: String) -> Self {
-        Self { arg_pos, choices }
+    pub(in crate::commands) fn new(arg_pos: usize, provided_choice: String, choices: String) -> Self {
+        Self {
+            arg_pos,
+            provided_choice,
+            choices,
+        }
     }
 }
 
-impl Display for BadOptionError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
-    }
-}
-
-impl Error for BadOptionError {}
-
-#[derive(Debug)]
+#[derive(Error, Debug, Copy, Clone)]
+#[error("Not enough arguments provided. At least {min_args} arg(s) is/are needed. {args_provided} was/were provided.")]
 pub struct NotEnoughArgumentsError {
     pub min_args: usize,
     pub args_provided: usize,
@@ -51,66 +48,45 @@ impl NotEnoughArgumentsError {
     }
 }
 
-impl Display for NotEnoughArgumentsError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
-    }
-}
-
-impl Error for NotEnoughArgumentsError {}
-
-#[derive(Debug)]
+#[derive(Error, Debug, Copy, Clone)]
+#[error("Argument #{arg_pos} is out of bounds. The range (inclusive) for this argument is {lower} to {upper}. The number provided was {arg}.")]
 pub struct ArgumentOutOfBoundsError {
     pub lower: i64,
     pub upper: i64,
-    pub argument: i64,
+    pub arg: i64,
+    pub arg_pos: usize,
 }
 
 impl ArgumentOutOfBoundsError {
-    pub fn new(lower: i64, upper: i64, argument: i64) -> Self {
-        Self { lower, upper, argument }
+    pub fn new(lower: i64, upper: i64, arg: i64, arg_pos: u64) -> Self {
+        Self { lower, upper, arg, arg_pos }
     }
 }
 
-impl Display for ArgumentOutOfBoundsError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
-    }
-}
-
-impl Error for ArgumentOutOfBoundsError {}
-
-#[derive(Debug)]
+#[derive(Error, Debug, Clone)]
+#[error("Argument #{arg_pos} could not be converted to a {conversion_type}. {} The argument provided was {arg}.", conversion_type.get_str("info"))]
 pub struct ArgumentConversionError {
-    _original_value: String,
+    arg_pos: usize,
+    arg: String,
+    conversion_type: ConversionType,
 }
 
 impl ArgumentConversionError {
-    pub fn new(original_value: String) -> Self {
+    pub fn new(arg_pos: usize, arg: String, conversion_type: ConversionType) -> Self {
         Self {
-            _original_value: original_value,
+            arg_pos,
+            arg,
+            conversion_type,
         }
     }
 }
 
-impl Display for ArgumentConversionError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
-    }
-}
-
-impl Error for ArgumentConversionError {}
-
-#[derive(Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum SerenitySQLiteError {
-    SerenityError(Vec<SerenityError>),
-    SQLiteError(SQLiteError),
-}
-
-impl From<Vec<SerenityError>> for SerenitySQLiteError {
-    fn from(errors: Vec<SerenityError>) -> Self {
-        SerenitySQLiteError::SerenityError(errors)
-    }
+    #[error("Serenity error encountered: {0:?}")]
+    SerenityError(#[from] Vec<SerenityError>),
+    #[error("SQLite error encountered: {0:?}")]
+    SQLiteError(#[from] SQLiteError),
 }
 
 impl From<SerenityError> for SerenitySQLiteError {
@@ -118,17 +94,3 @@ impl From<SerenityError> for SerenitySQLiteError {
         SerenitySQLiteError::SerenityError(vec![errors])
     }
 }
-
-impl From<SQLiteError> for SerenitySQLiteError {
-    fn from(error: SQLiteError) -> Self {
-        SerenitySQLiteError::SQLiteError(error)
-    }
-}
-
-impl Display for SerenitySQLiteError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
-    }
-}
-
-impl Error for SerenitySQLiteError {}

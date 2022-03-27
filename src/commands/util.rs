@@ -20,14 +20,24 @@ use serenity::utils::Colour;
 use serenity::Error;
 use serenity::Result as SerenityResult;
 use std::ops::Deref;
+use strum_macros::Display;
+use strum_macros::EnumProperty;
 
 use log::error;
 
 use super::error_util;
 use super::error_util::error::BadOptionError;
-use super::error_util::error::{ArgumentConversionError, ArgumentOutOfBoundsError, ArgumentParseErrorType, NotEnoughArgumentsError};
+use super::error_util::error::{ArgumentConversionError, ArgumentOutOfBoundsError, ArgumentParseError, NotEnoughArgumentsError};
 
 pub mod user_search_engine;
+
+// TODO: Add different conversion types
+#[derive(Display, Debug, EnumProperty, Copy, Clone)]
+pub enum ConversionType {
+    Other,
+}
+
+// TODO: UPDATE THIS TO TAKE ADVANTAGE OF FROM AND NEW DISPLAY IMPLS
 
 pub struct ArgumentInfo<'a> {
     args: &'a mut Args,
@@ -37,6 +47,7 @@ pub struct ArgumentInfo<'a> {
 
 impl ArgumentInfo<'_> {
     pub fn new(args: &mut Args, arg_pos: usize, args_needed: usize) -> ArgumentInfo<'_> {
+        ConversionType::Other.get_str();
         ArgumentInfo { args, arg_pos, args_needed }
     }
 }
@@ -61,7 +72,7 @@ impl BoundedArgumentInfo<'_> {
     }
 }
 
-pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: BoundedArgumentInfo<'_>) -> Result<i64, ArgumentParseErrorType> {
+pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: BoundedArgumentInfo<'_>) -> Result<i64, ArgumentParseError> {
     let start = arg_info.start;
     let end = arg_info.end;
     let args = arg_info.args;
@@ -73,10 +84,11 @@ pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: B
             if month_number < start || month_number > end {
                 error_util::check_within_range(ctx, msg.channel_id, month_number, arg_pos, start, end).await;
 
-                Err(ArgumentParseErrorType::OutOfBounds(ArgumentOutOfBoundsError::new(
+                Err(ArgumentParseError::OutOfBounds(ArgumentOutOfBoundsError::new(
                     start,
                     end,
                     month_number,
+                    arg_pos,
                 )))
             } else {
                 args.advance(); // Get past the number argument.
@@ -90,7 +102,7 @@ pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: B
                 // Error thrown because we've reached the end.
                 error_util::not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
-                Err(ArgumentParseErrorType::NotEnoughArguments(NotEnoughArgumentsError::new(
+                Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(
                     args_needed,
                     arg_pos - 1,
                 )))
@@ -98,7 +110,7 @@ pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: B
                 // Must be a parse error.
                 error_util::check_within_range(ctx, msg.channel_id, args.current().unwrap(), arg_pos, start, end).await;
 
-                Err(ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(
+                Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
                     args.current().unwrap().to_owned(),
                 )))
             }
@@ -133,15 +145,15 @@ async fn id_argument_to_member<T: AsRef<Cache>>(
     arg: &str,
     guild_id: impl Into<GuildId>,
     user_id: impl Into<UserId>,
-) -> Result<Member, ArgumentParseErrorType> {
+) -> Result<Member, ArgumentParseError> {
     return cache
         .as_ref()
         .member(guild_id, user_id)
         .await
-        .ok_or_else(|| ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
+        .ok_or_else(|| ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
 }
 
-pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<Member, ArgumentParseErrorType> {
+pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<Member, ArgumentParseError> {
     let args = arg_info.args;
     let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();
@@ -160,7 +172,7 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
             if let ArgError::Eos = error {
                 error_util::not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
-                return Err(ArgumentParseErrorType::NotEnoughArguments(NotEnoughArgumentsError::new(
+                return Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(
                     args_needed,
                     arg_pos - 1,
                 )));
@@ -194,9 +206,7 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
 
     send_message(ctx, msg.channel_id, msg_str, "parse_member").await;
 
-    Err(ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(
-        arg.to_owned(),
-    )))
+    Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())))
 }
 
 fn parse_role_mention(arg: &str) -> Option<u64> {
@@ -236,7 +246,7 @@ pub async fn parse_choices<T: IntoIterator>(
     msg: &Message,
     arg_info: ArgumentInfo<'_>,
     choices: T,
-) -> Result<T::Item, ArgumentParseErrorType>
+) -> Result<T::Item, ArgumentParseError>
 where
     T::Item: Display + Hash + Eq + FromStr,
 {
@@ -254,14 +264,18 @@ where
             if let ArgError::Eos = error {
                 error_util::not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
-                Err(ArgumentParseErrorType::NotEnoughArguments(NotEnoughArgumentsError::new(
+                Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(
                     args_needed,
                     arg_pos - 1,
                 )))
             } else {
                 let options = bad_option_message(ctx, msg, arg_pos, choices.into_iter()).await;
+                let current_arg = args
+                    .current()
+                    .expect("The current argument doesn't exist. This should never happen here.")
+                    .to_owned();
 
-                Err(ArgumentParseErrorType::BadOption(BadOptionError::new(arg_pos, options)))
+                Err(ArgumentParseError::BadOption(BadOptionError::new(arg_pos, current_arg, options)))
             }
         }
     }
@@ -272,16 +286,16 @@ async fn id_argument_to_role<T: AsRef<Cache>>(
     arg: &str,
     guild_id: impl Into<GuildId>,
     role_id: impl Into<RoleId>,
-) -> Result<RoleId, ArgumentParseErrorType> {
+) -> Result<RoleId, ArgumentParseError> {
     return cache
         .as_ref()
         .guild_field(guild_id, |guild| guild.roles.get(&role_id.into()).map(|role| role.id))
         .await
         .flatten()
-        .ok_or_else(|| ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
+        .ok_or_else(|| ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
 }
 
-pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<RoleId, ArgumentParseErrorType> {
+pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<RoleId, ArgumentParseError> {
     let args = arg_info.args;
     let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();
@@ -300,7 +314,7 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
             if let ArgError::Eos = error {
                 error_util::not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
-                return Err(ArgumentParseErrorType::NotEnoughArguments(NotEnoughArgumentsError::new(
+                return Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(
                     args_needed,
                     arg_pos - 1,
                 )));
@@ -322,9 +336,7 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
 
     send_message(ctx, msg.channel_id, msg_str, "parse_role").await;
 
-    Err(ArgumentParseErrorType::ArgumentConversionError(ArgumentConversionError::new(
-        arg.to_owned(),
-    )))
+    Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())))
 }
 
 fn check_message_sending(res: SerenityResult<Message>, function_name: &str) {
