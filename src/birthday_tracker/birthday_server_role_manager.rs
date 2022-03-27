@@ -162,7 +162,7 @@ pub async fn remove_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id
         }
 
         if !error_vec.is_empty() {
-            let error = SerenitySQLiteError::SerenityError(error_vec);
+            let error = error_vec.into();
 
             handle_update_birthday_roles_error(&error);
 

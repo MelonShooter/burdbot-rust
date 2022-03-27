@@ -1,6 +1,7 @@
 use rusqlite::Error as SQLiteError;
 use serenity::Error as SerenityError;
 use std::fmt::Debug;
+use strum::EnumProperty;
 use thiserror::Error;
 
 use crate::commands::ConversionType;
@@ -16,6 +17,9 @@ pub enum ArgumentParseError {
     #[error("{0}")]
     BadOption(#[from] BadOptionError),
 }
+
+// TODO: URGENT: SANATIZE ANY USER INPUTS BY SETTING ALLOWED MENTIONS PRIOR TO SENDING ERROR AND USING EMBEDS, ONLY ALLOW FROM ONE PLACE.
+// CHECK ANY OTHER CASES THIS COULD HAPPEN
 
 #[derive(Error, Debug, Clone)]
 #[error("Invalid choice in argument #{arg_pos}. Choices are {choices}. The argument provided was {provided_choice}")]
@@ -58,17 +62,19 @@ pub struct ArgumentOutOfBoundsError {
 }
 
 impl ArgumentOutOfBoundsError {
-    pub fn new(lower: i64, upper: i64, arg: i64, arg_pos: u64) -> Self {
+    pub fn new(lower: i64, upper: i64, arg: i64, arg_pos: usize) -> Self {
         Self { lower, upper, arg, arg_pos }
     }
 }
 
+const CONVERSION_NO_INFO: &str = "Conversions should always have an info property";
+
 #[derive(Error, Debug, Clone)]
-#[error("Argument #{arg_pos} could not be converted to a {conversion_type}. {} The argument provided was {arg}.", conversion_type.get_str("info"))]
+#[error("Argument #{arg_pos} could not be converted to a {conversion_type}. {} The argument provided was {arg}.", conversion_type.get_str("info").expect(CONVERSION_NO_INFO))]
 pub struct ArgumentConversionError {
-    arg_pos: usize,
-    arg: String,
-    conversion_type: ConversionType,
+    pub arg_pos: usize,
+    pub arg: String,
+    pub conversion_type: ConversionType,
 }
 
 impl ArgumentConversionError {
@@ -81,16 +87,46 @@ impl ArgumentConversionError {
     }
 }
 
-#[derive(Error, Debug, Clone)]
+#[derive(Debug, Error)]
+#[error("{serenity_errors:?}")]
+pub struct SerenityErrors {
+    pub serenity_errors: Vec<SerenityError>,
+}
+
+impl SerenityErrors {
+    pub fn new(serenity_errors: Vec<SerenityError>) -> Self {
+        SerenityErrors { serenity_errors }
+    }
+}
+
+impl From<SerenityError> for SerenityErrors {
+    fn from(error: SerenityError) -> Self {
+        Self::new(vec![error])
+    }
+}
+
+impl From<Vec<SerenityError>> for SerenityErrors {
+    fn from(errors: Vec<SerenityError>) -> Self {
+        Self::new(errors)
+    }
+}
+
+#[derive(Error, Debug)]
 pub enum SerenitySQLiteError {
-    #[error("Serenity error encountered: {0:?}")]
-    SerenityError(#[from] Vec<SerenityError>),
+    #[error("Serenity errors encountered: {0:?}")]
+    SerenityError(#[from] SerenityErrors),
     #[error("SQLite error encountered: {0:?}")]
     SQLiteError(#[from] SQLiteError),
 }
 
 impl From<SerenityError> for SerenitySQLiteError {
     fn from(errors: SerenityError) -> Self {
-        SerenitySQLiteError::SerenityError(vec![errors])
+        errors.into()
+    }
+}
+
+impl From<Vec<SerenityError>> for SerenitySQLiteError {
+    fn from(errors: Vec<SerenityError>) -> Self {
+        errors.into()
     }
 }

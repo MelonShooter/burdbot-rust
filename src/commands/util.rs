@@ -31,14 +31,16 @@ use super::error_util::error::{ArgumentConversionError, ArgumentOutOfBoundsError
 
 pub mod user_search_engine;
 
+// TODO: UPDATE THIS TO TAKE ADVANTAGE OF FROM (use ?) AND NEW DISPLAY IMPLS EVERYWHERE
 // TODO: Add different conversion types
 #[derive(Display, Debug, EnumProperty, Copy, Clone)]
 pub enum ConversionType {
-    Other,
+    // add conversions and info properties
+    ToNumber,
+    ToMember,
+    ToRole,
+    ToNonSelfMember,
 }
-
-// TODO: UPDATE THIS TO TAKE ADVANTAGE OF FROM AND NEW DISPLAY IMPLS
-
 pub struct ArgumentInfo<'a> {
     args: &'a mut Args,
     arg_pos: usize,
@@ -47,7 +49,6 @@ pub struct ArgumentInfo<'a> {
 
 impl ArgumentInfo<'_> {
     pub fn new(args: &mut Args, arg_pos: usize, args_needed: usize) -> ArgumentInfo<'_> {
-        ConversionType::Other.get_str();
         ArgumentInfo { args, arg_pos, args_needed }
     }
 }
@@ -73,11 +74,13 @@ impl BoundedArgumentInfo<'_> {
 }
 
 pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: BoundedArgumentInfo<'_>) -> Result<i64, ArgumentParseError> {
-    let start = arg_info.start;
-    let end = arg_info.end;
-    let args = arg_info.args;
-    let arg_pos = arg_info.arg_pos;
-    let args_needed = arg_info.args_needed;
+    let BoundedArgumentInfo {
+        start,
+        end,
+        args,
+        arg_pos,
+        args_needed,
+    } = arg_info;
 
     match args.parse::<i64>() {
         Ok(month_number) => {
@@ -111,7 +114,9 @@ pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: B
                 error_util::check_within_range(ctx, msg.channel_id, args.current().unwrap(), arg_pos, start, end).await;
 
                 Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
+                    arg_pos,
                     args.current().unwrap().to_owned(),
+                    ConversionType::ToNumber,
                 )))
             }
         }
@@ -142,6 +147,7 @@ fn parse_user_mention(arg: &str) -> Option<u64> {
 
 async fn id_argument_to_member<T: AsRef<Cache>>(
     cache: T,
+    arg_pos: usize,
     arg: &str,
     guild_id: impl Into<GuildId>,
     user_id: impl Into<UserId>,
@@ -150,19 +156,17 @@ async fn id_argument_to_member<T: AsRef<Cache>>(
         .as_ref()
         .member(guild_id, user_id)
         .await
-        .ok_or_else(|| ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
+        .ok_or_else(|| ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::ToMember).into());
 }
 
 pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<Member, ArgumentParseError> {
-    let args = arg_info.args;
     let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();
-    let arg_pos = arg_info.arg_pos;
-    let args_needed = arg_info.args_needed;
+    let ArgumentInfo { args, arg_pos, args_needed } = arg_info;
 
     match args.parse::<u64>() {
         Ok(user_id) => {
-            if let Ok(member) = id_argument_to_member(cache, args.current().unwrap(), guild_id, user_id).await {
+            if let Ok(member) = id_argument_to_member(cache, arg_pos, args.current().unwrap(), guild_id, user_id).await {
                 args.advance();
 
                 return Ok(member);
@@ -183,7 +187,7 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
     let arg = args.current().unwrap();
 
     if let Some(user_id) = parse_user_mention(arg) {
-        if let Ok(member) = id_argument_to_member(cache, arg, guild_id, user_id).await {
+        if let Ok(member) = id_argument_to_member(cache, arg_pos, arg, guild_id, user_id).await {
             args.advance();
 
             return Ok(member);
@@ -192,7 +196,7 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
 
     if let Some(user_vec) = user_search_engine::user_id_search(ctx, guild_id.0, arg).await {
         for user_id in user_vec {
-            let member_result = id_argument_to_member(cache, arg, guild_id, user_id).await;
+            let member_result = id_argument_to_member(cache, arg_pos, arg, guild_id, user_id).await;
 
             if let Ok(member) = member_result {
                 args.advance();
@@ -206,7 +210,11 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
 
     send_message(ctx, msg.channel_id, msg_str, "parse_member").await;
 
-    Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())))
+    Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
+        arg_pos,
+        arg.to_owned(),
+        ConversionType::ToMember,
+    )))
 }
 
 fn parse_role_mention(arg: &str) -> Option<u64> {
@@ -250,9 +258,7 @@ pub async fn parse_choices<T: IntoIterator>(
 where
     T::Item: Display + Hash + Eq + FromStr,
 {
-    let args = arg_info.args;
-    let arg_pos = arg_info.arg_pos;
-    let args_needed = arg_info.args_needed;
+    let ArgumentInfo { args, arg_pos, args_needed } = arg_info;
 
     match args.parse::<T::Item>() {
         Ok(arg) => {
@@ -283,6 +289,7 @@ where
 
 async fn id_argument_to_role<T: AsRef<Cache>>(
     cache: T,
+    arg_pos: usize,
     arg: &str,
     guild_id: impl Into<GuildId>,
     role_id: impl Into<RoleId>,
@@ -292,19 +299,17 @@ async fn id_argument_to_role<T: AsRef<Cache>>(
         .guild_field(guild_id, |guild| guild.roles.get(&role_id.into()).map(|role| role.id))
         .await
         .flatten()
-        .ok_or_else(|| ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())));
+        .ok_or_else(|| ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::ToRole)));
 }
 
 pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<RoleId, ArgumentParseError> {
-    let args = arg_info.args;
     let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();
-    let arg_pos = arg_info.arg_pos;
-    let args_needed = arg_info.args_needed;
+    let ArgumentInfo { args, arg_pos, args_needed } = arg_info;
 
     match args.parse::<u64>() {
         Ok(user_id) => {
-            if let Ok(role_id) = id_argument_to_role(cache, args.current().unwrap(), guild_id, user_id).await {
+            if let Ok(role_id) = id_argument_to_role(cache, arg_pos, args.current().unwrap(), guild_id, user_id).await {
                 args.advance();
 
                 return Ok(role_id);
@@ -325,7 +330,7 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
     let arg = args.current().unwrap();
 
     if let Some(user_id) = parse_role_mention(arg) {
-        if let Ok(role_id) = id_argument_to_role(cache, arg, guild_id, user_id).await {
+        if let Ok(role_id) = id_argument_to_role(cache, arg_pos, arg, guild_id, user_id).await {
             args.advance();
 
             return Ok(role_id);
@@ -336,7 +341,11 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
 
     send_message(ctx, msg.channel_id, msg_str, "parse_role").await;
 
-    Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg.to_owned())))
+    Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
+        arg_pos,
+        arg.to_owned(),
+        ConversionType::ToRole,
+    )))
 }
 
 fn check_message_sending(res: SerenityResult<Message>, function_name: &str) {

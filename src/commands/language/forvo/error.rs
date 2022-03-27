@@ -30,7 +30,7 @@ impl ForvoRegexCaptureError {
 }
 
 #[non_exhaustive]
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug)]
 pub enum ForvoError {
     #[error("Error encountered while fetching forvo recordings. InvalidBase64: {0}")]
     InvalidBase64(#[from] DecodeError),

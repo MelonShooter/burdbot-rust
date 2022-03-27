@@ -15,7 +15,7 @@ use serenity::utils::Color;
 use crate::BURDBOT_DB;
 
 use super::error_util::error::{ArgumentConversionError, ArgumentParseError};
-use super::{util, ArgumentInfo, BoundedArgumentInfo};
+use super::{util, ArgumentInfo, BoundedArgumentInfo, ConversionType};
 
 const GONE_WRONG: &str = "Something's gone wrong. <@367538590520967181> has been notified.";
 
@@ -84,7 +84,11 @@ async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, a
 
         msg.channel_id.send_message(ctx, |msg| msg.content(reply)).await?;
 
-        Err(Box::new(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg))))
+        Err(Box::new(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
+            arg_pos,
+            arg,
+            ConversionType::ToNonSelfMember,
+        ))))
     } else {
         Ok(member)
     }

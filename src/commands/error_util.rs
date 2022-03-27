@@ -12,6 +12,9 @@ use crate::DELIBURD_ID;
 
 pub mod error;
 
+// TODO: Add function to send sanitized embed with no allowed mentions.
+// Add function to send an embed for an error message with optional additional info
+
 async fn dm_and_log<T: AsRef<str> + Display>(ctx: &Context, string: T, issue_type: IssueType) -> Result<(), SerenityError> {
     match issue_type {
         IssueType::Warning => warn!("{string}"),

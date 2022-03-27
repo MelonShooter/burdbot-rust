@@ -218,7 +218,7 @@ async fn birthdayconfirm(context: &Context, message: &Message) -> CommandResult 
 
             if let Err(error) = add_birthday_to_db(context, message.channel_id, info).await {
                 match error {
-                    Error::SerenityError(errors) => error!("Serenity error while adding birthday to db: {}", errors[0]),
+                    Error::SerenityError(errors) => error!("Serenity error while adding birthday to db: {}", errors.serenity_errors[0]),
                     Error::SQLiteError(error) => error!("SQLite error while adding birthday to db: {}", error),
                 }
 
