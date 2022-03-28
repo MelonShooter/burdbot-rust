@@ -1,6 +1,8 @@
 mod error;
 
 pub use error::*;
+
+use petgraph::graph::DefaultIx;
 use regex::Captures;
 
 use log::error;
@@ -70,6 +72,7 @@ type PossibleForvoRecording = ForvoResult<ForvoRecording>;
 enum Language {
     English,
     Spanish,
+    Unknown,
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, EnumIter, EnumString, EnumProperty)]
@@ -131,26 +134,51 @@ impl Country {
         match self.get_str("language") {
             Some("s") => Language::Spanish,
             Some("e") => Language::English,
-            _ => panic!("{self} has an invalid or inexistent language property value."),
+            _ => {
+                error!("Error encountered in the forvo module, get_language(): {self} has an invalid or inexistent language property value.");
+
+                Language::Unknown
+            }
         }
     }
 }
 
 impl Display for Country {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.get_str("flag").expect("Country enum doesn't have flag."))
+        match self.get_str("flag") {
+            Some(flag) => write!(f, "{flag}"),
+            None => {
+                error!("Error encountered in the forvo module, Display::fmt(): Couldn't find flag for {self}.");
+
+                write!(f, "UNDEFINED FLAG")
+            }
+        }
     }
 }
 
 impl From<Country> for NodeIndex {
     fn from(country: Country) -> Self {
-        NodeIndex::new(
-            country
-                .get_str("index")
-                .expect("Enum didn't have index.")
-                .parse()
-                .expect("Enum index wasn't a number."),
-        )
+        let index = match country.get_str("index").map(|index| index.parse()) {
+            Some(Ok(num)) => num,
+            Some(Err(err)) => {
+                error!(
+                    "Error encountered in the forvo module, Display::fmt(): Couldn't convert the Country {country} to a node index: {err}. \
+                     Setting index to the max default node index..."
+                );
+
+                return NodeIndex::<DefaultIx>::end();
+            }
+            None => {
+                error!(
+                    "Error encountered in the forvo module, Display::fmt(): Couldn't convert the Country {country} to a node index: \
+                     The country's 'index' property doesn't exist. Setting index to the max default node index..."
+                );
+
+                return NodeIndex::<DefaultIx>::end();
+            }
+        };
+
+        NodeIndex::new(index)
     }
 }
 
@@ -213,17 +241,21 @@ fn to_opposite_tuple(b: bool) -> (bool, bool) {
 
 /// Possible for outer vec to be empty, techinically not possible for inner vec to be empty, but take it into account anyways
 async fn get_all_recordings(term: &str, requested_country: Option<Country>) -> ForvoResult<Vec<Vec<PossibleForvoRecording>>> {
+    lazy_static! {
+        static ref LANGUAGE_CONTAINER_SELECTOR: Selector = Selector::parse("div.language-container").expect("Bad CSS selector.");
+    }
+
     let url = format!("https://forvo.com/word/{}/", term);
     let data = FORVO_CLIENT.get(url).send().await?.text().await?;
     let document = Html::parse_document(data.as_str());
-    let language_containers = Selector::parse("div.language-container").expect("Bad CSS selector.");
-    let (do_english, do_spanish) = match requested_country {
-        Some(country) => to_opposite_tuple(country.get_language() == Language::English),
-        None => (true, true),
+    let (do_english, do_spanish) = match requested_country.map(|c| c.get_language()) {
+        Some(Language::English) => (true, false),
+        Some(Language::Spanish) => (false, true),
+        _ => (true, true),
     };
 
     Ok(document
-        .select(&language_containers)
+        .select(&*LANGUAGE_CONTAINER_SELECTOR)
         .filter_map(|e| match (e.value().id(), do_spanish, do_english) {
             (Some("language-container-es"), true, _) => Some(get_language_recordings(&e, Language::Spanish)),
             (Some("language-container-en"), _, true) => Some(get_language_recordings(&e, Language::English)),
@@ -240,10 +272,17 @@ fn recording_to_distance<T>(recording: &ForvoRecording, input_country: Option<Co
 where
     T: DerefMut<Target = HashMap<(Country, Country), u32>>,
 {
-    let country = input_country.unwrap_or_else(|| match recording.language {
-        Language::English => Country::UnitedStates,
-        Language::Spanish => Country::Argentina,
-    });
+    let country = match (input_country, recording.language) {
+        (Some(country), _) => country,
+        (None, Language::English) => Country::UnitedStates,
+        (None, Language::Spanish) => Country::Argentina,
+        (None, Language::Unknown) => {
+            error!("Unknown recording language encountered in forvo module recording_to_distance() while setting a fallback for the input country: {recording:?}.\
+                        This should never happen. Returning u32::MAX as the distance...");
+
+            return u32::MAX;
+        }
+    };
 
     let dist = match accent_differences.get(&(country, recording.country)) {
         Some(&distance) => distance,
@@ -262,8 +301,18 @@ where
             }
 
             // We should already be taking into account the only case that could've caused None which is when a native of the other set of
-            // countries make a non-native recording by setting a graph edge between the 2 to a very high number.
-            recording_distance.expect("Recording distance should never be None here.")
+            // countries make a non-native recording by setting a graph edge between the 2 to a very high number. This could be caused by
+            // distance_map being empty if the starting country given into dijkstra couldn't be validly converted into an index.
+            recording_distance.unwrap_or_else(|| {
+                error!(
+                    "Error encountered in the forvo module recording_to_distance() while calculating recording_distance. \
+                     The recording_distance variable was None, which should never happen. This could happen if dijkstra is \
+                     returning an empty HashMap as a result of a bad country index in which case an error should've been given \
+                     previously for it. Returning u32::MAX as the distance..."
+                );
+
+                u32::MAX
+            })
         }
     };
 
@@ -289,11 +338,11 @@ impl<'a> RecordingData<'a> {
     }
 
     pub async fn get_recording(&mut self) -> ForvoResult<(&[u8], Country, &str)> {
-        if let None = self.recording {
-            self.recording = Some(get_pronunciation_from_link(self.recording_link.as_str()).await?);
-        }
+        let recording = self
+            .recording
+            .get_or_insert(get_pronunciation_from_link(self.recording_link.as_str()).await?);
 
-        Ok((self.recording.as_deref().unwrap(), self.country, self.term))
+        Ok((recording, self.country, self.term))
     }
 }
 
@@ -301,7 +350,7 @@ fn is_closer<T>(first: &ForvoRecording, second: &ForvoRecording, country: Option
 where
     T: DerefMut<Target = HashMap<(Country, Country), u32>>,
 {
-    // Exit early because if the inputted country matches the second country, nothing can get closer than that.
+    // Exit early because if the inputed country matches the second country, nothing can get closer than that.
     if country == Some(second.country) {
         return true;
     }
@@ -319,7 +368,10 @@ fn possible_recordings_to_data<'a>(
     let mut accent_differences = match ACCENT_DIFFERENCES.lock() {
         Ok(accent_differences) => accent_differences,
         Err(err) => {
-            error!("The accent differences hash map lock was poisoned. This should never happen, but we'll proceed anyway.");
+            error!(
+                "Error encountered in the forvo module, possible_recordings_to_data(): The accent differences hash map lock was poisoned. \
+                 This should never happen, but we'll proceed by retrieving the mutex's data anyways."
+            );
 
             err.into_inner()
         }
