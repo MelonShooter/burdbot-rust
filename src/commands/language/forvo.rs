@@ -235,10 +235,6 @@ fn get_language_recordings(entries: &ElementRef, language: Language) -> Vec<Poss
         .collect()
 }
 
-fn to_opposite_tuple(b: bool) -> (bool, bool) {
-    (b, !b)
-}
-
 /// Possible for outer vec to be empty, techinically not possible for inner vec to be empty, but take it into account anyways
 async fn get_all_recordings(term: &str, requested_country: Option<Country>) -> ForvoResult<Vec<Vec<PossibleForvoRecording>>> {
     lazy_static! {
