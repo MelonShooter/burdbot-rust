@@ -3,6 +3,7 @@ mod error;
 pub use error::*;
 use regex::Captures;
 
+use log::error;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::DerefMut;
@@ -27,6 +28,39 @@ use strum_macros::EnumString;
 
 lazy_static! {
     static ref FORVO_CLIENT: Client = Client::new();
+    static ref COUNTRY_GRAPH: UnGraph<Country, u32> = UnGraph::from_edges(&[
+        (Country::Argentina, Country::Uruguay, 1),
+        (Country::Argentina, Country::Chile, 3),
+        (Country::Argentina, Country::Peru, 3),
+        (Country::Argentina, Country::Paraguay, 2),
+        (Country::Chile, Country::Bolivia, 3),
+        (Country::Bolivia, Country::Peru, 1),
+        (Country::Peru, Country::Paraguay, 3),
+        (Country::Bolivia, Country::Ecuador, 2),
+        (Country::Ecuador, Country::Colombia, 4),
+        (Country::Colombia, Country::Venezuela, 1),
+        (Country::Venezuela, Country::DominicanRepublic, 2),
+        (Country::Venezuela, Country::Cuba, 2),
+        (Country::DominicanRepublic, Country::Cuba, 1),
+        (Country::Colombia, Country::Panama, 4),
+        (Country::Panama, Country::CostaRica, 1),
+        (Country::Panama, Country::Mexico, 2),
+        (Country::CostaRica, Country::ElSalvador, 1),
+        (Country::ElSalvador, Country::Nicaragua, 1),
+        (Country::Nicaragua, Country::Guatemala, 1),
+        (Country::Guatemala, Country::Honduras, 1),
+        (Country::Honduras, Country::Mexico, 1),
+        (Country::Spain, Country::Argentina, 30),
+        (Country::UnitedStates, Country::Canada, 1),
+        (Country::UnitedStates, Country::Australia, 11),
+        (Country::Canada, Country::UnitedKingdom, 10),
+        (Country::UnitedKingdom, Country::Australia, 5),
+        (Country::UnitedKingdom, Country::Ireland, 4),
+        (Country::Australia, Country::NewZealand, 2),
+        (Country::Argentina, Country::UnitedStates, u32::MAX / 2) // To take into account edge case. See comment in recording_to_distance.
+    ]);
+    static ref ACCENT_DIFFERENCES: Mutex<HashMap<(Country, Country), u32>> = Mutex::new(HashMap::new());
+    static ref COUNTRY_ENUMS: Vec<Country> = Country::iter().collect();
 }
 
 pub type ForvoResult<T> = Result<T, ForvoError>;
@@ -126,7 +160,7 @@ impl Default for Country {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 struct ForvoRecording {
     country: Country,
     recording_link: String,
@@ -202,86 +236,38 @@ async fn get_pronunciation_from_link(forvo_recording: &str) -> Result<Vec<u8>, E
     Ok(FORVO_CLIENT.get(forvo_recording).send().await?.bytes().await?.to_vec())
 }
 
-fn recording_to_distance<T: DerefMut<Target = HashMap<(Country, Country), u32>>>(
-    recording: &ForvoRecording,
-    input_country: Option<Country>,
-    accent_difference_map: &mut T,
-    country_graph: &UnGraph<Country, u32>,
-    country_index_lookup: &[Country],
-) -> u32 {
-    let accent_difference_map = accent_difference_map.deref_mut();
+fn recording_to_distance<T>(recording: &ForvoRecording, input_country: Option<Country>, accent_differences: &mut T) -> u32
+where
+    T: DerefMut<Target = HashMap<(Country, Country), u32>>,
+{
     let country = input_country.unwrap_or_else(|| match recording.language {
         Language::English => Country::UnitedStates,
         Language::Spanish => Country::Argentina,
     });
 
-    let dist = match accent_difference_map.get(&(country, recording.country)) {
+    let dist = match accent_differences.get(&(country, recording.country)) {
         Some(&distance) => distance,
         None => {
-            let distance_map = algo::dijkstra(country_graph, country.into(), None, |e| *e.weight());
+            let distance_map = algo::dijkstra(&*COUNTRY_GRAPH, country.into(), None, |e| *e.weight());
             let mut recording_distance: Option<u32> = None;
 
             for (node_idx, distance) in distance_map {
-                let target_country = country_index_lookup[node_idx.index()];
+                let target_country = COUNTRY_ENUMS[node_idx.index()];
 
-                accent_difference_map.insert((country, target_country), distance);
+                accent_differences.insert((country, target_country), distance);
 
                 if target_country == recording.country {
                     recording_distance = Some(distance);
                 }
             }
 
-            debug_assert_ne!(recording_distance, None); // Recording distance should always be set within the for loop.
-
-            recording_distance.unwrap()
+            // We should already be taking into account the only case that could've caused None which is when a native of the other set of
+            // countries make a non-native recording by setting a graph edge between the 2 to a very high number.
+            recording_distance.expect("Recording distance should never be None here.")
         }
     };
 
     dist
-}
-
-fn get_closest_recording<'a>(requested_country: Option<Country>, recordings: &[PossibleForvoRecording]) -> Option<&ForvoRecording> {
-    lazy_static! {
-        static ref COUNTRY_GRAPH: UnGraph<Country, u32> = UnGraph::from_edges(&[
-            (Country::Argentina, Country::Uruguay, 1),
-            (Country::Argentina, Country::Chile, 3),
-            (Country::Argentina, Country::Peru, 3),
-            (Country::Argentina, Country::Paraguay, 2),
-            (Country::Chile, Country::Bolivia, 3),
-            (Country::Bolivia, Country::Peru, 1),
-            (Country::Peru, Country::Paraguay, 3),
-            (Country::Bolivia, Country::Ecuador, 2),
-            (Country::Ecuador, Country::Colombia, 4),
-            (Country::Colombia, Country::Venezuela, 1),
-            (Country::Venezuela, Country::DominicanRepublic, 2),
-            (Country::Venezuela, Country::Cuba, 2),
-            (Country::DominicanRepublic, Country::Cuba, 1),
-            (Country::Colombia, Country::Panama, 4),
-            (Country::Panama, Country::CostaRica, 1),
-            (Country::Panama, Country::Mexico, 2),
-            (Country::CostaRica, Country::ElSalvador, 1),
-            (Country::ElSalvador, Country::Nicaragua, 1),
-            (Country::Nicaragua, Country::Guatemala, 1),
-            (Country::Guatemala, Country::Honduras, 1),
-            (Country::Honduras, Country::Mexico, 1),
-            (Country::Spain, Country::Argentina, 30),
-            (Country::UnitedStates, Country::Canada, 1),
-            (Country::UnitedStates, Country::Australia, 11),
-            (Country::Canada, Country::UnitedKingdom, 10),
-            (Country::UnitedKingdom, Country::Australia, 5),
-            (Country::UnitedKingdom, Country::Ireland, 4),
-            (Country::Australia, Country::NewZealand, 2)
-        ]);
-        static ref ACCENT_DIFFERENCES: Mutex<HashMap<(Country, Country), u32>> = Mutex::new(HashMap::new());
-        static ref COUNTRY_ENUMS: Vec<Country> = Country::iter().collect();
-    }
-
-    let mut map = ACCENT_DIFFERENCES.lock().expect("Lock can't be poisoned here");
-
-    recordings
-        .into_iter()
-        .filter_map(|r| r.as_ref().ok())
-        .min_by_key(|r| recording_to_distance(r, requested_country, &mut map, &*COUNTRY_GRAPH, &*COUNTRY_ENUMS))
 }
 
 #[derive(Debug, Clone)]
@@ -293,11 +279,11 @@ pub struct RecordingData<'a> {
 }
 
 impl<'a> RecordingData<'a> {
-    pub fn new(country: Country, term: &'a str, recording_link: String) -> Self {
+    fn new(recording: ForvoRecording, term: &'a str) -> Self {
         Self {
-            country,
+            country: recording.country,
             term,
-            recording_link,
+            recording_link: recording.recording_link,
             recording: None,
         }
     }
@@ -311,23 +297,51 @@ impl<'a> RecordingData<'a> {
     }
 }
 
+fn is_closer<T>(first: &ForvoRecording, second: &ForvoRecording, country: Option<Country>, accent_map: &mut T) -> bool
+where
+    T: DerefMut<Target = HashMap<(Country, Country), u32>>,
+{
+    // Exit early because if the inputted country matches the second country, nothing can get closer than that.
+    if country == Some(second.country) {
+        return true;
+    }
+
+    recording_to_distance(first, country, accent_map) < recording_to_distance(second, country, accent_map)
+}
+
 fn possible_recordings_to_data<'a>(
     term: &'a str,
-    requested_country: Option<Country>,
+    country: Option<Country>,
     possible_recordings: Vec<PossibleForvoRecording>,
 ) -> impl Iterator<Item = ForvoResult<RecordingData<'a>>> + 'a {
-    let closest_recording = get_closest_recording(requested_country, &possible_recordings);
-    let recording_data = closest_recording.map(|r| Ok(RecordingData::new(r.country, term, r.recording_link.clone())));
+    let mut possible_data = Vec::new();
+    let mut closest_recording = None;
+    let mut accent_differences = match ACCENT_DIFFERENCES.lock() {
+        Ok(accent_differences) => accent_differences,
+        Err(err) => {
+            error!("The accent differences hash map lock was poisoned. This should never happen, but we'll proceed anyway.");
 
-    // TODO: figure out how to fix this clone
+            err.into_inner()
+        }
+    };
 
-    possible_recordings
-        .into_iter()
-        .filter_map(|res| match res {
-            Ok(_) => None,
-            Err(e) => Some(Err(e)),
-        })
-        .chain(recording_data)
+    for possible_recording in possible_recordings {
+        match (possible_recording, &mut closest_recording) {
+            (Ok(curr), Some(min)) => {
+                if is_closer(&curr, &min, country, &mut accent_differences) {
+                    closest_recording = Some(curr)
+                }
+            }
+            (Ok(curr), None) => closest_recording = Some(curr),
+            (Err(err), _) => possible_data.push(Err(err)),
+        }
+    }
+
+    if let Some(closest) = closest_recording {
+        possible_data.push(Ok(RecordingData::new(closest, term)));
+    }
+
+    possible_data.into_iter()
 }
 
 /// Document so closest recordings for english and spanish depending on circumstances are provided, but so are failed recordings
