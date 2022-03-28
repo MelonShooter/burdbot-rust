@@ -15,7 +15,7 @@ pub mod error;
 // TODO: Add function to send sanitized embed with no allowed mentions.
 // Add function to send an embed for an error message with optional additional info
 
-async fn dm_and_log<T: AsRef<str> + Display>(ctx: &Context, string: T, issue_type: IssueType) -> Result<(), SerenityError> {
+async fn dm_and_log<T: Display>(ctx: &Context, string: T, issue_type: IssueType) -> Result<(), SerenityError> {
     match issue_type {
         IssueType::Warning => warn!("{string}"),
         IssueType::Error => error!("{string}"),
@@ -28,7 +28,7 @@ async fn dm_and_log<T: AsRef<str> + Display>(ctx: &Context, string: T, issue_typ
     Ok(())
 }
 
-async fn dm_and_log_handled<T: AsRef<str> + Display>(ctx: &Context, error_message: T, issue_type: IssueType) {
+async fn dm_and_log_handled<T: Display>(ctx: &Context, error_message: T, issue_type: IssueType) {
     if let Err(e) = dm_and_log(ctx, error_message, issue_type).await {
         error!("Error encountered DMing error to DELIBURD. Error: {e}");
     }
