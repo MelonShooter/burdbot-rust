@@ -84,9 +84,6 @@ async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
     let data_res = forvo::fetch_pronunciation(term.as_str(), requested_country).await;
     let info = format!("The term that caused this error was: {term}");
     let pronunciation_data = error_util::dm_issue(ctx, "pronounce", data_res, info.as_str(), IssueType::Error).await?;
-
-    // TODO: CHANGE ERROR HANDLING FOR VOCAROO??, add limit to how large these recordings can be
-
     let mut recording_futures = Vec::new();
 
     for recording_data_res in pronunciation_data {
