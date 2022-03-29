@@ -87,7 +87,7 @@ async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, a
         Err(Box::new(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
             arg_pos,
             arg,
-            ConversionType::ToNonSelfMember,
+            ConversionType::NonSelfMember,
         ))))
     } else {
         Ok(member)

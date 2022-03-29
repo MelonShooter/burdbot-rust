@@ -63,7 +63,7 @@ async fn download_vocaroo<'a>(client: &Client, url: &'a str) -> Result<Bytes, Vo
     let headers = head_response.headers();
     let content_type = headers
         .get("Content-Type")
-        .ok_or_else(|| VocarooError::NoContentType(url))?
+        .ok_or(VocarooError::NoContentType(url))?
         .to_str()
         .map_err(|_| VocarooError::ContentTypeNotVisibleASCII(url))?;
 
@@ -73,7 +73,7 @@ async fn download_vocaroo<'a>(client: &Client, url: &'a str) -> Result<Bytes, Vo
 
     let content_length = headers
         .get("Content-Length")
-        .ok_or_else(|| VocarooError::NoContentLength(url))?
+        .ok_or(VocarooError::NoContentLength(url))?
         .to_str()
         .map_err(|_| VocarooError::ContentLengthNotVisibleASCII(url))?
         .parse::<u32>()

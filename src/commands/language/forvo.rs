@@ -354,11 +354,11 @@ where
     recording_to_distance(first, country, accent_map) < recording_to_distance(second, country, accent_map)
 }
 
-fn possible_recordings_to_data<'a>(
-    term: &'a str,
+fn possible_recordings_to_data(
+    term: &str,
     country: Option<Country>,
     possible_recordings: Vec<PossibleForvoRecording>,
-) -> impl Iterator<Item = ForvoResult<RecordingData<'a>>> + 'a {
+) -> impl Iterator<Item = ForvoResult<RecordingData<'_>>> {
     let mut possible_data = Vec::new();
     let mut closest_recording = None;
     let mut accent_differences = match ACCENT_DIFFERENCES.lock() {
@@ -376,7 +376,7 @@ fn possible_recordings_to_data<'a>(
     for possible_recording in possible_recordings {
         match (possible_recording, &mut closest_recording) {
             (Ok(curr), Some(min)) => {
-                if is_closer(&curr, &min, country, &mut accent_differences) {
+                if is_closer(&curr, min, country, &mut accent_differences) {
                     closest_recording = Some(curr)
                 }
             }
@@ -393,7 +393,7 @@ fn possible_recordings_to_data<'a>(
 }
 
 /// Document so closest recordings for english and spanish depending on circumstances are provided, but so are failed recordings
-pub async fn fetch_pronunciation<'a>(term: &'a str, requested_country: Option<Country>) -> ForvoResult<Vec<ForvoResult<RecordingData<'a>>>> {
+pub async fn fetch_pronunciation(term: &str, requested_country: Option<Country>) -> ForvoResult<Vec<ForvoResult<RecordingData<'_>>>> {
     Ok(get_all_recordings(term, requested_country)
         .await?
         .into_iter()

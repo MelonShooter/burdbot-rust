@@ -222,9 +222,7 @@ pub async fn on_voice_state_update(old_state: Option<&VoiceState>, new_state: &V
                 None => return,
             };
 
-            let join_handle_to_cancel = teachers.insert(id.0, None);
-
-            if let Some(join_handle) = join_handle_to_cancel.flatten() {
+            if let Some(join_handle) = teachers.insert(id.0, None).flatten() {
                 join_handle.abort();
             }
 

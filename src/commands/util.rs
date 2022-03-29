@@ -36,10 +36,10 @@ pub mod user_search_engine;
 #[derive(Display, Debug, EnumProperty, Copy, Clone)]
 pub enum ConversionType {
     // add conversions and info properties
-    ToNumber,
-    ToMember,
-    ToRole,
-    ToNonSelfMember,
+    Number,
+    Member,
+    Role,
+    NonSelfMember,
 }
 pub struct ArgumentInfo<'a> {
     args: &'a mut Args,
@@ -116,7 +116,7 @@ pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: B
                 Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
                     arg_pos,
                     args.current().unwrap().to_owned(),
-                    ConversionType::ToNumber,
+                    ConversionType::Number,
                 )))
             }
         }
@@ -156,7 +156,7 @@ async fn id_argument_to_member<T: AsRef<Cache>>(
         .as_ref()
         .member(guild_id, user_id)
         .await
-        .ok_or_else(|| ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::ToMember).into());
+        .ok_or_else(|| ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::Member).into());
 }
 
 pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<Member, ArgumentParseError> {
@@ -213,7 +213,7 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
     Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
         arg_pos,
         arg.to_owned(),
-        ConversionType::ToMember,
+        ConversionType::Member,
     )))
 }
 
@@ -299,7 +299,7 @@ async fn id_argument_to_role<T: AsRef<Cache>>(
         .guild_field(guild_id, |guild| guild.roles.get(&role_id.into()).map(|role| role.id))
         .await
         .flatten()
-        .ok_or_else(|| ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::ToRole)));
+        .ok_or_else(|| ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::Role)));
 }
 
 pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<RoleId, ArgumentParseError> {
@@ -344,7 +344,7 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
     Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
         arg_pos,
         arg.to_owned(),
-        ConversionType::ToRole,
+        ConversionType::Role,
     )))
 }
 
@@ -368,8 +368,7 @@ pub async fn get_member_permissions<T: AsRef<Cache>>(cache: T, guild_id: GuildId
                 member
                     .roles
                     .iter()
-                    .map(|id| guild.roles.get(&id).map(|role| role.permissions)) // Map role ID to Permissions
-                    .flatten()
+                    .flat_map(|id| guild.roles.get(id).map(|role| role.permissions)) // Map role ID to Permissions
                     .fold(Permissions::empty(), |acc, permissions| acc | permissions)
             })
         })
