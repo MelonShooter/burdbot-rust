@@ -2,17 +2,17 @@ mod birthday_tracker;
 mod commands;
 mod custom;
 mod events;
+mod logger;
 mod secret;
 mod session_tracker;
 mod util;
 
-use ::time::UtcOffset;
 use async_ctrlc::CtrlC;
 use chrono::{Timelike, Utc};
-use chrono_tz::OffsetComponents;
-use chrono_tz::US::Pacific;
+use env_logger::{Builder, Target, WriteStyle};
 use events::BurdBotEventHandler;
 use log::{debug, info, LevelFilter};
+use logger::DiscordLogger;
 use rusqlite::Connection;
 use serenity::client::bridge::gateway::{GatewayIntents, ShardManager};
 use serenity::client::Context;
@@ -23,7 +23,6 @@ use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use serenity::prelude::Mutex;
 use serenity::{CacheAndHttp, Client};
-use simple_logger::SimpleLogger;
 use songbird::driver::{Config, DecodeMode};
 use songbird::{SerenityInit, Songbird};
 use std::collections::HashSet;
@@ -123,22 +122,17 @@ async fn on_terminate(shard_manager: Arc<Mutex<ShardManager>>) {
     shard_manager.lock().await.shutdown_all().await;
 }
 
-fn get_pacific_offset() -> UtcOffset {
-    let local_date_time = Utc::now().with_timezone(&Pacific);
-    let timezone_offset = local_date_time.offset();
-    let total_offset = timezone_offset.base_utc_offset() + timezone_offset.dst_offset();
-
-    UtcOffset::from_whole_seconds(total_offset.num_seconds() as i32).expect("Offset not within valid range. This should never happen.")
-}
-
 #[tokio::main]
 async fn main() {
-    SimpleLogger::new()
-        .with_level(LevelFilter::Warn)
-        .with_module_level("burdbot", LevelFilter::Debug)
-        .with_utc_offset(get_pacific_offset())
-        .init()
-        .unwrap();
+    Builder::new()
+        .filter_level(LevelFilter::Warn)
+        .filter_module("burdbot", LevelFilter::Debug)
+        .format_module_path(true)
+        .write_style(WriteStyle::Never)
+        .target(Target::Pipe(Box::new(DiscordLogger::new())))
+        .format_timestamp(None)
+        .format_level(true)
+        .init();
 
     let mut owners_set = HashSet::with_capacity(1);
     owners_set.insert(UserId::from(367538590520967181));

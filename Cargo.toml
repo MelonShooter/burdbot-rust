@@ -12,9 +12,7 @@ proc-macro = true
 [dependencies]
 serenity = "^0.10"
 tokio = { version = "^1", features = ["rt-multi-thread", "time"] }
-simple_logger = "^2"
-time = "^0.3"
-chrono-tz = "^0.6"
+env_logger = "^0.9"
 log = "^0.4"
 rusqlite = { version = "^0.25", features = ["chrono", "bundled"] }
 songbird = "^0.1"
