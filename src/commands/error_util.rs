@@ -1,11 +1,12 @@
 use std::error::Error;
 use std::fmt::Display;
 
-use log::{error, warn};
+use log::{debug, error, warn};
 use serenity::client::Context;
 use serenity::http::Http;
 use serenity::model::id::{ChannelId, UserId};
 use serenity::Error as SerenityError;
+use strum_macros::Display;
 
 use crate::commands::util;
 use crate::DELIBURD_ID;
@@ -19,6 +20,7 @@ async fn dm_and_log<T: Display>(ctx: &Context, string: T, issue_type: IssueType)
     match issue_type {
         IssueType::Warning => warn!("{string}"),
         IssueType::Error => error!("{string}"),
+        IssueType::Debug => debug!("{string}"),
     }
 
     let dm_channel = UserId::from(DELIBURD_ID).create_dm_channel(&ctx.http).await?;
@@ -30,12 +32,13 @@ async fn dm_and_log<T: Display>(ctx: &Context, string: T, issue_type: IssueType)
 
 async fn dm_and_log_handled<T: Display>(ctx: &Context, error_message: T, issue_type: IssueType) {
     if let Err(e) = dm_and_log(ctx, error_message, issue_type).await {
-        error!("Error encountered DMing error to DELIBURD. Error: {e}");
+        debug!("Error encountered DMing error to DELIBURD. Error: {e}"); // Set to debug so infinite DMing loop doesn't occur.
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 pub enum IssueType {
+    Debug,
     Warning,
     Error,
 }
@@ -54,7 +57,8 @@ pub async fn dm_issue<S, T: Error>(
 
 pub async fn dm_issue_no_return<S, T: Error>(ctx: &Context, identifier: &str, result: &Result<S, T>, additional_info: &str, issue_type: IssueType) {
     if let Err(err) = result {
-        let message = format!("Error encountered in the command/module '{identifier}'. Error: {err}\nAdditional information: {additional_info}");
+        let message =
+            format!("{issue_type} encountered in the command/module '{identifier}'. {issue_type}: {err}\nAdditional information: {additional_info}");
 
         dm_and_log_handled(ctx, message, issue_type).await;
     }

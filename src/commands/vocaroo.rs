@@ -1,23 +1,26 @@
 use std::collections::HashSet;
-use std::fmt::Display;
+use std::num::ParseIntError;
 
 use bytes::Bytes;
 use lazy_static::lazy_static;
 use log::{debug, error, warn};
 use regex::Regex;
-use reqwest::header::HeaderValue;
 use reqwest::Client;
+use reqwest::Error as ReqwestError;
 use rusqlite::{Connection, Error as SqliteError};
+use serenity::builder::CreateMessage;
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::CommandResult;
 use serenity::model::channel::{Message, MessageReference};
-use serenity::model::id::UserId;
+use serenity::model::id::{ChannelId, GuildId};
 use serenity::prelude::TypeMapKey;
-use serenity::Result as SerenityResult;
+use serenity::Error;
+use thiserror::Error;
 
-use crate::{BURDBOT_DB, DELIBURD_ID};
+use crate::BURDBOT_DB;
 
+use super::error_util::{dm_issue_no_return, IssueType};
 use super::util;
 
 const MAX_VOCAROO_RECORDING_SIZE: u32 = (1 << 20) * 5; // 5MB
@@ -29,131 +32,103 @@ impl TypeMapKey for VocarooEnabled {
 }
 
 #[non_exhaustive]
-#[derive(Debug)]
-enum VocarooError {
-    FailedHead(String),
-    FailedGet(String),
-    FailedDownload(String, u16),
-    NoContentLength(String),
-    ContentLengthNotNumber(String),
-    BodyToBytesFailure(String),
-    OversizedFile(String),
+#[derive(Debug, Error)]
+enum VocarooError<'a> {
+    #[error("Failed Vocaroo HEAD request while converting the link: {0}. This could mean they stopped accepting these requests. Encountered reqwest error: {1}")]
+    FailedHead(&'a str, #[source] ReqwestError),
+    #[error(
+        "Failed Vocaroo GET request while converting the link: {0}. This could mean this isn't the right URL anymore. Encountered reqwest error: {1}"
+    )]
+    FailedGet(&'a str, #[source] ReqwestError),
+    #[error("Failed to download vocaroo recording from https://media.vocaroo.com for link: {0}. Status {1} given. If status 404 was given, this probably just means the vocaroo recording expired. If the recording hasn't expired, check they're not using https://media1.vocaroo.com to host it. The JS code currently doesn't actually match which CDN server to use but it appears all new recordings are at https://media.vocaroo.com, not https://media1.vocaroo.com when this code was last touched. Check the current code by looking up usages of 'mediaMP3FileURL' on the site's JS code in the script at the bottom of the body.")]
+    FailedDownload(&'a str, u16),
+    #[error("Vocaroo didn't send the content length header in the HEAD request while converting the link: {0}.")]
+    NoContentLength(&'a str),
+    #[error("Failed to convert the provided content length header in the HEAD request while converting the link: {0} because it wasn't made using visible ASCII.")]
+    ContentLengthNotVisibleASCII(&'a str),
+    #[error("Failed to convert the provided visible ASCII content length header in the HEAD request while converting the link: {0} because it wasn't a number. Error encountered: {1}")]
+    ContentLengthNotNumber(&'a str, #[source] ParseIntError),
+    #[error("Could not convert response body to bytes while trying to convert the link: {0}. Encountered reqwest error: {1}")]
+    BodyToBytesFailure(&'a str, #[source] ReqwestError),
+    #[error("Vocaroo file at link '{0}' couldn't be converted to an MP3 because it was over the size limit: {MAX_VOCAROO_RECORDING_SIZE}.")]
+    OversizedFile(&'a str),
 }
 
-async fn dm_and_log<T: AsRef<str> + Display>(ctx: &Context, string: T, error: bool) -> SerenityResult<()> {
-    if error {
-        error!("{string}");
-    } else {
-        warn!("{string}");
+async fn download_vocaroo<'a>(client: &Client, url: &'a str) -> Result<Bytes, VocarooError<'a>> {
+    let head_response = client.head(url).send().await.map_err(|err| VocarooError::FailedHead(url, err))?;
+    let content_length_header = head_response
+        .headers()
+        .get("Content-Length")
+        .ok_or_else(|| VocarooError::NoContentLength(url))?;
+
+    let content_length = content_length_header
+        .to_str()
+        .map_err(|_| VocarooError::ContentLengthNotVisibleASCII(url))?
+        .parse::<u32>()
+        .map_err(|err| VocarooError::ContentLengthNotNumber(url, err))?;
+
+    if content_length > MAX_VOCAROO_RECORDING_SIZE {
+        return Err(VocarooError::OversizedFile(url));
     }
 
-    let dm_channel = UserId::from(DELIBURD_ID).create_dm_channel(&ctx.http).await?;
+    let response = client.get(url).send().await.map_err(|err| VocarooError::FailedGet(url, err))?;
 
-    dm_channel.say(&ctx.http, string).await?;
-
-    Ok(())
-}
-
-async fn dm_and_log_handled<T: AsRef<str> + Display>(ctx: &Context, error_message: T, is_error: bool) {
-    if let Err(e) = dm_and_log(ctx, error_message, is_error).await {
-        error!("Error encountered DMing vocaroo error to DELIBURD. Error: {e}");
+    if !response.status().is_success() {
+        return Err(VocarooError::FailedDownload(url, response.status().as_u16()));
     }
+
+    response.bytes().await.map_err(|err| VocarooError::BodyToBytesFailure(url, err))
 }
 
-async fn handle_vocaroo_error(ctx: &Context, msg: &Message, error: VocarooError) {
-    let mut is_error = true;
-
-    let error_message = match error {
-        VocarooError::FailedHead(link) => {
-            format!("Failed Vocaroo HEAD request trying to convert the link: {link}. Could mean they stopped accepting it. This will break vocaroo conversions.")
-        }
-        VocarooError::FailedGet(link) => {
-            format!("Failed Vocaroo GET request trying to convert the link: {link}. Could mean this isn't the right URL anymore. This will break vocaroo conversions.")
-        }
-        VocarooError::FailedDownload(link, status) => {
-            is_error = false;
-            format!("Warning: Failed Vocaroo download trying to convert the link: {link}. Response code {status} was given.")
-        }
-        VocarooError::NoContentLength(link) => {
-            format!("Vocaroo didn't send their content length in the HEAD request while trying to convert the link: {link}. This will break vocaroo conversions.")
-        }
-        VocarooError::BodyToBytesFailure(link) => {
-            format!("Could not convert response body to bytes while trying to convert the link: {link}. This will break vocaroo conversions.")
-        }
-        VocarooError::ContentLengthNotNumber(link) => {
-            format!("The content length returned by HEAD request was not a number while trying to convert the link: {link}. This will break vocaroo conversions.")
-        }
-        VocarooError::OversizedFile(link) => {
-            is_error = false;
-            format!("Warning: Vocaroo file at link '{link}' couldn't be converted. It is oversized. This can generally be ignored.")
-        }
+async fn handle_vocaroo_error(ctx: &Context, msg: &Message, error: VocarooError<'_>) {
+    let issue_type = match error {
+        VocarooError::FailedDownload(_, _) => IssueType::Warning,
+        VocarooError::OversizedFile(_) => IssueType::Debug,
+        _ => IssueType::Error,
     };
+
+    dm_issue_no_return::<(), VocarooError>(ctx, "vocaroo", &Err(error), "None.", issue_type).await;
 
     if let Err(err) = msg.react(&ctx.http, '❌').await {
         let link = msg.link();
 
-        debug!("Failed to react to vocaroo recording that errored. Error: {err}. Message link: {link}.");
-    }
-
-    dm_and_log_handled(ctx, error_message, is_error).await;
-}
-
-async fn process_vocaroo_id(ctx: &Context, client: &Client, vocaroo_id: &str) -> Result<Bytes, VocarooError> {
-    let url = format!("https://media.vocaroo.com/mp3/{vocaroo_id}");
-
-    match download_vocaroo(client, url).await {
-        Ok(bytes) => Ok(bytes),
-        Err(err) => match err {
-            VocarooError::FailedDownload(link, status) => {
-                let msg = format!("Warning: Failed to download vocaroo recording from https://media.vocaroo.com for link: {link}. Status {status} given. Falling back to https://media1.vocaroo.com... If status 404 was given, this probably just means the vocaroo recording expired unless the fallback link is successful. If the fallback link is successful, then this means you should check the rules again to see if they're accurate now. The JS code currently doesn't actually match which CDN server to use but it appears all new recordings are at https://media.vocaroo.com, not https://media1.vocaroo.com. Check the current code by looking up usages of 'mediaMP3FileURL' on the site's JS code in the script at the bottom of the body.");
-
-                dm_and_log_handled(ctx, msg, false).await;
-
-                download_vocaroo(client, format!("https://media1.vocaroo.com/mp3/{vocaroo_id}")).await
-            }
-            _ => Err(err),
-        },
+        debug!("Failed to react to a vocaroo recording that errored. Error: {err}. Message link: {link}.");
     }
 }
 
-async fn download_vocaroo(client: &Client, url: String) -> Result<Bytes, VocarooError> {
-    let url_str = url.as_str();
-    let head_response = match client.head(url_str).send().await.ok() {
-        Some(response) => response,
-        None => return Err(VocarooError::FailedHead(url)),
-    };
-    let content_length_str = match head_response.headers().get("Content-Length").map(HeaderValue::to_str) {
-        Some(parsed_result) => match parsed_result.ok() {
-            Some(str) => str,
-            None => return Err(VocarooError::ContentLengthNotNumber(url)),
-        },
-        None => return Err(VocarooError::NoContentLength(url)),
-    };
-    let content_length = match content_length_str.parse::<u32>().ok() {
-        Some(len) => len,
-        None => return Err(VocarooError::ContentLengthNotNumber(url)),
-    };
-    if content_length <= MAX_VOCAROO_RECORDING_SIZE {
-        let get_response = match client.get(url_str).send().await.ok() {
-            Some(response) => {
-                if response.status().is_success() {
-                    response
-                } else {
-                    return Err(VocarooError::FailedDownload(url, response.status().as_u16()));
-                }
-            }
-            None => return Err(VocarooError::FailedGet(url)),
-        };
+fn format_recording<'a, 'b>(
+    msg_builder: &'b mut CreateMessage<'a>,
+    vocaroo_data: &'a [u8],
+    user_id: u64,
+    msg_ref: MessageReference,
+) -> &'b mut CreateMessage<'a> {
+    msg_builder.add_file((vocaroo_data, "vocaroo-to-mp3.mp3"));
 
-        let bytes = match get_response.bytes().await.ok() {
-            Some(b) => b,
-            None => return Err(VocarooError::BodyToBytesFailure(url)),
-        };
+    let mut msg_str = String::with_capacity(96);
+    msg_str.push_str("Here is <@");
+    msg_str.push_str(user_id.to_string().as_str());
+    msg_str.push_str(">'s vocaroo link as an MP3 file. This is limited to 1 per message.");
 
-        Ok(bytes)
-    } else {
-        Err(VocarooError::OversizedFile(url))
-    }
+    msg_builder.content(msg_str.as_str());
+
+    msg_builder.reference_message(msg_ref)
+}
+
+async fn send_recording(ctx: &Context, channel_id: ChannelId, guild_id: GuildId, vocaroo_data: Bytes, user_id: u64, msg_ref: MessageReference) {
+    let msg_result = channel_id
+        .send_message(&ctx.http, |c| format_recording(c, &vocaroo_data[..], user_id, msg_ref))
+        .await;
+
+    match msg_result {
+        Ok(_) => (),
+        Err(Error::Http(err)) => {
+            debug!(
+                "Couldn't send vocaroo message in channel {channel_id} in server {guild_id} because of HTTP error: {err:?}). \
+                 This is generally due to a lack of permissions."
+            )
+        }
+        Err(err) => warn!("Couldn't send vocaroo message in channel {channel_id} in server {guild_id} because of error: {err}"),
+    };
 }
 
 pub async fn on_message_received(ctx: &Context, msg: &Message) {
@@ -161,12 +136,12 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
     let vocaroo_servers = data.get::<VocarooEnabled>();
 
     if let Some(servers) = vocaroo_servers {
-        let id = match msg.guild_id {
-            Some(id) => *id.as_u64(),
+        let guild_id = match msg.guild_id {
+            Some(id) => id,
             None => return,
         };
 
-        if servers.contains(&id) {
+        if servers.contains(&guild_id.0) {
             lazy_static! {
                 static ref VOCAROO_LINK_MATCHER: Regex = Regex::new(r"https?://(?:www\.)?(?:voca\.ro|vocaroo\.com)/([a-zA-Z0-9]+)").unwrap();
                 static ref VOCAROO_CLIENT: Client = Client::new();
@@ -188,27 +163,11 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
             let msg_ref = MessageReference::from(msg);
             let channel_id = msg.channel_id;
             let user_id = msg.author.id.0;
+            let vocaroo_url = format!("https://media.vocaroo.com/mp3/{vocaroo_id}");
 
-            match process_vocaroo_id(ctx, &VOCAROO_CLIENT, vocaroo_id.as_str()).await {
+            match download_vocaroo(&*VOCAROO_CLIENT, vocaroo_url.as_str()).await {
                 Ok(vocaroo_data) => {
-                    let msg_result = channel_id
-                        .send_message(&ctx.http, |msg_builder| {
-                            msg_builder.add_file((&vocaroo_data[..], "vocaroo-to-mp3.mp3"));
-
-                            let mut msg_str = String::with_capacity(96);
-                            msg_str.push_str("Here is <@");
-                            msg_str.push_str(user_id.to_string().as_str());
-                            msg_str.push_str(">'s vocaroo link as an MP3 file. This is limited to 1 per message.");
-
-                            msg_builder.content(msg_str.as_str());
-
-                            msg_builder.reference_message(msg_ref)
-                        })
-                        .await;
-
-                    if let Err(e) = msg_result {
-                        warn!("Couldn't send vocaroo message in channel {channel_id} because of error: {e}");
-                    }
+                    send_recording(ctx, channel_id, guild_id, vocaroo_data, user_id, msg_ref).await;
                 }
                 Err(error) => handle_vocaroo_error(ctx, msg, error).await,
             }
