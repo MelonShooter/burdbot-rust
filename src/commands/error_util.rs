@@ -57,8 +57,10 @@ pub async fn dm_issue<S, T: Error>(
 
 pub async fn dm_issue_no_return<S, T: Error>(ctx: &Context, identifier: &str, result: &Result<S, T>, additional_info: &str, issue_type: IssueType) {
     if let Err(err) = result {
-        let message =
-            format!("{issue_type} encountered in the command/module '{identifier}'. {issue_type}: {err}\nAdditional information: {additional_info}");
+        let message = format!(
+            "{issue_type}: Potential issue encountered in the command/module '{identifier}'. {err}\n\
+                           Additional information: {additional_info}"
+        );
 
         dm_and_log_handled(ctx, message, issue_type).await;
     }
