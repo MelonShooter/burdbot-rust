@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
 use bimap::BiHashMap;
+use futures::join;
 use serenity::async_trait;
 use serenity::client::{Context, EventHandler};
 use serenity::model::channel::Message;
@@ -12,8 +13,9 @@ use serenity::model::prelude::{Ready, User, VoiceState};
 use songbird::model::payload::{ClientDisconnect, Speaking};
 use songbird::{Event, EventContext, EventHandler as VoiceEventHandler};
 
-use crate::commands::{self, user_search_engine};
+use crate::commands::{user_search_engine, vocaroo};
 use crate::custom::spanish_english;
+use crate::logger::DiscordLogger;
 use crate::session_tracker::{self, voice_handler};
 
 pub struct BurdBotEventHandler;
@@ -22,23 +24,26 @@ pub struct BurdBotEventHandler;
 impl EventHandler for BurdBotEventHandler {
     async fn ready(&self, context: Context, _ready: Ready) {
         crate::on_ready();
-        session_tracker::on_ready(&context).await;
-        commands::vocaroo::on_ready(&context).await;
+
+        join!(session_tracker::on_ready(&context), vocaroo::on_ready(&context));
     }
 
     async fn message(&self, ctx: Context, new_message: Message) {
-        spanish_english::on_message_receive(&ctx, &new_message).await;
-        commands::vocaroo::on_message_received(&ctx, &new_message).await;
+        join!(
+            spanish_english::on_message_receive(&ctx, &new_message),
+            vocaroo::on_message_received(&ctx, &new_message)
+        );
     }
 
     async fn cache_ready(&self, context: Context, _guilds: Vec<GuildId>) {
-        user_search_engine::on_cache_ready(&context).await;
-        spanish_english::on_cache_ready(&context).await;
+        join!(user_search_engine::on_cache_ready(&context), spanish_english::on_cache_ready(&context));
     }
 
     async fn voice_state_update(&self, context: Context, _guild_id: Option<GuildId>, old_state: Option<VoiceState>, new_state: VoiceState) {
-        session_tracker::on_voice_state_update(&new_state, &context).await;
-        spanish_english::on_voice_state_update(old_state.as_ref(), &new_state, &context).await;
+        join!(
+            session_tracker::on_voice_state_update(&new_state, &context),
+            spanish_english::on_voice_state_update(old_state.as_ref(), &new_state, &context)
+        );
     }
 
     async fn guild_member_addition(&self, ctx: Context, guild_id: GuildId, new_member: Member) {
