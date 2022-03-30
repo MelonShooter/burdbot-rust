@@ -9,7 +9,6 @@ mod util;
 
 use async_ctrlc::CtrlC;
 use chrono::{Timelike, Utc};
-use env_logger::{Builder, Target, WriteStyle};
 use events::BurdBotEventHandler;
 use log::{debug, info, LevelFilter};
 use logger::DiscordLogger;
@@ -23,6 +22,7 @@ use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use serenity::prelude::Mutex;
 use serenity::{CacheAndHttp, Client};
+use simplelog::{CombinedLogger, ConfigBuilder, WriteLogger};
 use songbird::driver::{Config, DecodeMode};
 use songbird::{SerenityInit, Songbird};
 use std::collections::HashSet;
@@ -33,6 +33,9 @@ use tokio::time;
 pub const BURDBOT_DB: &str = "burdbot.db";
 pub const DELIBURD_ID: u64 = 367538590520967181;
 pub const PREFIX: &str = ",";
+const BURDBOT_LOGGER_BUFFER_SIZE: usize = (1 << 10) * 32; // 32KB
+const DEFAULT_LOGGER_BUFFER_SIZE: usize = (1 << 10) * 1; // 1KB
+const LOGGER_WRITE_COOLDOWN: Duration = Duration::from_secs(15);
 
 fn create_sql_tables() {
     let mut connection = Connection::open(BURDBOT_DB).unwrap();
@@ -124,16 +127,6 @@ async fn on_terminate(shard_manager: Arc<Mutex<ShardManager>>) {
 
 #[tokio::main]
 async fn main() {
-    Builder::new()
-        .filter_level(LevelFilter::Warn)
-        .filter_module("burdbot", LevelFilter::Debug)
-        .format_module_path(true)
-        .write_style(WriteStyle::Never)
-        .target(Target::Pipe(Box::new(DiscordLogger::new())))
-        .format_timestamp(None)
-        .format_level(true)
-        .init();
-
     let mut owners_set = HashSet::with_capacity(1);
     owners_set.insert(UserId::from(367538590520967181));
 
@@ -171,10 +164,40 @@ async fn main() {
         .await
         .expect("Couldn't build client.");
 
-    let cache = &client.cache_and_http;
+    let cache_and_http = &client.cache_and_http;
     let shard_manager = client.shard_manager.clone();
+    let burdbot_log_config = ConfigBuilder::new()
+        .set_max_level(LevelFilter::Error)
+        .set_time_level(LevelFilter::Off)
+        .set_location_level(LevelFilter::Error)
+        .set_target_level(LevelFilter::Error)
+        .set_thread_level(LevelFilter::Off)
+        .add_filter_allow_str("burdbot")
+        .build();
+    let default_log_config = ConfigBuilder::new()
+        .set_max_level(LevelFilter::Error)
+        .set_time_level(LevelFilter::Off)
+        .set_location_level(LevelFilter::Error)
+        .set_target_level(LevelFilter::Error)
+        .set_thread_level(LevelFilter::Off)
+        .add_filter_ignore_str("burdbot")
+        .build();
 
-    setup_birthday_tracker(cache);
+    CombinedLogger::init(vec![
+        WriteLogger::new(
+            LevelFilter::Info,
+            burdbot_log_config,
+            DiscordLogger::new(cache_and_http, BURDBOT_LOGGER_BUFFER_SIZE, LOGGER_WRITE_COOLDOWN),
+        ),
+        WriteLogger::new(
+            LevelFilter::Warn,
+            default_log_config,
+            DiscordLogger::new(cache_and_http, DEFAULT_LOGGER_BUFFER_SIZE, LOGGER_WRITE_COOLDOWN),
+        ),
+    ])
+    .expect("Unable to intialize logger.");
+
+    setup_birthday_tracker(cache_and_http);
 
     tokio::spawn(async move {
         CtrlC::new().expect("Failed to create ctrl + c handler.").await;
