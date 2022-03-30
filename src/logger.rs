@@ -73,6 +73,10 @@ impl LogSender {
             {
                 let mut write_buffer = self.write_buffer.lock().unwrap_or_else(|err| err.into_inner());
 
+                if write_buffer.is_empty() {
+                    return;
+                }
+
                 message_buffer.clear();
                 message_buffer.append(&mut write_buffer);
             }
@@ -139,6 +143,10 @@ impl DiscordLogger {
             loop {
                 time::sleep(write_cooldown).await;
 
+                if let None = DELIBURD_CHANNEL_ID.get() {
+                    continue; // Sleep until there's something in OnceCell.
+                }
+
                 log_sender.send().await;
             }
         });
@@ -148,7 +156,7 @@ impl DiscordLogger {
 }
 
 fn malformed_string_err(buf: &[u8]) -> Error {
-    let msg = format!("Non-graphic/whitespace ASCII was passed into DiscordLogger's write(). Investigate this. Bytes: {buf:?}.");
+    let msg = format!("Non-UTF-8 bytes were passed into DiscordLogger's write(). Investigate this. Bytes: {buf:?}.");
 
     warn!("{msg}");
 
@@ -157,9 +165,10 @@ fn malformed_string_err(buf: &[u8]) -> Error {
 
 impl Write for DiscordLogger {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        // does rejecting a write cause the thread to panic? like an Ok of size 0?
         // Sanitize writes and show in stderr.
         match str::from_utf8(buf) {
-            Ok(str) => eprintln!("{}", str),
+            Ok(str) => eprint!("{}", str),
             Err(_) => return Err(malformed_string_err(buf)),
         };
 
@@ -167,7 +176,7 @@ impl Write for DiscordLogger {
         let space_left = self.buffer_size - write_buffer.len();
 
         assert!(
-                space_left > self.buffer_size,
+                space_left <= self.buffer_size,
                 "space_left variable overflowed in DiscordLogger's write(), almost certainly because the buffer exceeded the allowed size: {}, which should never happen.",
                 self.buffer_size
             );
