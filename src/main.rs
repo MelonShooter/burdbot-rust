@@ -28,6 +28,7 @@ use songbird::{SerenityInit, Songbird};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::runtime::Handle;
 use tokio::time;
 
 pub const BURDBOT_DB: &str = "burdbot.db";
@@ -36,6 +37,7 @@ pub const PREFIX: &str = ",";
 const BURDBOT_LOGGER_BUFFER_SIZE: usize = (1 << 10) * 32; // 32KB
 const DEFAULT_LOGGER_BUFFER_SIZE: usize = (1 << 10) * 1; // 1KB
 const LOGGER_WRITE_COOLDOWN: Duration = Duration::from_secs(15);
+const LOGGER_FAILED_FILE: &str = "failed-to-send-logs.txt";
 
 fn create_sql_tables() {
     let mut connection = Connection::open(BURDBOT_DB).unwrap();
@@ -123,6 +125,10 @@ async fn on_post_command(_: &Context, _: &Message, cmd: &str, result: CommandRes
 
 async fn on_terminate(shard_manager: Arc<Mutex<ShardManager>>) {
     shard_manager.lock().await.shutdown_all().await;
+
+    info!("Flushed logger and terminated burdbot.");
+
+    log::logger().flush(); // Flush the logger so that all logs are sent. This call will block.
 }
 
 #[tokio::main]
@@ -187,12 +193,24 @@ async fn main() {
         WriteLogger::new(
             LevelFilter::Info,
             burdbot_log_config,
-            DiscordLogger::new(cache_and_http, BURDBOT_LOGGER_BUFFER_SIZE, LOGGER_WRITE_COOLDOWN),
+            DiscordLogger::new(
+                cache_and_http,
+                BURDBOT_LOGGER_BUFFER_SIZE,
+                LOGGER_FAILED_FILE,
+                LOGGER_WRITE_COOLDOWN,
+                Handle::current(),
+            ),
         ),
         WriteLogger::new(
             LevelFilter::Warn,
             default_log_config,
-            DiscordLogger::new(cache_and_http, DEFAULT_LOGGER_BUFFER_SIZE, LOGGER_WRITE_COOLDOWN),
+            DiscordLogger::new(
+                cache_and_http,
+                DEFAULT_LOGGER_BUFFER_SIZE,
+                LOGGER_FAILED_FILE,
+                LOGGER_WRITE_COOLDOWN,
+                Handle::current(),
+            ),
         ),
     ])
     .expect("Unable to intialize logger.");
