@@ -10,7 +10,7 @@ mod util;
 use async_ctrlc::CtrlC;
 use chrono::{Timelike, Utc};
 use events::BurdBotEventHandler;
-use log::{debug, info, LevelFilter};
+use log::{debug, info, warn, LevelFilter};
 use logger::DiscordLogger;
 use rusqlite::Connection;
 use serenity::client::bridge::gateway::{GatewayIntents, ShardManager};
@@ -39,6 +39,7 @@ const DEFAULT_LOGGER_BUFFER_SIZE: usize = (1 << 10) * 1; // 1KB
 const LOGGER_WRITE_COOLDOWN: Duration = Duration::from_secs(15);
 const LOGGER_FAILED_FILE: &str = "failed-to-send-logs.txt";
 const LOGGER_FILE_NAME: &str = "log.txt";
+const RETRY_CONNECTION_INTERVAL: u64 = 30;
 
 fn create_sql_tables() {
     let mut connection = Connection::open(BURDBOT_DB).unwrap();
@@ -225,6 +226,12 @@ async fn main() {
 
         on_terminate(shard_manager).await;
     });
+
+    while let Err(err) = client.start().await {
+        warn!("Error encountered starting Discord bot client: {err}\nRetrying in {RETRY_CONNECTION_INTERVAL} seconds.");
+
+        time::sleep(Duration::from_secs(RETRY_CONNECTION_INTERVAL)).await;
+    }
 
     client.start().await.expect("Couldn't start client.");
 }
