@@ -38,6 +38,7 @@ const BURDBOT_LOGGER_BUFFER_SIZE: usize = (1 << 10) * 32; // 32KB
 const DEFAULT_LOGGER_BUFFER_SIZE: usize = (1 << 10) * 1; // 1KB
 const LOGGER_WRITE_COOLDOWN: Duration = Duration::from_secs(15);
 const LOGGER_FAILED_FILE: &str = "failed-to-send-logs.txt";
+const LOGGER_FILE_NAME: &str = "log.txt";
 
 fn create_sql_tables() {
     let mut connection = Connection::open(BURDBOT_DB).unwrap();
@@ -194,9 +195,10 @@ async fn main() {
             LevelFilter::Info,
             burdbot_log_config,
             DiscordLogger::new(
-                cache_and_http,
+                cache_and_http.clone(),
                 BURDBOT_LOGGER_BUFFER_SIZE,
                 LOGGER_FAILED_FILE,
+                LOGGER_FILE_NAME,
                 LOGGER_WRITE_COOLDOWN,
                 Handle::current(),
             ),
@@ -205,9 +207,10 @@ async fn main() {
             LevelFilter::Warn,
             default_log_config,
             DiscordLogger::new(
-                cache_and_http,
+                cache_and_http.clone(),
                 DEFAULT_LOGGER_BUFFER_SIZE,
                 LOGGER_FAILED_FILE,
+                LOGGER_FILE_NAME,
                 LOGGER_WRITE_COOLDOWN,
                 Handle::current(),
             ),

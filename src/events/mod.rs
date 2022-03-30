@@ -15,7 +15,7 @@ use songbird::{Event, EventContext, EventHandler as VoiceEventHandler};
 
 use crate::commands::{user_search_engine, vocaroo};
 use crate::custom::spanish_english;
-use crate::logger::DiscordLogger;
+use crate::logger;
 use crate::session_tracker::{self, voice_handler};
 
 pub struct BurdBotEventHandler;
@@ -36,7 +36,11 @@ impl EventHandler for BurdBotEventHandler {
     }
 
     async fn cache_ready(&self, context: Context, _guilds: Vec<GuildId>) {
-        join!(user_search_engine::on_cache_ready(&context), spanish_english::on_cache_ready(&context));
+        join!(
+            user_search_engine::on_cache_ready(&context),
+            spanish_english::on_cache_ready(&context),
+            logger::on_cache_ready(&context)
+        );
     }
 
     async fn voice_state_update(&self, context: Context, _guild_id: Option<GuildId>, old_state: Option<VoiceState>, new_state: VoiceState) {
