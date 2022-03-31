@@ -18,9 +18,6 @@ pub enum ArgumentParseError {
     BadOption(#[from] BadOptionError),
 }
 
-// TODO: URGENT: SANATIZE ANY USER INPUTS BY SETTING ALLOWED MENTIONS PRIOR TO SENDING ERROR AND USING EMBEDS, ONLY ALLOW FROM ONE PLACE.
-// CHECK ANY OTHER CASES THIS COULD HAPPEN
-
 #[derive(Error, Debug, Clone)]
 #[error("Invalid choice in argument #{arg_pos}. Choices are {choices}. The argument provided was {provided_choice}")]
 pub struct BadOptionError {

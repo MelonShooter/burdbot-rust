@@ -20,7 +20,6 @@ use thiserror::Error;
 
 use crate::BURDBOT_DB;
 
-use super::error_util::{dm_issue_no_return, IssueType};
 use super::util;
 
 const MAX_VOCAROO_RECORDING_SIZE: u32 = (1 << 20) * 5; // 5MB
@@ -93,13 +92,11 @@ async fn download_vocaroo<'a>(client: &Client, url: &'a str) -> Result<Bytes, Vo
 }
 
 async fn handle_vocaroo_error(ctx: &Context, msg: &Message, error: VocarooError<'_>) {
-    let issue_type = match error {
-        VocarooError::FailedDownload(_, _) => IssueType::Warning,
-        VocarooError::OversizedFile(_) | VocarooError::ContentTypeNotMp3(_) => IssueType::Debug,
-        _ => IssueType::Error,
+    match error {
+        VocarooError::FailedDownload(_, _) => warn!("{error}"),
+        VocarooError::OversizedFile(_) | VocarooError::ContentTypeNotMp3(_) => debug!("{error}"),
+        _ => error!("{error}"),
     };
-
-    dm_issue_no_return::<(), VocarooError>(ctx, "vocaroo", &Err(error), "None.", issue_type).await;
 
     if let Err(err) = msg.react(&ctx.http, '❌').await {
         let link = msg.link();

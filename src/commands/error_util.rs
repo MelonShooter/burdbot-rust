@@ -1,70 +1,13 @@
-use std::error::Error;
 use std::fmt::Display;
 
-use log::{debug, error, warn};
 use serenity::client::Context;
 use serenity::http::Http;
-use serenity::model::id::{ChannelId, UserId};
-use serenity::Error as SerenityError;
-use strum_macros::Display;
+use serenity::model::id::ChannelId;
 
 use crate::commands::util;
 use crate::DELIBURD_ID;
 
 pub mod error;
-
-// TODO: Add function to send sanitized embed with no allowed mentions.
-// Add function to send an embed for an error message with optional additional info
-
-async fn dm_and_log<T: Display>(ctx: &Context, string: T, issue_type: IssueType) -> Result<(), SerenityError> {
-    match issue_type {
-        IssueType::Warning => warn!("{string}"),
-        IssueType::Error => error!("{string}"),
-        IssueType::Debug => debug!("{string}"),
-    }
-
-    let dm_channel = UserId::from(DELIBURD_ID).create_dm_channel(&ctx.http).await?;
-
-    dm_channel.say(&ctx.http, string).await?;
-
-    Ok(())
-}
-
-async fn dm_and_log_handled<T: Display>(ctx: &Context, error_message: T, issue_type: IssueType) {
-    if let Err(e) = dm_and_log(ctx, error_message, issue_type).await {
-        debug!("Error encountered DMing error to DELIBURD. Error: {e}"); // Set to debug so infinite DMing loop doesn't occur.
-    }
-}
-
-#[derive(Debug, Display)]
-pub enum IssueType {
-    Debug,
-    Warning,
-    Error,
-}
-
-pub async fn dm_issue<S, T: Error>(
-    ctx: &Context,
-    identifier: &str,
-    result: Result<S, T>,
-    additional_info: &str,
-    issue_type: IssueType,
-) -> Result<S, T> {
-    dm_issue_no_return(ctx, identifier, &result, additional_info, issue_type).await;
-
-    result
-}
-
-pub async fn dm_issue_no_return<S, T: Error>(ctx: &Context, identifier: &str, result: &Result<S, T>, additional_info: &str, issue_type: IssueType) {
-    if let Err(err) = result {
-        let message = format!(
-            "{issue_type}: Potential issue encountered in the command/module '{identifier}'. {err}\n\
-                           Additional information: {additional_info}"
-        );
-
-        dm_and_log_handled(ctx, message, issue_type).await;
-    }
-}
 
 pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: ChannelId, arg_count: usize, args_needed: usize) {
     let args_needed_message = if args_needed == 1 { " is" } else { "s are" };
