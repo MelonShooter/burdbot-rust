@@ -11,7 +11,7 @@ use songbird::{CoreEvent, Songbird};
 
 use tokio::sync::RwLockReadGuard;
 
-use crate::events::BurdBotVoiceEventHandler;
+use crate::event_handler::BurdBotVoiceEventHandler;
 
 pub mod voice_handler;
 

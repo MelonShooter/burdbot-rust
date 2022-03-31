@@ -4,7 +4,7 @@ use rusqlite::Error;
 use songbird::model::id::UserId;
 use std::time::{Duration, Instant};
 
-use crate::events::BurdBotVoiceEventHandler;
+use crate::event_handler::BurdBotVoiceEventHandler;
 
 fn write_duration(user_id: u64, duration: Duration) -> Result<usize, Error> {
     let user_id_signed = user_id as i64;

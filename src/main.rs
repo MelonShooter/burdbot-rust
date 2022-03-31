@@ -1,7 +1,8 @@
+pub mod event_handler;
+
 mod birthday_tracker;
 mod commands;
 mod custom;
-mod events;
 mod logger;
 mod secret;
 mod session_tracker;
@@ -9,7 +10,7 @@ mod util;
 
 use async_ctrlc::CtrlC;
 use chrono::{Timelike, Utc};
-use events::BurdBotEventHandler;
+use event_handler::BurdBotEventHandler;
 use log::{debug, info, warn, LevelFilter};
 use logger::{DiscordLogger, LogSender};
 use rusqlite::Connection;
