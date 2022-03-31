@@ -11,7 +11,7 @@ use async_ctrlc::CtrlC;
 use chrono::{Timelike, Utc};
 use events::BurdBotEventHandler;
 use log::{debug, info, warn, LevelFilter};
-use logger::DiscordLogger;
+use logger::{DiscordLogger, LogSender};
 use rusqlite::Connection;
 use serenity::client::bridge::gateway::{GatewayIntents, ShardManager};
 use serenity::client::Context;
@@ -28,7 +28,7 @@ use songbird::{SerenityInit, Songbird};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::runtime::Handle;
+use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio::time;
 
 pub const BURDBOT_DB: &str = "burdbot.db";
@@ -125,12 +125,20 @@ async fn on_post_command(_: &Context, _: &Message, cmd: &str, result: CommandRes
     debug!("Result of {}{}: {:?}", PREFIX, cmd, result);
 }
 
-async fn on_terminate(shard_manager: Arc<Mutex<ShardManager>>) {
+async fn on_terminate(shard_manager: Arc<Mutex<ShardManager>>, mut log_sender_mpsc_recv: UnboundedReceiver<LogSender>) {
+    // Flush the logger so that all logs are sent.
+    info!("Flushed logger. Terminating bot...");
+
+    log::logger().flush();
+
+    log_sender_mpsc_recv.close();
+
+    match log_sender_mpsc_recv.recv().await {
+        Some(sender) => sender.send().await,
+        None => eprintln!("Failed to flush the logger. No log sender was sent.\nContinuing termination..."),
+    };
+
     shard_manager.lock().await.shutdown_all().await;
-
-    info!("Flushed logger and terminated burdbot.");
-
-    log::logger().flush(); // Flush the logger so that all logs are sent. This call will block.
 }
 
 #[tokio::main]
@@ -174,6 +182,7 @@ async fn main() {
 
     let cache_and_http = &client.cache_and_http;
     let shard_manager = client.shard_manager.clone();
+    let (log_sender_mpsc_send, log_sender_mpsc_recv) = mpsc::unbounded_channel();
     let burdbot_log_config = ConfigBuilder::new()
         .set_max_level(LevelFilter::Error)
         .set_time_level(LevelFilter::Off)
@@ -201,7 +210,7 @@ async fn main() {
                 LOGGER_FAILED_FILE,
                 LOGGER_FILE_NAME,
                 LOGGER_WRITE_COOLDOWN,
-                Handle::current(),
+                log_sender_mpsc_send.clone(),
             ),
         ),
         WriteLogger::new(
@@ -213,7 +222,7 @@ async fn main() {
                 LOGGER_FAILED_FILE,
                 LOGGER_FILE_NAME,
                 LOGGER_WRITE_COOLDOWN,
-                Handle::current(),
+                log_sender_mpsc_send,
             ),
         ),
     ])
@@ -224,7 +233,7 @@ async fn main() {
     tokio::spawn(async move {
         CtrlC::new().expect("Failed to create ctrl + c handler.").await;
 
-        on_terminate(shard_manager).await;
+        on_terminate(shard_manager, log_sender_mpsc_recv).await;
     });
 
     while let Err(err) = client.start().await {
@@ -232,8 +241,6 @@ async fn main() {
 
         time::sleep(Duration::from_secs(RETRY_CONNECTION_INTERVAL)).await;
     }
-
-    client.start().await.expect("Couldn't start client.");
 }
 
 pub fn on_ready() {

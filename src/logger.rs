@@ -1,29 +1,42 @@
+use std::fmt::Debug;
 use std::io::{Error, ErrorKind, Result, Write};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 use std::{cmp, iter};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Mutex as TokioMutex;
 
-use log::{error, info, warn};
+use log::{info, warn};
 use once_cell::sync::OnceCell;
 use serenity::client::Context;
 use serenity::http::CacheHttp;
 use serenity::model::id::{ChannelId, UserId};
 use serenity::CacheAndHttp;
 use std::str;
-use tokio::runtime::Handle;
 use tokio::time;
 
 use crate::DELIBURD_ID;
 
-struct LogSender {
+pub struct LogSender {
     cache_and_http: Arc<CacheAndHttp>,
     failed_to_send_file: &'static str,
     send_file_name: &'static str,
     write_buffer: Arc<StdMutex<Vec<u8>>>,
     message_buffer: Arc<TokioMutex<Vec<u8>>>,
+}
+
+impl Debug for LogSender {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LogSender")
+            .field("cache_and_http", &"omitted")
+            .field("failed_to_send_file", &self.failed_to_send_file)
+            .field("send_file_name", &self.send_file_name)
+            .field("write_buffer", &self.write_buffer)
+            .field("message_buffer", &self.message_buffer)
+            .finish()
+    }
 }
 
 static DELIBURD_CHANNEL_ID: OnceCell<Option<ChannelId>> = OnceCell::new();
@@ -34,7 +47,7 @@ async fn get_deliburd_channel_id(cache_and_http: impl CacheHttp) -> Option<Chann
     match channel {
         Ok(channel) => Some(channel.id),
         Err(err) => {
-            error!("Couldn't create DM channel with {DELIBURD_ID} to send logs to. Error: {err}\nSending logs to fallback file instead.");
+            eprintln!("Couldn't create DM channel with {DELIBURD_ID} to send logs to. Error: {err}\nSending logs to fallback file instead.");
 
             None
         }
@@ -59,7 +72,7 @@ impl LogSender {
         Ok(())
     }
 
-    async fn send(&self) {
+    pub async fn send(&self) {
         let channel_id_option = match DELIBURD_CHANNEL_ID.get() {
             Some(option) => option,
             None => DELIBURD_CHANNEL_ID
@@ -88,6 +101,8 @@ impl LogSender {
                     "Failed to send log message. Encountered Serenity error: {err}\nSending logs to fallback file '{}' instead.",
                     self.failed_to_send_file
                 )
+            } else {
+                return;
             }
         }
 
@@ -116,7 +131,7 @@ pub struct DiscordLogger {
     send_file_name: &'static str,
     write_buffer: Arc<StdMutex<Vec<u8>>>,
     message_buffer: Arc<TokioMutex<Vec<u8>>>,
-    async_handle: Handle,
+    sender: UnboundedSender<LogSender>,
 }
 
 impl DiscordLogger {
@@ -126,7 +141,7 @@ impl DiscordLogger {
         failed_to_send_file: &'static str,
         send_file_name: &'static str,
         write_cooldown: Duration,
-        async_handle: Handle,
+        sender: UnboundedSender<LogSender>,
     ) -> Self {
         let logger = DiscordLogger {
             cache_http: cache_and_http.clone(),
@@ -135,7 +150,7 @@ impl DiscordLogger {
             send_file_name,
             write_buffer: Arc::new(StdMutex::new(Vec::with_capacity(buffer_size))),
             message_buffer: Arc::new(TokioMutex::new(Vec::with_capacity(buffer_size))),
-            async_handle,
+            sender,
         };
         let log_sender = LogSender::from(&logger);
 
@@ -189,10 +204,6 @@ impl Write for DiscordLogger {
     }
 
     fn flush(&mut self) -> Result<()> {
-        self.async_handle.block_on(async {
-            LogSender::from(&*self).send().await;
-        });
-
-        Ok(())
+        self.sender.send(LogSender::from(&*self)).map_err(|err| Error::new(ErrorKind::Other, err))
     }
 }
