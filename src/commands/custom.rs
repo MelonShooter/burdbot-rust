@@ -1,11 +1,12 @@
+use super::{util, ArgumentInfo};
+use crate::spanish_english::IS_SERVER_HELPER_OR_ABOVE_CHECK;
+
 use serenity::client::Context;
-use serenity::framework::standard::macros::{check, command, group};
-use serenity::framework::standard::{Args, CommandError, CommandResult, Reason};
+use serenity::framework::standard::macros::{command, group};
+use serenity::framework::standard::{Args, CommandError, CommandResult};
 use serenity::model::channel::Message;
 use serenity::model::id::{ChannelId, RoleId};
 use serenity::utils::Color;
-
-use super::{util, ArgumentInfo};
 
 async fn banfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_id: RoleId, ch_name: &'a str) -> Result<String, CommandError> {
     let mut target = util::parse_member(ctx, msg, ArgumentInfo::new(&mut args, 1, 1)).await?;
@@ -89,21 +90,6 @@ async fn unbanfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role
             ch_name
         )
     })
-}
-
-#[check]
-async fn is_server_helper_or_above(ctx: &Context, msg: &Message) -> Result<(), Reason> {
-    let author = match msg.member(&ctx).await {
-        Ok(member) => member,
-        Err(_) => return Err(Reason::Unknown),
-    };
-
-    author
-        .roles
-        .iter()
-        .any(|id| id.0 == 243854949522472971 || id.0 == 258806166770024449 || id.0 == 258819531193974784)
-        .then(|| ())
-        .ok_or_else(|| Reason::Log("User is lower than a server helper.".to_owned()))
 }
 
 #[command]

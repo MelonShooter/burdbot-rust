@@ -5,6 +5,8 @@ use std::time::Duration;
 
 use log::error;
 use serenity::client::{Cache, Context};
+use serenity::framework::standard::macros::check;
+use serenity::framework::standard::Reason;
 use serenity::http::Http;
 use serenity::model::channel::{Channel, Message, PermissionOverwriteType};
 use serenity::model::id::{ChannelId, RoleId};
@@ -264,4 +266,19 @@ async fn do_music_check(ctx: &Context, message: &Message) {
             return;
         }
     }
+}
+
+#[check]
+pub async fn is_server_helper_or_above(ctx: &Context, msg: &Message) -> Result<(), Reason> {
+    let author = match msg.member(&ctx).await {
+        Ok(member) => member,
+        Err(_) => return Err(Reason::Unknown),
+    };
+
+    author
+        .roles
+        .iter()
+        .any(|id| id.0 == 243854949522472971 || id.0 == 258806166770024449 || id.0 == 258819531193974784)
+        .then(|| ())
+        .ok_or_else(|| Reason::Log("User is lower than a server helper.".to_owned()))
 }
