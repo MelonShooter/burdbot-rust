@@ -7,8 +7,6 @@ use serenity::model::id::ChannelId;
 use crate::commands::util;
 use crate::DELIBURD_ID;
 
-pub mod error;
-
 pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: ChannelId, arg_count: usize, args_needed: usize) {
     let args_needed_message = if args_needed == 1 { " is" } else { "s are" };
     let arg_count_message = if arg_count == 1 { " was" } else { "s were" };

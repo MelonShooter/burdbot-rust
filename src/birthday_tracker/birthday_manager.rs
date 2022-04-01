@@ -15,8 +15,8 @@ use serenity::model::channel::GuildChannel;
 use serenity::model::id::ChannelId;
 
 use crate::commands;
-use crate::commands::error_util::error::SerenitySQLiteError;
 use crate::commands::BirthdayInfoConfirmation;
+use crate::error::SerenitySQLiteError;
 use crate::BURDBOT_DB;
 
 use super::BirthdayDateTime;

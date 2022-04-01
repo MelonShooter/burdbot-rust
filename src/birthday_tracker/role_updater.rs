@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 use rusqlite::{Error as SQLiteError, Transaction};
 use serenity::http::Http;
 
-use crate::commands::error_util::error::SerenitySQLiteError;
+use crate::error::SerenitySQLiteError;
 use crate::BURDBOT_DB;
 
 use super::BirthdayDateTime;

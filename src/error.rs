@@ -27,7 +27,7 @@ pub struct BadOptionError {
 }
 
 impl BadOptionError {
-    pub(in crate::commands) fn new(arg_pos: usize, provided_choice: String, choices: String) -> Self {
+    pub fn new(arg_pos: usize, provided_choice: String, choices: String) -> Self {
         Self {
             arg_pos,
             provided_choice,

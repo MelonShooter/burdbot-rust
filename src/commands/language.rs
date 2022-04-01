@@ -20,8 +20,8 @@ use crate::commands::language::forvo::ForvoError;
 use self::forvo::ForvoResult;
 
 use super::error_util;
-use super::error_util::error::NotEnoughArgumentsError;
 use super::util;
+use crate::error::NotEnoughArgumentsError;
 
 async fn parse_term(ctx: &Context, msg: &Message, args: &mut Args) -> Result<String, NotEnoughArgumentsError> {
     match args.current() {

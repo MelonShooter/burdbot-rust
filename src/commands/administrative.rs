@@ -14,8 +14,8 @@ use serenity::utils::Color;
 
 use crate::BURDBOT_DB;
 
-use super::error_util::error::{ArgumentConversionError, ArgumentParseError};
 use super::{util, ArgumentInfo, BoundedArgumentInfo, ConversionType};
+use crate::error::{ArgumentConversionError, ArgumentParseError};
 
 const GONE_WRONG: &str = "Something's gone wrong. <@367538590520967181> has been notified.";
 

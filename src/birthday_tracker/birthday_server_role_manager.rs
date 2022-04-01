@@ -3,7 +3,7 @@ use rusqlite::{Connection, Error as RusqliteError, OptionalExtension, Transactio
 use serenity::client::Context;
 use serenity::model::id::{ChannelId, RoleId};
 
-use crate::commands::error_util::error::SerenitySQLiteError;
+use crate::error::SerenitySQLiteError;
 use crate::{commands, BURDBOT_DB};
 
 use super::role_updater;

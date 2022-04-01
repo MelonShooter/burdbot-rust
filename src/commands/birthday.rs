@@ -22,7 +22,7 @@ use log::error;
 use crate::birthday_tracker::{self, add_birthday_to_db};
 
 use super::{error_util, util, ArgumentInfo};
-use error_util::error::SerenitySQLiteError as Error;
+use crate::error::SerenitySQLiteError as Error;
 
 pub const MONTH_TO_DAYS: [i64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 pub const MONTH_TO_NAME: [&str; 12] = [

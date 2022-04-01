@@ -26,8 +26,8 @@ use strum_macros::EnumProperty;
 use log::error;
 
 use super::error_util;
-use super::error_util::error::BadOptionError;
-use super::error_util::error::{ArgumentConversionError, ArgumentOutOfBoundsError, ArgumentParseError, NotEnoughArgumentsError};
+use crate::error::BadOptionError;
+use crate::error::{ArgumentConversionError, ArgumentOutOfBoundsError, ArgumentParseError, NotEnoughArgumentsError};
 
 pub mod user_search_engine;
 
