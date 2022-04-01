@@ -1,12 +1,12 @@
 pub mod error;
-pub mod event_handler;
 
 mod birthday_tracker;
 mod commands;
-mod custom;
+mod event_handler;
 mod logger;
 mod secret;
 mod session_tracker;
+mod spanish_english;
 mod util;
 
 use async_ctrlc::CtrlC;

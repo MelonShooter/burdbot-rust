@@ -14,9 +14,9 @@ use songbird::model::payload::{ClientDisconnect, Speaking};
 use songbird::{Event, EventContext, EventHandler as VoiceEventHandler};
 
 use crate::commands::{user_search_engine, vocaroo};
-use crate::custom::spanish_english;
 use crate::logger;
 use crate::session_tracker::{self, voice_handler};
+use crate::spanish_english;
 
 pub struct BurdBotEventHandler;
 
