@@ -33,9 +33,9 @@ use std::time::Duration;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio::time;
 
-pub const BURDBOT_DB: &str = "burdbot.db";
-pub const DELIBURD_ID: u64 = 367538590520967181;
-pub const PREFIX: &str = ",";
+pub(crate) const BURDBOT_DB: &str = "burdbot.db";
+pub(crate) const DELIBURD_ID: u64 = 367538590520967181;
+pub(crate) const PREFIX: &str = ",";
 const BURDBOT_LOGGER_BUFFER_SIZE: usize = (1 << 10) * 32; // 32KB
 const DEFAULT_LOGGER_BUFFER_SIZE: usize = (1 << 10) * 1; // 1KB
 const LOGGER_WRITE_COOLDOWN: Duration = Duration::from_secs(15);
