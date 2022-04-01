@@ -1,4 +1,5 @@
 pub mod error;
+pub mod vocaroo;
 
 mod birthday_tracker;
 mod commands;
