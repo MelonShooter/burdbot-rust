@@ -34,6 +34,7 @@ use std::time::Duration;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio::time;
 
+pub(crate) const IS_SESSION_TRACKER_ENABLED: bool = false;
 pub(crate) const BURDBOT_DB: &str = "burdbot.db";
 pub(crate) const DELIBURD_ID: u64 = 367538590520967181;
 pub(crate) const PREFIX: &str = ",";

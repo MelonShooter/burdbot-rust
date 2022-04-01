@@ -9,17 +9,10 @@ use serenity::prelude::*;
 use songbird::error::JoinError;
 use songbird::{CoreEvent, Songbird};
 
-use tokio::sync::RwLockReadGuard;
-
 use crate::event_handler::BurdBotVoiceEventHandler;
+use crate::IS_SESSION_TRACKER_ENABLED;
 
 pub mod voice_handler;
-
-struct SessionTrackerEnabler;
-
-impl TypeMapKey for SessionTrackerEnabler {
-    type Value = bool;
-}
 
 const TARGET_GUILD_ID: u64 = 720900352018219039;
 const TARGET_VOICE_CHANNEL_ID: u64 = 720900352597033053;
@@ -65,22 +58,16 @@ async fn join_target_voice_channel<T: AsRef<Songbird>>(manager: T) {
     }
 }
 
-fn is_tracker_enabled(context_data: &RwLockReadGuard<'_, TypeMap>) -> bool {
-    *context_data.get::<SessionTrackerEnabler>().unwrap()
-}
-
 pub async fn on_voice_state_update(new_state: &VoiceState, context: &Context) {
+    if !IS_SESSION_TRACKER_ENABLED {
+        return;
+    }
+
     if let Some(member) = &new_state.member {
         if member.user.id.as_u64() != context.cache.current_user_id().await.as_u64() {
             return;
         }
     } else {
-        return;
-    }
-
-    let context_data = context.data.read().await;
-
-    if !is_tracker_enabled(&context_data) {
         return;
     }
 
@@ -94,9 +81,7 @@ pub async fn on_voice_state_update(new_state: &VoiceState, context: &Context) {
 }
 
 pub async fn on_ready(context: &Context) {
-    let mut context_data = context.data.write().await;
-    context_data.insert::<SessionTrackerEnabler>(false);
-    if is_tracker_enabled(&context_data.downgrade()) {
+    if IS_SESSION_TRACKER_ENABLED {
         join_target_voice_channel_with_context(context).await;
     }
 }
