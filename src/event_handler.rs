@@ -14,7 +14,7 @@ use songbird::{Event, EventContext, EventHandler as VoiceEventHandler};
 
 use crate::commands::vocaroo;
 use crate::logger;
-use crate::session_tracker::{self, voice_handler};
+use crate::session_tracker;
 use crate::spanish_english;
 
 pub struct BurdBotEventHandler;
@@ -65,15 +65,15 @@ impl VoiceEventHandler for BurdBotVoiceEventHandler {
     async fn act(&self, context: &EventContext<'_>) -> Option<Event> {
         match context {
             EventContext::SpeakingStateUpdate(Speaking { ssrc, user_id, .. }) => {
-                voice_handler::on_speaking_state_update(self, user_id, *ssrc);
+                session_tracker::on_speaking_state_update(self, user_id, *ssrc);
             }
 
             EventContext::SpeakingUpdate { speaking, ssrc } => {
-                voice_handler::on_speaking_update(self, *speaking, *ssrc);
+                session_tracker::on_speaking_update(self, *speaking, *ssrc);
             }
 
             EventContext::ClientDisconnect(ClientDisconnect { user_id }) => {
-                voice_handler::on_client_disconnect(self, *user_id);
+                session_tracker::on_client_disconnect(self, *user_id);
             }
 
             _ => {}
