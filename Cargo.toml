@@ -22,7 +22,6 @@ futures = "^0.3"
 chrono = "^0.4"
 lazy_static = "^1"
 regex = "^1"
-simsearch = "^0.2"
 async-ctrlc = { version = "^1", features = ["termination"] }
 syn = {version="^1",features=["full","fold"]}
 aes = "^0.7"

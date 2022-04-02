@@ -29,8 +29,6 @@ use super::error_util;
 use crate::error::BadOptionError;
 use crate::error::{ArgumentConversionError, ArgumentOutOfBoundsError, ArgumentParseError, NotEnoughArgumentsError};
 
-pub mod user_search_engine;
-
 // TODO: UPDATE THIS TO TAKE ADVANTAGE OF FROM (use ?) AND NEW DISPLAY IMPLS EVERYWHERE
 // TODO: Add different conversion types
 #[derive(Display, Debug, EnumProperty, Copy, Clone)]
@@ -184,6 +182,8 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
         }
     }
 
+    // TODO: find way to do it by message ID and/or fuzzy matching numbers?
+
     let arg = args.current().unwrap();
 
     if let Some(user_id) = parse_user_mention(arg) {
@@ -194,19 +194,7 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
         }
     }
 
-    if let Some(user_vec) = user_search_engine::user_id_search(ctx, guild_id.0, arg).await {
-        for user_id in user_vec {
-            let member_result = id_argument_to_member(cache, arg_pos, arg, guild_id, user_id).await;
-
-            if let Ok(member) = member_result {
-                args.advance();
-
-                return Ok(member);
-            }
-        }
-    }
-
-    let msg_str = format!("Invalid argument #{}. Could not find any user with that name or ID.", arg_pos);
+    let msg_str = format!("Invalid argument #{}. Could not find any user with that ID or tag.", arg_pos);
 
     send_message(ctx, msg.channel_id, msg_str, "parse_member").await;
 
