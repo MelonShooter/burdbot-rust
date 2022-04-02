@@ -12,6 +12,7 @@ use serenity::model::id::{ChannelId, GuildId};
 use serenity::prelude::TypeMapKey;
 use serenity::Error;
 
+use crate::commands::error_util;
 use crate::vocaroo;
 use crate::vocaroo::VocarooError;
 use crate::BURDBOT_DB;
@@ -31,7 +32,10 @@ async fn handle_vocaroo_error(ctx: &Context, msg: &Message, error: VocarooError<
         VocarooError::MalformedUrl(_) => return, // We don't care about this error.
         VocarooError::FailedDownload(_, _) => warn!("{error}"),
         VocarooError::OversizedFile(_, _) | VocarooError::ContentTypeNotMp3(_) => debug!("{error}"),
-        _ => error!("{error}"),
+        _ => {
+            error!("{error}");
+            error_util::generic_fail(ctx, msg.channel_id).await;
+        }
     };
 
     if let Err(err) = msg.react(&ctx.http, '❌').await {
