@@ -1,5 +1,3 @@
-mod forvo;
-
 use futures::future::join_all;
 use futures::stream;
 use futures::StreamExt;
@@ -14,14 +12,14 @@ use strum::IntoEnumIterator;
 use util::ArgumentInfo;
 
 use crate::commands;
-use crate::commands::language::forvo::Country;
-use crate::commands::language::forvo::ForvoError;
-
-use self::forvo::ForvoResult;
+use crate::error::NotEnoughArgumentsError;
+use crate::forvo;
+use crate::forvo::Country;
+use crate::forvo::ForvoError;
+use crate::forvo::ForvoResult;
 
 use super::error_util;
 use super::util;
-use crate::error::NotEnoughArgumentsError;
 
 async fn parse_term(ctx: &Context, msg: &Message, args: &mut Args) -> Result<String, NotEnoughArgumentsError> {
     match args.current() {
