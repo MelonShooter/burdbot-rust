@@ -18,7 +18,6 @@ use serenity::model::Permissions;
 use serenity::prelude::ModelError;
 use serenity::utils::Colour;
 use serenity::Error;
-use serenity::Result as SerenityResult;
 use std::ops::Deref;
 use strum_macros::Display;
 use strum_macros::EnumProperty;
@@ -26,8 +25,8 @@ use strum_macros::EnumProperty;
 use log::error;
 
 use super::error_util;
-use crate::error::BadOptionError;
-use crate::error::{ArgumentConversionError, ArgumentOutOfBoundsError, ArgumentParseError, NotEnoughArgumentsError};
+use crate::argument_parser;
+use crate::argument_parser::{ArgumentConversionError, ArgumentOutOfBoundsError, ArgumentParseError, BadOptionError, NotEnoughArgumentsError};
 
 // TODO: UPDATE THIS TO TAKE ADVANTAGE OF FROM (use ?) AND NEW DISPLAY IMPLS EVERYWHERE
 // TODO: Add different conversion types
@@ -71,7 +70,7 @@ impl BoundedArgumentInfo<'_> {
     }
 }
 
-pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: BoundedArgumentInfo<'_>) -> Result<i64, ArgumentParseError> {
+pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: BoundedArgumentInfo<'_>) -> argument_parser::Result<i64> {
     let BoundedArgumentInfo {
         start,
         end,
@@ -149,7 +148,7 @@ async fn id_argument_to_member<T: AsRef<Cache>>(
     arg: &str,
     guild_id: impl Into<GuildId>,
     user_id: impl Into<UserId>,
-) -> Result<Member, ArgumentParseError> {
+) -> argument_parser::Result<Member> {
     return cache
         .as_ref()
         .member(guild_id, user_id)
@@ -157,7 +156,7 @@ async fn id_argument_to_member<T: AsRef<Cache>>(
         .ok_or_else(|| ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::Member).into());
 }
 
-pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<Member, ArgumentParseError> {
+pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> argument_parser::Result<Member> {
     let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();
     let ArgumentInfo { args, arg_pos, args_needed } = arg_info;
@@ -237,12 +236,7 @@ where
     choices
 }
 
-pub async fn parse_choices<T: IntoIterator>(
-    ctx: &Context,
-    msg: &Message,
-    arg_info: ArgumentInfo<'_>,
-    choices: T,
-) -> Result<T::Item, ArgumentParseError>
+pub async fn parse_choices<T: IntoIterator>(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>, choices: T) -> argument_parser::Result<T::Item>
 where
     T::Item: Display + Hash + Eq + FromStr,
 {
@@ -281,7 +275,7 @@ async fn id_argument_to_role<T: AsRef<Cache>>(
     arg: &str,
     guild_id: impl Into<GuildId>,
     role_id: impl Into<RoleId>,
-) -> Result<RoleId, ArgumentParseError> {
+) -> argument_parser::Result<RoleId> {
     return cache
         .as_ref()
         .guild_field(guild_id, |guild| guild.roles.get(&role_id.into()).map(|role| role.id))
@@ -290,7 +284,7 @@ async fn id_argument_to_role<T: AsRef<Cache>>(
         .ok_or_else(|| ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::Role)));
 }
 
-pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> Result<RoleId, ArgumentParseError> {
+pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>) -> argument_parser::Result<RoleId> {
     let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();
     let ArgumentInfo { args, arg_pos, args_needed } = arg_info;
@@ -336,7 +330,7 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
     )))
 }
 
-fn check_message_sending(res: SerenityResult<Message>, function_name: &str) {
+fn check_message_sending(res: serenity::Result<Message>, function_name: &str) {
     if let Err(Error::Model(ModelError::MessageTooLong(_))) = res {
         error!("{}() message too long! This shouldn't ever happen.", function_name);
     }

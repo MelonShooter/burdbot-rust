@@ -13,8 +13,6 @@ use petgraph::graph::UnGraph;
 use regex::Captures;
 use regex::Regex;
 use reqwest::Client;
-use reqwest::Error;
-use reqwest::Error as ReqwestError;
 use scraper::ElementRef;
 use scraper::Html;
 use scraper::Selector;
@@ -66,7 +64,7 @@ pub enum ForvoError {
     #[error("Error encountered while fetching forvo recordings. InvalidMatchedCountry: {0}")]
     InvalidMatchedCountry(#[from] ParseError),
     #[error("Error encountered while fetching forvo recordings. ReqwestError: {0}")]
-    ReqwestError(#[from] ReqwestError),
+    ReqwestError(#[from] reqwest::Error),
 }
 
 impl From<ForvoRegexCaptureError> for ForvoError {
@@ -115,8 +113,8 @@ lazy_static! {
     static ref COUNTRY_ENUMS: Vec<Country> = Country::iter().collect();
 }
 
-pub type ForvoResult<T> = Result<T, ForvoError>;
-type PossibleForvoRecording = ForvoResult<ForvoRecording>;
+pub type Result<T> = std::result::Result<T, ForvoError>;
+type PossibleForvoRecording = Result<ForvoRecording>;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 enum Language {
@@ -286,7 +284,7 @@ fn get_language_recordings(entries: &ElementRef, language: Language) -> Vec<Poss
 }
 
 /// Possible for outer vec to be empty, techinically not possible for inner vec to be empty, but take it into account anyways
-async fn get_all_recordings(term: &str, requested_country: Option<Country>) -> ForvoResult<Vec<Vec<PossibleForvoRecording>>> {
+async fn get_all_recordings(term: &str, requested_country: Option<Country>) -> Result<Vec<Vec<PossibleForvoRecording>>> {
     lazy_static! {
         static ref LANGUAGE_CONTAINER_SELECTOR: Selector = Selector::parse("div.language-container").expect("Bad CSS selector.");
     }
@@ -310,7 +308,7 @@ async fn get_all_recordings(term: &str, requested_country: Option<Country>) -> F
         .collect())
 }
 
-async fn get_pronunciation_from_link(forvo_recording: &str) -> Result<Vec<u8>, Error> {
+async fn get_pronunciation_from_link(forvo_recording: &str) -> reqwest::Result<Vec<u8>> {
     Ok(FORVO_CLIENT.get(forvo_recording).send().await?.bytes().await?.to_vec())
 }
 
@@ -383,7 +381,7 @@ impl<'a> RecordingData<'a> {
         }
     }
 
-    pub async fn get_recording(&mut self) -> ForvoResult<(&[u8], Country, &str)> {
+    pub async fn get_recording(&mut self) -> Result<(&[u8], Country, &str)> {
         let recording = self
             .recording
             .get_or_insert(get_pronunciation_from_link(self.recording_link.as_str()).await?);
@@ -408,7 +406,7 @@ fn possible_recordings_to_data(
     term: &str,
     country: Option<Country>,
     possible_recordings: Vec<PossibleForvoRecording>,
-) -> impl Iterator<Item = ForvoResult<RecordingData<'_>>> {
+) -> impl Iterator<Item = Result<RecordingData<'_>>> {
     let mut possible_data = Vec::new();
     let mut closest_recording = None;
     let mut accent_differences = match ACCENT_DIFFERENCES.lock() {
@@ -443,7 +441,7 @@ fn possible_recordings_to_data(
 }
 
 /// Document so closest recordings for english and spanish depending on circumstances are provided, but so are failed recordings
-pub async fn fetch_pronunciation(term: &str, requested_country: Option<Country>) -> ForvoResult<Vec<ForvoResult<RecordingData<'_>>>> {
+pub async fn fetch_pronunciation(term: &str, requested_country: Option<Country>) -> Result<Vec<Result<RecordingData<'_>>>> {
     Ok(get_all_recordings(term, requested_country)
         .await?
         .into_iter()

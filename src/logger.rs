@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::io::{Error, ErrorKind, Result, Write};
+use std::io::{Error, ErrorKind, Write};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 use std::{cmp, iter};
@@ -63,7 +63,7 @@ pub(crate) async fn on_cache_ready(ctx: &Context) {
 }
 
 impl LogSender {
-    async fn send_to_file(&self) -> Result<()> {
+    async fn send_to_file(&self) -> std::io::Result<()> {
         let mut file = File::create(self.failed_to_send_file).await?;
         let message_buffer = self.message_buffer.lock().await;
 
@@ -170,7 +170,7 @@ impl DiscordLogger {
     }
 }
 
-fn malformed_string_err(buf: &[u8]) -> Error {
+fn malformed_string_err(buf: &[u8]) -> std::io::Error {
     let msg = format!("Non-UTF-8 bytes were passed into DiscordLogger's write(). Investigate this. Bytes: {buf:?}.");
 
     warn!("{msg}");
@@ -179,7 +179,7 @@ fn malformed_string_err(buf: &[u8]) -> Error {
 }
 
 impl Write for DiscordLogger {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         // does rejecting a write cause the thread to panic? like an Ok of size 0?
         // Sanitize writes and show in stderr.
         match str::from_utf8(buf) {
@@ -203,7 +203,7 @@ impl Write for DiscordLogger {
         Ok(bytes_to_write)
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> std::io::Result<()> {
         self.sender.send(LogSender::from(&*self)).map_err(|err| Error::new(ErrorKind::Other, err))
     }
 }

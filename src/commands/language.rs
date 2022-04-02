@@ -12,12 +12,11 @@ use serenity::model::id::ChannelId;
 use strum::IntoEnumIterator;
 use util::ArgumentInfo;
 
+use crate::argument_parser::NotEnoughArgumentsError;
 use crate::commands;
-use crate::error::NotEnoughArgumentsError;
 use crate::forvo;
 use crate::forvo::Country;
 use crate::forvo::ForvoError;
-use crate::forvo::ForvoResult;
 
 use super::error_util;
 use super::util;
@@ -58,7 +57,7 @@ async fn send_forvo_recording(ctx: &Context, msg: &Message, term: &str, country:
     }
 }
 
-async fn handle_recording_error<T>(ctx: &Context, ch_id: ChannelId, term: &str, recording: &ForvoResult<T>, is_error: bool) {
+async fn handle_recording_error<T>(ctx: &Context, ch_id: ChannelId, term: &str, recording: &forvo::Result<T>, is_error: bool) {
     if let Err(err) = recording {
         if is_error {
             error!("{err} -- caused by term: {term}.");
@@ -70,7 +69,7 @@ async fn handle_recording_error<T>(ctx: &Context, ch_id: ChannelId, term: &str, 
     }
 }
 
-async fn handle_recording_error_res<T>(ctx: &Context, ch_id: ChannelId, term: &str, recording: ForvoResult<T>, is_error: bool) -> ForvoResult<T> {
+async fn handle_recording_error_res<T>(ctx: &Context, ch_id: ChannelId, term: &str, recording: forvo::Result<T>, is_error: bool) -> forvo::Result<T> {
     handle_recording_error(ctx, ch_id, term, &recording, is_error).await;
 
     recording

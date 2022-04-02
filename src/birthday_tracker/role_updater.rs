@@ -1,19 +1,17 @@
 use chrono::{DateTime, Datelike, Duration, Utc};
-use rusqlite::{params, Connection};
-use rusqlite::{Error as SQLiteError, Transaction};
+use rusqlite::{params, Connection, Transaction};
 use serenity::http::Http;
 
-use crate::error::SerenitySQLiteError;
-use crate::BURDBOT_DB;
-
 use super::BirthdayDateTime;
+use crate::error::{SerenitySQLiteError, SerenitySQLiteResult};
+use crate::BURDBOT_DB;
 
 struct DatabaseRoleInfo {
     removal_list: Vec<(u64, u64, u64)>,
     addition_list: Vec<(u64, u64, u64)>,
 }
 
-pub async fn update_birthday_roles<T: AsRef<Http>>(http: T) -> Result<(), SerenitySQLiteError> {
+pub async fn update_birthday_roles<T: AsRef<Http>>(http: T) -> SerenitySQLiteResult<()> {
     let user_role_info = update_bday_db_roles()?;
     let mut error_vector_option = None;
     let http = http.as_ref();
@@ -40,7 +38,7 @@ pub async fn update_birthday_roles<T: AsRef<Http>>(http: T) -> Result<(), Sereni
     }
 }
 
-fn update_bday_db_roles() -> Result<DatabaseRoleInfo, SQLiteError> {
+fn update_bday_db_roles() -> rusqlite::Result<DatabaseRoleInfo> {
     let mut connection = Connection::open(BURDBOT_DB)?;
     let transaction = connection.transaction()?;
     let date_time = get_date_time_to_use();
@@ -59,7 +57,7 @@ fn get_date_time_to_use() -> DateTime<Utc> {
     Utc::now() + Duration::hours(1)
 }
 
-fn get_and_delete_old_bdays(transaction: &Transaction, date_time: DateTime<Utc>) -> Result<Vec<(u64, u64, u64)>, SQLiteError> {
+fn get_and_delete_old_bdays(transaction: &Transaction, date_time: DateTime<Utc>) -> rusqlite::Result<Vec<(u64, u64, u64)>> {
     // get bdays from bday table that are 24 hrs in the past and set the end date to be 24 hrs from the start date.
     let mut query_info = Vec::new();
 
@@ -96,7 +94,7 @@ fn get_and_delete_old_bdays(transaction: &Transaction, date_time: DateTime<Utc>)
     Ok(query_info)
 }
 
-fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> Result<Vec<(u64, u64, u64)>, SQLiteError> {
+fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> rusqlite::Result<Vec<(u64, u64, u64)>> {
     let mut query_info = Vec::new();
     let mut user_selection_statement = if curr_date_time.month() != 1 || curr_date_time.day() != 1 {
         // If not Jan. 1

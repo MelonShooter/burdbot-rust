@@ -4,8 +4,10 @@ use bytes::Bytes;
 use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
-use reqwest::{Client, Error as ReqwestError};
+use reqwest::Client;
 use thiserror::Error;
+
+pub type Result<'a, T> = std::result::Result<T, VocarooError<'a>>;
 
 #[non_exhaustive]
 #[derive(Debug, Error)]
@@ -13,9 +15,9 @@ pub enum VocarooError<'a> {
     #[error("Malformed vocaroo URL provided from the link: {0}.")]
     MalformedUrl(&'a str),
     #[error("Failed Vocaroo HEAD request from the link: {0}. This could mean they stopped accepting these requests. Encountered reqwest error: {1}")]
-    FailedHead(String, #[source] ReqwestError),
+    FailedHead(String, #[source] reqwest::Error),
     #[error("Failed Vocaroo GET request from the link: {0}. This could mean this isn't the right URL anymore. Encountered reqwest error: {1}")]
-    FailedGet(String, #[source] ReqwestError),
+    FailedGet(String, #[source] reqwest::Error),
     #[error("Failed to get an MP3 from the link: {0}. No content type was provided.")]
     NoContentType(String),
     #[error("Failed to get an MP3 from the link: {0}. The content type header wasn't visible ASCII.")]
@@ -31,12 +33,12 @@ pub enum VocarooError<'a> {
     #[error("Failed to convert the provided visible ASCII content length header in the HEAD request from the link: {0} because it wasn't a number. Error encountered: {1}")]
     ContentLengthNotNumber(String, #[source] ParseIntError),
     #[error("Could not convert response body to bytes from the link: {0}. Encountered reqwest error: {1}")]
-    BodyToBytesFailure(String, #[source] ReqwestError),
+    BodyToBytesFailure(String, #[source] reqwest::Error),
     #[error("Vocaroo file at link '{0}' couldn't be converted to an MP3 because it was over the size limit: {1}.")]
     OversizedFile(String, u64),
 }
 
-fn get_vocaroo_mp3_url(url: &str) -> Result<String, VocarooError<'_>> {
+fn get_vocaroo_mp3_url(url: &str) -> Result<String> {
     lazy_static! {
         static ref VOCAROO_LINK_MATCHER: Regex = Regex::new(r"https?://(?:www\.)?(?:voca\.ro|vocaroo\.com)/([a-zA-Z0-9]+)").unwrap();
     }
@@ -54,7 +56,7 @@ fn get_vocaroo_mp3_url(url: &str) -> Result<String, VocarooError<'_>> {
     Ok(format!("https://media.vocaroo.com/mp3/{vocaroo_id}"))
 }
 
-pub async fn download_vocaroo<'a>(url: &'a str, max_size: u64) -> Result<Bytes, VocarooError<'_>> {
+pub async fn download_vocaroo<'url>(url: &'url str, max_size: u64) -> Result<'_, Bytes> {
     lazy_static! {
         static ref VOCAROO_CLIENT: Client = Client::new();
     }

@@ -4,16 +4,15 @@ mod role_updater;
 
 pub use birthday_manager::*;
 pub use birthday_server_role_manager::*;
+pub use role_updater::*;
+
+use crate::commands;
+
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use lazy_static::lazy_static;
 use regex::Regex;
-pub use role_updater::*;
-use rusqlite::types::FromSql;
-use rusqlite::types::FromSqlError;
-use rusqlite::types::ToSqlOutput;
+use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef};
 use rusqlite::ToSql;
-
-use crate::commands;
 
 #[derive(Clone, Copy)]
 struct BirthdayDateTime {
@@ -56,7 +55,7 @@ impl From<DateTime<Utc>> for BirthdayDateTime {
 }
 
 impl ToSql for BirthdayDateTime {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
         let date_time_str = format!("{:02}-{:02}-{:02}", self.month, self.day, self.hour);
 
         Ok(ToSqlOutput::from(date_time_str))
@@ -64,7 +63,7 @@ impl ToSql for BirthdayDateTime {
 }
 
 impl FromSql for BirthdayDateTime {
-    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
         lazy_static! {
             static ref BIRTHDAY_TIME_MATCHER: Regex = Regex::new(r"^(\d+)-(\d+)-(\d+)$").unwrap();
         }

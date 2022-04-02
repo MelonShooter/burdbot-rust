@@ -13,7 +13,6 @@ use serenity::model::id::{ChannelId, RoleId};
 use serenity::model::prelude::VoiceState;
 use serenity::model::Permissions;
 use serenity::prelude::{TypeMap, TypeMapKey};
-use serenity::Error;
 use tokio::task::JoinHandle;
 use tokio::time;
 
@@ -32,7 +31,7 @@ impl TypeMapKey for Teachers {
     type Value = HashMap<u64, Option<JoinHandle<()>>>;
 }
 
-async fn control_channel_access(http: &Http, channel: &Channel, allow: bool) -> Result<(), Error> {
+async fn control_channel_access(http: &Http, channel: &Channel, allow: bool) -> serenity::Result<()> {
     let everyone_id = RoleId::from(SPANISH_ENGLISH_SERVER_ID); // They're the same in this case.
 
     let mut permission_overwrite = match channel {

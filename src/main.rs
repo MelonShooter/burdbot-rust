@@ -1,9 +1,10 @@
-pub mod error;
+pub mod argument_parser;
 pub mod forvo;
 pub mod vocaroo;
 
 mod birthday_tracker;
 mod commands;
+mod error;
 mod event_handler;
 mod logger;
 mod secret;

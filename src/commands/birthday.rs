@@ -22,7 +22,7 @@ use log::error;
 use crate::birthday_tracker::{self, add_birthday_to_db};
 
 use super::{error_util, util, ArgumentInfo};
-use crate::error::SerenitySQLiteError as Error;
+use crate::error::SerenitySQLiteError;
 
 pub const MONTH_TO_DAYS: [i64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 pub const MONTH_TO_NAME: [&str; 12] = [
@@ -218,8 +218,8 @@ async fn birthdayconfirm(context: &Context, message: &Message) -> CommandResult 
 
             if let Err(error) = add_birthday_to_db(context, message.channel_id, info).await {
                 match error {
-                    Error::SerenityError(errors) => error!("Serenity error while adding birthday to db: {}", errors.serenity_errors[0]),
-                    Error::SQLiteError(error) => error!("SQLite error while adding birthday to db: {}", error),
+                    SerenitySQLiteError::SerenityError(errors) => error!("Serenity error while adding birthday to db: {}", errors.serenity_errors[0]),
+                    SerenitySQLiteError::SQLiteError(error) => error!("SQLite error while adding birthday to db: {}", error),
                 }
 
                 error_util::generic_fail(context, message.channel_id).await;

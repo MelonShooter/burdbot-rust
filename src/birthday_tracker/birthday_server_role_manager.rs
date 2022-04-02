@@ -1,9 +1,9 @@
 use log::{error, warn};
-use rusqlite::{Connection, Error as RusqliteError, OptionalExtension, Transaction};
+use rusqlite::{Connection, OptionalExtension, Transaction};
 use serenity::client::Context;
 use serenity::model::id::{ChannelId, RoleId};
 
-use crate::error::SerenitySQLiteError;
+use crate::error::{SerenitySQLiteError, SerenitySQLiteResult};
 use crate::{commands, BURDBOT_DB};
 
 use super::role_updater;
@@ -23,7 +23,7 @@ pub fn handle_update_birthday_roles_error(error: &SerenitySQLiteError) {
     }
 }
 
-pub async fn set_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u64, role_id: u64) -> Result<(), RusqliteError> {
+pub async fn set_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u64, role_id: u64) -> rusqlite::Result<()> {
     let connection = Connection::open(BURDBOT_DB)?;
     let insert_string = "
         INSERT OR REPLACE INTO bday_role_list
@@ -48,7 +48,7 @@ async fn is_actual_role(ctx: &Context, guild_id: u64, role_id: u64) -> bool {
         .unwrap_or(false)
 }
 
-fn get_birthday_role_id_conn(connection: &Connection, guild_id: u64) -> Result<Option<u64>, RusqliteError> {
+fn get_birthday_role_id_conn(connection: &Connection, guild_id: u64) -> rusqlite::Result<Option<u64>> {
     let select_string = "
         SELECT role_id
         FROM bday_role_list
@@ -58,7 +58,7 @@ fn get_birthday_role_id_conn(connection: &Connection, guild_id: u64) -> Result<O
     connection.query_row(select_string, [guild_id], |row| row.get::<_, u64>(0)).optional()
 }
 
-fn get_birthday_role_id_trans(connection: &Transaction, guild_id: u64) -> Result<Option<u64>, RusqliteError> {
+fn get_birthday_role_id_trans(connection: &Transaction, guild_id: u64) -> rusqlite::Result<Option<u64>> {
     let select_string = "
         SELECT role_id
         FROM bday_role_list
@@ -68,7 +68,7 @@ fn get_birthday_role_id_trans(connection: &Transaction, guild_id: u64) -> Result
     connection.query_row(select_string, [guild_id], |row| row.get::<_, u64>(0)).optional()
 }
 
-pub async fn get_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u64) -> Result<(), SerenitySQLiteError> {
+pub async fn get_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u64) -> SerenitySQLiteResult<()> {
     let connection = Connection::open(BURDBOT_DB)?;
     let role_id_option = get_birthday_role_id_conn(&connection, guild_id)?;
 
@@ -90,7 +90,7 @@ pub async fn get_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u
     Ok(())
 }
 
-fn handle_db_birthday_removal(guild_id: u64) -> Result<Option<(Vec<u64>, u64)>, RusqliteError> {
+fn handle_db_birthday_removal(guild_id: u64) -> rusqlite::Result<Option<(Vec<u64>, u64)>> {
     let mut connection = Connection::open(BURDBOT_DB)?;
     let transaction = connection.transaction()?;
     let user_id_query_string = "
@@ -143,7 +143,7 @@ fn handle_db_birthday_removal(guild_id: u64) -> Result<Option<(Vec<u64>, u64)>, 
     Ok(Some((deleted_users, bday_role_id)))
 }
 
-pub async fn remove_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u64) -> Result<(), SerenitySQLiteError> {
+pub async fn remove_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u64) -> SerenitySQLiteResult<()> {
     let db_removal_result = handle_db_birthday_removal(guild_id)?;
 
     if db_removal_result.is_none() {

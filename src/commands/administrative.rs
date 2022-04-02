@@ -1,11 +1,11 @@
 use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
-use rusqlite::{params, Connection, Error};
+use rusqlite::{params, Connection};
 use serenity::builder::{CreateEmbed, CreateMessage};
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
-use serenity::framework::standard::{Args, CommandError, CommandResult};
+use serenity::framework::standard::{Args, CommandResult};
 use serenity::model::channel::Message;
 use serenity::model::guild::Member;
 use serenity::model::id::MessageId;
@@ -15,7 +15,7 @@ use serenity::utils::Color;
 use crate::BURDBOT_DB;
 
 use super::{util, ArgumentInfo, BoundedArgumentInfo, ConversionType};
-use crate::error::{ArgumentConversionError, ArgumentParseError};
+use crate::argument_parser::{ArgumentConversionError, ArgumentParseError};
 
 const GONE_WRONG: &str = "Something's gone wrong. <@367538590520967181> has been notified.";
 
@@ -70,7 +70,7 @@ impl Log {
     }
 }
 
-async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, arg_pos: usize, args_needed: usize) -> Result<Member, CommandError> {
+async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, arg_pos: usize, args_needed: usize) -> CommandResult<Member> {
     let member = util::parse_member(ctx, msg, ArgumentInfo::new(args, arg_pos, args_needed)).await?;
 
     if member.user == msg.author {
@@ -94,7 +94,7 @@ async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, a
     }
 }
 
-fn get_staff_logs(id: u64) -> Result<Vec<Log>, Error> {
+fn get_staff_logs(id: u64) -> rusqlite::Result<Vec<Log>> {
     let connection = Connection::open(BURDBOT_DB)?;
     let query = "
         SELECT original_link, last_edited_link, reason
@@ -218,7 +218,7 @@ where
     }
 }
 
-fn add_log(user_id: u64, entry_id: i64, original_link: &str, reason: &str) -> Result<(), Error> {
+fn add_log(user_id: u64, entry_id: i64, original_link: &str, reason: &str) -> rusqlite::Result<()> {
     let connection = Connection::open(BURDBOT_DB)?;
     let insert_query = "
             INSERT INTO staff_logs

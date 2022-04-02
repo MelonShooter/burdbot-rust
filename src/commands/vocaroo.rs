@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use bytes::Bytes;
 use log::{debug, error, warn};
-use rusqlite::{Connection, Error as SqliteError};
+use rusqlite::Connection;
 use serenity::builder::CreateMessage;
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
@@ -114,7 +114,7 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
     }
 }
 
-fn get_all_vocaroo_servers() -> Result<HashSet<u64>, SqliteError> {
+fn get_all_vocaroo_servers() -> rusqlite::Result<HashSet<u64>> {
     let mut vocaroo_servers = HashSet::new();
 
     let connection = Connection::open(BURDBOT_DB)?;
