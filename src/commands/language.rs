@@ -86,7 +86,6 @@ async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
     };
 
     let data_res = forvo::fetch_pronunciation(term.as_str(), requested_country).await;
-    let info = format!("The term that caused this error was: {term}");
     let pronunciation_data = handle_recording_error(data_res)?;
     let mut recording_futures = Vec::new();
 
@@ -94,8 +93,8 @@ async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
         let res = recording_data_res;
 
         match res {
-            Err(err @ ForvoError::InvalidMatchedCountry(_)) => debug!("{err} -- {info}"),
-            Err(err) => error!("{err} -- {info}"),
+            Err(err @ ForvoError::InvalidMatchedCountry(_)) => debug!("{err} -- caused by term: {term}."),
+            Err(err) => error!("{err} -- caused by term: {term}."),
             Ok(recording) => recording_futures.push(recording),
         }
     }
