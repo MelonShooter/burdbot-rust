@@ -1,5 +1,6 @@
-use super::{util, ArgumentInfo};
+use crate::argument_parser::{self, ArgumentInfo};
 use crate::spanish_english::IS_SERVER_HELPER_OR_ABOVE_CHECK;
+use crate::util;
 
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
@@ -9,7 +10,7 @@ use serenity::model::id::{ChannelId, RoleId};
 use serenity::utils::Color;
 
 async fn banfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_id: RoleId, ch_name: &'a str) -> CommandResult<String> {
-    let mut target = util::parse_member(ctx, msg, ArgumentInfo::new(&mut args, 1, 1)).await?;
+    let mut target = argument_parser::parse_member(ctx, msg, ArgumentInfo::new(&mut args, 1, 1)).await?;
     let target_id = target.user.id;
 
     Ok(if target.roles.contains(&role_id) {
@@ -51,7 +52,7 @@ async fn banfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_i
 }
 
 async fn unbanfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_id: RoleId, ch_name: &'a str) -> CommandResult<String> {
-    let mut target = util::parse_member(ctx, msg, ArgumentInfo::new(&mut args, 1, 1)).await?;
+    let mut target = argument_parser::parse_member(ctx, msg, ArgumentInfo::new(&mut args, 1, 1)).await?;
     let target_id = target.user.id;
 
     Ok(if target.roles.contains(&role_id) {

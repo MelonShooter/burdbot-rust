@@ -6,6 +6,7 @@ mod birthday_tracker;
 mod commands;
 mod error;
 mod event_handler;
+mod lib_util;
 mod logger;
 mod secret;
 mod session_tracker;

@@ -4,7 +4,7 @@ use serenity::client::Context;
 use serenity::model::id::{ChannelId, RoleId};
 
 use crate::error::{SerenitySQLiteError, SerenitySQLiteResult};
-use crate::{commands, BURDBOT_DB};
+use crate::{util, BURDBOT_DB};
 
 use super::role_updater;
 
@@ -36,7 +36,7 @@ pub async fn set_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u
         handle_update_birthday_roles_error(&error);
     }
 
-    commands::send_message(ctx, channel_id, "The server's birthday role has been set.", "set_birthday_role").await;
+    util::send_message(ctx, channel_id, "The server's birthday role has been set.", "set_birthday_role").await;
 
     Ok(())
 }
@@ -76,7 +76,7 @@ pub async fn get_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u
         if is_actual_role(ctx, guild_id, role_id).await {
             let message = format!("The server's current birthday role is {}", role_id);
 
-            commands::send_message(ctx, channel_id, message, "get_birthday_role").await;
+            util::send_message(ctx, channel_id, message, "get_birthday_role").await;
         } else {
             // The role no longer exists, clean it up.
             handle_db_birthday_removal(guild_id)?;
@@ -85,7 +85,7 @@ pub async fn get_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u
         return Ok(());
     }
 
-    commands::send_message(ctx, channel_id, NO_BIRTHDAY_SERVER_ROLE, "get_birthday_role").await;
+    util::send_message(ctx, channel_id, NO_BIRTHDAY_SERVER_ROLE, "get_birthday_role").await;
 
     Ok(())
 }
@@ -147,7 +147,7 @@ pub async fn remove_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id
     let db_removal_result = handle_db_birthday_removal(guild_id)?;
 
     if db_removal_result.is_none() {
-        commands::send_message(ctx, channel_id, NO_BIRTHDAY_SERVER_ROLE, "remove_birthday_role").await;
+        util::send_message(ctx, channel_id, NO_BIRTHDAY_SERVER_ROLE, "remove_birthday_role").await;
 
         return Ok(());
     }
@@ -170,7 +170,7 @@ pub async fn remove_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id
         }
     }
 
-    commands::send_message(ctx, channel_id, "The server's birthday role has been removed.", "set_birthday_role").await;
+    util::send_message(ctx, channel_id, "The server's birthday role has been removed.", "set_birthday_role").await;
 
     Ok(())
 }

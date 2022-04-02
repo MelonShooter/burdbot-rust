@@ -1,7 +1,7 @@
 extern crate proc_macro;
 
+mod lib_util;
 mod secret;
-mod util;
 
 use std::str::FromStr;
 
@@ -41,7 +41,7 @@ impl Fold for CommandModifier {
             sig: item_fn.sig,
             block: item_fn.block,
         };
-        let cmd_name = util::decode_aes(item.sig.ident.to_string());
+        let cmd_name = lib_util::decode_aes(item.sig.ident.to_string());
         let cmd_attr = Attribute {
             pound_token: Token!(#)(Span::call_site()),
             style: AttrStyle::Outer,
@@ -101,7 +101,7 @@ impl Fold for CommandModifier {
     }
 
     fn fold_lit_str(&mut self, str: LitStr) -> LitStr {
-        LitStr::new(util::decode_aes(str.value().as_str()).as_str(), Span::call_site())
+        LitStr::new(lib_util::decode_aes(str.value().as_str()).as_str(), Span::call_site())
     }
 }
 
@@ -144,7 +144,7 @@ struct Encoder;
 
 impl Fold for Encoder {
     fn fold_lit_str(&mut self, lit_str: LitStr) -> LitStr {
-        LitStr::new(util::encode_aes(lit_str.value()).as_str(), Span::call_site())
+        LitStr::new(lib_util::encode_aes(lit_str.value()).as_str(), Span::call_site())
     }
 }
 
@@ -160,7 +160,7 @@ pub fn aes_encode_decode(tokens: TokenStream) -> TokenStream {
     let mut func_call = Punctuated::new();
 
     func_call.push(create_segment("crate"));
-    func_call.push(create_segment("util"));
+    func_call.push(create_segment("lib_util"));
     func_call.push(create_segment("decode_aes"));
 
     let mut args = Punctuated::new();

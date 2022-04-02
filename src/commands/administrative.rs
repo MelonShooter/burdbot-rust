@@ -12,10 +12,9 @@ use serenity::model::id::MessageId;
 use serenity::model::prelude::User;
 use serenity::utils::Color;
 
-use crate::BURDBOT_DB;
+use crate::{argument_parser, BURDBOT_DB};
 
-use super::{util, ArgumentInfo, BoundedArgumentInfo, ConversionType};
-use crate::argument_parser::{ArgumentConversionError, ArgumentParseError};
+use crate::argument_parser::{ArgumentConversionError, ArgumentInfo, ArgumentParseError, BoundedArgumentInfo, ConversionType};
 
 const GONE_WRONG: &str = "Something's gone wrong. <@367538590520967181> has been notified.";
 
@@ -71,7 +70,7 @@ impl Log {
 }
 
 async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, arg_pos: usize, args_needed: usize) -> CommandResult<Member> {
-    let member = util::parse_member(ctx, msg, ArgumentInfo::new(args, arg_pos, args_needed)).await?;
+    let member = argument_parser::parse_member(ctx, msg, ArgumentInfo::new(args, arg_pos, args_needed)).await?;
 
     if member.user == msg.author {
         args.rewind();
@@ -322,7 +321,7 @@ async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRes
 #[aliases("editslog", "editsl", "esl")]
 async fn editstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let target = parse_staff_log_member(ctx, msg, &mut args, 1, 3).await?;
-    let entry_id = util::parse_bounded_arg(ctx, msg, BoundedArgumentInfo::new(&mut args, 1, 3, 1, i64::MAX)).await?;
+    let entry_id = argument_parser::parse_bounded_arg(ctx, msg, BoundedArgumentInfo::new(&mut args, 1, 3, 1, i64::MAX)).await?;
     let target_id = target.user.id.0;
     let reason = match args.remains() {
         Some(reason) => reason,
@@ -374,7 +373,7 @@ async fn editstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRe
 #[aliases("removeslog", "removesl", "rmsl")]
 async fn removestafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let target = parse_staff_log_member(ctx, msg, &mut args, 1, 2).await?;
-    let entry_id = util::parse_bounded_arg(ctx, msg, BoundedArgumentInfo::new(&mut args, 2, 2, 1, i64::MAX)).await?;
+    let entry_id = argument_parser::parse_bounded_arg(ctx, msg, BoundedArgumentInfo::new(&mut args, 2, 2, 1, i64::MAX)).await?;
     let target_id = target.user.id.0;
 
     let rows_changed;

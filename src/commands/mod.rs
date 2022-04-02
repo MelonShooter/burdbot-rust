@@ -5,7 +5,7 @@ mod easter_egg;
 mod error_util;
 mod help;
 mod language;
-mod util;
+
 pub mod vocaroo;
 
 pub use administrative::ADMINISTRATIVE_GROUP;
@@ -17,5 +17,4 @@ pub use custom::CUSTOM_GROUP;
 pub use easter_egg::EASTEREGG_GROUP;
 pub use help::HELP;
 pub use language::LANGUAGE_GROUP;
-pub use util::*;
 pub use vocaroo::VOCAROO_GROUP;

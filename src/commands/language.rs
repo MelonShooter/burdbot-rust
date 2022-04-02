@@ -10,22 +10,22 @@ use serenity::framework::standard::{Args, CommandResult};
 use serenity::model::channel::Message;
 use serenity::model::id::ChannelId;
 use strum::IntoEnumIterator;
-use util::ArgumentInfo;
 
+use crate::argument_parser;
+use crate::argument_parser::ArgumentInfo;
 use crate::argument_parser::NotEnoughArgumentsError;
-use crate::commands;
 use crate::forvo;
 use crate::forvo::Country;
 use crate::forvo::ForvoError;
+use crate::util;
 
 use super::error_util;
-use super::util;
 
 async fn parse_term(ctx: &Context, msg: &Message, args: &mut Args) -> Result<String, NotEnoughArgumentsError> {
     match args.current() {
         Some(arg) => Ok(urlencoding::encode(arg)),
         None => {
-            error_util::not_enough_arguments(ctx, msg.channel_id, 0, 1).await;
+            argument_parser::not_enough_arguments(ctx, msg.channel_id, 0, 1).await;
 
             Err(NotEnoughArgumentsError::new(1, 0))
         }
@@ -88,7 +88,7 @@ async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
     args.advance();
 
     let requested_country = if args.remaining() >= 1 {
-        Some(commands::parse_choices(ctx, msg, ArgumentInfo::new(&mut args, 1, 2), Country::iter()).await?)
+        Some(argument_parser::parse_choices(ctx, msg, ArgumentInfo::new(&mut args, 1, 2), Country::iter()).await?)
     } else {
         None
     };

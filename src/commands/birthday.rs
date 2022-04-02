@@ -4,7 +4,6 @@ use serenity::model::Permissions;
 use std::collections::HashMap;
 use std::time::Duration;
 use std::u32;
-use util::BoundedArgumentInfo;
 
 use serenity::framework::standard::{Args, CommandResult};
 
@@ -19,10 +18,11 @@ use tokio::time::sleep;
 
 use log::error;
 
+use crate::argument_parser::{self, ArgumentInfo, BoundedArgumentInfo};
 use crate::birthday_tracker::{self, add_birthday_to_db};
-
-use super::{error_util, util, ArgumentInfo};
+use crate::commands::error_util;
 use crate::error::SerenitySQLiteError;
+use crate::util;
 
 pub const MONTH_TO_DAYS: [i64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 pub const MONTH_TO_NAME: [&str; 12] = [
@@ -111,7 +111,7 @@ async fn setuserbirthday(context: &Context, message: &Message, mut args: Args) -
     args.trimmed();
 
     let arg_info = ArgumentInfo::new(&mut args, 1, 4);
-    let member = util::parse_member(context, message, arg_info).await?;
+    let member = argument_parser::parse_member(context, message, arg_info).await?;
 
     set_birthday(context, message, args, member.user.id.0, true).await
 }
@@ -120,15 +120,15 @@ async fn set_birthday(context: &Context, message: &Message, mut args: Args, targ
     args.quoted();
 
     let month_arg_info = BoundedArgumentInfo::new(&mut args, 1, 3, 1, 12);
-    let month = util::parse_bounded_arg(context, message, month_arg_info).await? as u32;
+    let month = argument_parser::parse_bounded_arg(context, message, month_arg_info).await? as u32;
     let month_index = (month - 1) as usize;
 
     let max_day_count = MONTH_TO_DAYS[month_index];
     let day_arg_info = BoundedArgumentInfo::new(&mut args, 2, 3, 1, max_day_count);
-    let day = util::parse_bounded_arg(context, message, day_arg_info).await? as u32;
+    let day = argument_parser::parse_bounded_arg(context, message, day_arg_info).await? as u32;
 
     let time_zone_arg_info = BoundedArgumentInfo::new(&mut args, 3, 3, -11, 14);
-    let time_zone = util::parse_bounded_arg(context, message, time_zone_arg_info).await?;
+    let time_zone = argument_parser::parse_bounded_arg(context, message, time_zone_arg_info).await?;
 
     {
         let mut data = context.data.write().await;
@@ -252,7 +252,7 @@ async fn birthdayconfirm(context: &Context, message: &Message) -> CommandResult 
 #[bucket("db_operations")]
 async fn removeuserbirthday(context: &Context, message: &Message, mut args: Args) -> CommandResult {
     let arg_info = ArgumentInfo::new(&mut args, 1, 1);
-    let user_id = util::parse_member(context, message, arg_info).await?.user.id.0;
+    let user_id = argument_parser::parse_member(context, message, arg_info).await?.user.id.0;
     let guild_id = message.guild_id.unwrap().0;
 
     birthday_tracker::remove_birthday(context, message.channel_id, guild_id, user_id).await?;
@@ -284,7 +284,7 @@ async fn getmybirthday(context: &Context, message: &Message) -> CommandResult {
 #[bucket("db_operations")]
 async fn getuserbirthday(context: &Context, message: &Message, mut args: Args) -> CommandResult {
     let arg_info = ArgumentInfo::new(&mut args, 1, 1);
-    let member = util::parse_member(context, message, arg_info).await?;
+    let member = argument_parser::parse_member(context, message, arg_info).await?;
 
     birthday_tracker::get_birthday(context, message.channel_id, member.user.id.0).await?;
 
@@ -302,7 +302,7 @@ async fn getuserbirthday(context: &Context, message: &Message, mut args: Args) -
 #[bucket("very_intense")]
 async fn setserverbirthdayrole(context: &Context, message: &Message, mut args: Args) -> CommandResult {
     let arg_info = ArgumentInfo::new(&mut args, 1, 1);
-    let role_id = util::parse_role(context, message, arg_info).await?.0;
+    let role_id = argument_parser::parse_role(context, message, arg_info).await?.0;
     let guild_id = message.guild_id.unwrap().0;
 
     birthday_tracker::set_birthday_role(context, message.channel_id, guild_id, role_id).await?;

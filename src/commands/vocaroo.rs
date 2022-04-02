@@ -13,11 +13,9 @@ use serenity::prelude::TypeMapKey;
 use serenity::Error;
 
 use crate::commands::error_util;
-use crate::vocaroo;
 use crate::vocaroo::VocarooError;
 use crate::BURDBOT_DB;
-
-use super::util;
+use crate::{util, vocaroo};
 
 const MAX_VOCAROO_RECORDING_SIZE: u64 = (1 << 20) * 5; // 5MB
 

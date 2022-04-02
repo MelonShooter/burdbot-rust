@@ -16,7 +16,7 @@ use serenity::prelude::{TypeMap, TypeMapKey};
 use tokio::task::JoinHandle;
 use tokio::time;
 
-use crate::commands;
+use crate::util;
 
 const BOT_PREFIXES: [&str; 5] = ["-", "--", "---", "!", "!!"];
 const ENGLISH_CLASS_CATEGORY_ID: u64 = 878362687837442098;
@@ -260,7 +260,7 @@ async fn do_music_check(ctx: &Context, message: &Message) {
             let msg_str = "Please put music bot commands in <#247135634265735168> as they do not work here. \
             Por favor, poné los comandos de música en <#247135634265735168>. No funcionan por acá.";
 
-            commands::send_message(ctx, message.channel_id, msg_str, "on_message_receive").await;
+            util::send_message(ctx, message.channel_id, msg_str, "on_message_receive").await;
 
             return;
         }

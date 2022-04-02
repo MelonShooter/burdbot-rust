@@ -13,10 +13,10 @@ use serenity::client::Context;
 use serenity::model::channel::GuildChannel;
 use serenity::model::id::ChannelId;
 
-use crate::commands;
 use crate::commands::BirthdayInfoConfirmation;
 use crate::error::SerenitySQLiteError;
 use crate::error::SerenitySQLiteResult;
+use crate::util;
 use crate::BURDBOT_DB;
 
 use super::BirthdayDateTime;
@@ -57,7 +57,7 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: ChannelId, bday_info:
         // Must be an unprivileged person trying to override their own birthday.
         let unprivileged_str = "You already set your birthday. Please ask a mod to override it if you need to.";
 
-        commands::send_message(ctx, channel_id, unprivileged_str, "add_birthday_to_db").await;
+        util::send_message(ctx, channel_id, unprivileged_str, "add_birthday_to_db").await;
 
         return Ok(());
     }
@@ -115,7 +115,7 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: ChannelId, bday_info:
         }
     }
 
-    commands::send_message(ctx, channel_id, message, "add_birthday_to_db").await;
+    util::send_message(ctx, channel_id, message, "add_birthday_to_db").await;
 
     Ok(())
 }
@@ -207,7 +207,7 @@ pub async fn remove_birthday(ctx: &Context, channel_id: ChannelId, guild_id: u64
         format!("No birthday was found for {}.", user_id)
     };
 
-    commands::send_message(ctx, channel_id, message, "remove_birthday").await;
+    util::send_message(ctx, channel_id, message, "remove_birthday").await;
 
     Ok(())
 }
