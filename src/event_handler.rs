@@ -35,6 +35,8 @@ impl EventHandler for BurdBotEventHandler {
     }
 
     async fn cache_ready(&self, context: Context, _guilds: Vec<GuildId>) {
+        crate::on_cache_ready(&context);
+
         join!(spanish_english::on_cache_ready(&context), logger::on_cache_ready(&context));
     }
 

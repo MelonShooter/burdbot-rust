@@ -22,10 +22,11 @@ use serenity::client::Context;
 use serenity::framework::standard::macros::hook;
 use serenity::framework::standard::CommandResult;
 use serenity::framework::StandardFramework;
+use serenity::http::Http;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use serenity::prelude::Mutex;
-use serenity::{CacheAndHttp, Client};
+use serenity::Client;
 use simplelog::{CombinedLogger, ConfigBuilder, WriteLogger};
 use songbird::driver::{Config, DecodeMode};
 use songbird::{SerenityInit, Songbird};
@@ -92,10 +93,11 @@ fn create_sql_tables() {
     transaction.commit().unwrap();
 }
 
-fn setup_birthday_tracker<T: AsRef<CacheAndHttp>>(cache_and_http: T) {
-    let cache_and_http = cache_and_http.as_ref();
-    let http = cache_and_http.http.clone();
+pub fn on_cache_ready(ctx: &Context) {
+    setup_birthday_tracker(ctx.http.clone());
+}
 
+fn setup_birthday_tracker(http: Arc<Http>) {
     tokio::spawn(async move {
         loop {
             let seconds = 3600 - Utc::now().num_seconds_from_midnight() % 3600; // Get time in seconds until next hour.
@@ -103,17 +105,7 @@ fn setup_birthday_tracker<T: AsRef<CacheAndHttp>>(cache_and_http: T) {
 
             time::sleep(sleep_time).await;
 
-            // Wait until all members are fetched
-            /*loop {
-                if cache_and_http.cache.unknown_members().await == 0 {
-                    break;
-                }
-
-                info!("Still have unknown members. Waiting 10 seconds before updating birthday roles.");
-                time::sleep(Duration::from_secs(10)).await;
-            }*/
-
-            if let Err(error) = birthday_tracker::update_birthday_roles(http.clone()).await {
+            if let Err(error) = birthday_tracker::update_birthday_roles(&http).await {
                 birthday_tracker::handle_update_birthday_roles_error(&error);
             }
         }
@@ -232,8 +224,6 @@ async fn main() {
         ),
     ])
     .expect("Unable to intialize logger.");
-
-    setup_birthday_tracker(cache_and_http);
 
     tokio::spawn(async move {
         CtrlC::new().expect("Failed to create ctrl + c handler.").await;
