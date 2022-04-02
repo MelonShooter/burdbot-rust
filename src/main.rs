@@ -93,7 +93,7 @@ fn create_sql_tables() {
     transaction.commit().unwrap();
 }
 
-pub fn on_cache_ready(ctx: &Context) {
+pub(crate) fn on_cache_ready(ctx: &Context) {
     setup_birthday_tracker(ctx.http.clone());
 }
 
@@ -238,6 +238,6 @@ async fn main() {
     }
 }
 
-pub fn on_ready() {
+pub(crate) fn on_ready() {
     info!("BurdBot loaded");
 }

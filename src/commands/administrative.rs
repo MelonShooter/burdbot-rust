@@ -39,14 +39,14 @@ fn get_message_id_from_link(link: &str) -> u64 {
 }
 
 struct Log {
-    pub entry_id: i64,
-    pub original_link: String,
-    pub last_edited_link: Option<String>,
-    pub reason: String,
+    entry_id: i64,
+    original_link: String,
+    last_edited_link: Option<String>,
+    reason: String,
 }
 
 impl Log {
-    pub fn new(entry_id: i64, original_link: String, last_edited_link: Option<String>, reason: String) -> Log {
+    fn new(entry_id: i64, original_link: String, last_edited_link: Option<String>, reason: String) -> Log {
         Log {
             entry_id,
             original_link,
@@ -55,13 +55,13 @@ impl Log {
         }
     }
 
-    pub fn get_original_time(&self) -> i64 {
+    fn get_original_time(&self) -> i64 {
         let message_id = get_message_id_from_link(self.original_link.as_str());
 
         MessageId::from(message_id).created_at().timestamp()
     }
 
-    pub fn get_edited_time(&self) -> Option<i64> {
+    fn get_edited_time(&self) -> Option<i64> {
         self.last_edited_link.as_ref().map(|last_edited_link| {
             let message_id = get_message_id_from_link(last_edited_link.as_str());
 

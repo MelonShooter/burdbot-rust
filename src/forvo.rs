@@ -37,9 +37,9 @@ pub enum ForvoCaptureType {
 #[derive(Error, Debug, Copy, Clone)]
 #[error("Couldn't match capture group {capture_group_idx} for {capture_type:?} from regex string: [ {regex_str} ].")]
 pub struct ForvoRegexCaptureError {
-    regex_str: &'static str,
-    capture_group_idx: usize,
-    capture_type: ForvoCaptureType,
+    pub regex_str: &'static str,
+    pub capture_group_idx: usize,
+    pub capture_type: ForvoCaptureType,
 }
 
 impl ForvoRegexCaptureError {

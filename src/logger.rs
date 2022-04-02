@@ -54,7 +54,7 @@ async fn get_deliburd_channel_id(cache_and_http: impl CacheHttp) -> Option<Chann
     }
 }
 
-pub async fn on_cache_ready(ctx: &Context) {
+pub(crate) async fn on_cache_ready(ctx: &Context) {
     let set_result = DELIBURD_CHANNEL_ID.set(get_deliburd_channel_id(ctx).await);
 
     if let Err(_) = set_result {
