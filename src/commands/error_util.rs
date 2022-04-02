@@ -5,7 +5,6 @@ use serenity::http::Http;
 use serenity::model::id::ChannelId;
 
 use crate::commands::util;
-use crate::DELIBURD_ID;
 
 pub async fn not_enough_arguments(ctx: impl AsRef<Http>, ch: ChannelId, arg_count: usize, args_needed: usize) {
     let args_needed_message = if args_needed == 1 { " is" } else { "s are" };
@@ -31,33 +30,14 @@ pub async fn check_within_range<T: Display, U: Display>(ctx: impl AsRef<Http>, c
     util::send_message(ctx, ch, invalid_range_message, "number_within_range").await;
 }
 
-async fn deliburd_in_server(ctx: &Context, ch: ChannelId) -> bool {
-    if let Ok(channel) = ch.to_channel(ctx).await {
-        if let Some(guild_channel) = channel.guild() {
-            if ctx.cache.member(guild_channel.guild_id, DELIBURD_ID).await.is_some() {
-                return true;
-            }
-        }
-    }
-
-    false
-}
-
 pub async fn generic_fail(ctx: &Context, ch: ChannelId) {
-    let fail_message;
-
-    if deliburd_in_server(ctx, ch).await {
-        fail_message = format!("Something went wrong. <@{}> has been notified about this.", DELIBURD_ID);
-    } else if let Some(owner) = ctx.cache.user(DELIBURD_ID).await {
-        fail_message = format!("Something went wrong. Please contact the owner of the bot, {}.", owner.tag());
-    } else {
-        fail_message = format!(
-            "Something went wrong. Please contact the owner of the bot. Their user ID is {}.",
-            DELIBURD_ID
-        );
-    }
-
-    util::send_message(&ctx.http, ch, fail_message, "generic_fail").await;
+    util::send_message(
+        &ctx.http,
+        ch,
+        "Something went wrong. The owner of the bot has been notified of this.",
+        "generic_fail",
+    )
+    .await;
 }
 
 /*pub async fn unknown_command_message(ctx: impl AsRef<Http>, ch: ChannelId) {

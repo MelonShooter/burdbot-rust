@@ -8,6 +8,7 @@ use serenity::framework::standard::macros::command;
 use serenity::framework::standard::macros::group;
 use serenity::framework::standard::{Args, CommandResult};
 use serenity::model::channel::Message;
+use serenity::model::id::ChannelId;
 use strum::IntoEnumIterator;
 use util::ArgumentInfo;
 
@@ -57,10 +58,20 @@ async fn send_forvo_recording(ctx: &Context, msg: &Message, term: &str, country:
     }
 }
 
-fn handle_recording_error<T>(recording: ForvoResult<T>) -> ForvoResult<T> {
-    if let Err(err) = &recording {
-        error!("{err}");
+async fn handle_recording_error<T>(ctx: &Context, ch_id: ChannelId, term: &str, recording: &ForvoResult<T>, is_error: bool) {
+    if let Err(err) = recording {
+        if is_error {
+            error!("{err} -- caused by term: {term}.");
+
+            error_util::generic_fail(ctx, ch_id).await;
+        } else {
+            debug!("{err} -- caused by term: {term}.");
+        }
     }
+}
+
+async fn handle_recording_error_res<T>(ctx: &Context, ch_id: ChannelId, term: &str, recording: ForvoResult<T>, is_error: bool) -> ForvoResult<T> {
+    handle_recording_error(ctx, ch_id, term, &recording, is_error).await;
 
     recording
 }
@@ -84,15 +95,15 @@ async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
     };
 
     let data_res = forvo::fetch_pronunciation(term.as_str(), requested_country).await;
-    let pronunciation_data = handle_recording_error(data_res)?;
+    let pronunciation_data = handle_recording_error_res(ctx, msg.channel_id, term.as_str(), data_res, true).await?;
     let mut recording_futures = Vec::new();
 
     for recording_data_res in pronunciation_data {
         let res = recording_data_res;
 
         match res {
-            Err(err @ ForvoError::InvalidMatchedCountry(_)) => debug!("{err} -- caused by term: {term}."),
-            Err(err) => error!("{err} -- caused by term: {term}."),
+            err @ Err(ForvoError::InvalidMatchedCountry(_)) => handle_recording_error(ctx, msg.channel_id, term.as_str(), &err, false).await,
+            Err(_) => handle_recording_error(ctx, msg.channel_id, term.as_str(), &res, true).await,
             Ok(recording) => recording_futures.push(recording),
         }
     }
@@ -104,7 +115,7 @@ async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
     }
 
     stream::iter(join_all(recording_futures.iter_mut().map(|r| r.get_recording())).await)
-        .filter_map(|r| async { handle_recording_error(r).ok() })
+        .filter_map(|r| async { handle_recording_error_res(ctx, msg.channel_id, term.as_str(), r, true).await.ok() })
         .for_each_concurrent(None, |(data, country, term)| async move {
             send_forvo_recording(ctx, msg, term, country, data, requested_country).await;
         })
