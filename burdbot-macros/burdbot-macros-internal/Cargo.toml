@@ -3,6 +3,7 @@ name = "burdbot-macros-internal"
 version = "0.1.0"
 authors = ["DELIBURD"]
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 aes = "^0.7"

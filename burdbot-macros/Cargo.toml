@@ -3,6 +3,7 @@ name = "burdbot-macros"
 version = "0.1.0"
 authors = ["DELIBURD"]
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 burdbot-macros-impl = { version = "^0.1", path = "burdbot-macros-impl" }

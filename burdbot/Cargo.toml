@@ -3,6 +3,7 @@ name = "burdbot"
 version = "0.5.0"
 authors = ["DELIBURD"]
 edition = "2021"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
