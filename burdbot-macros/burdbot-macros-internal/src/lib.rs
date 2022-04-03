@@ -1,3 +1,5 @@
+mod secret;
+
 use std::fmt::Display;
 
 use aes::cipher::generic_array::GenericArray;
@@ -53,7 +55,6 @@ pub fn decode_aes_bytes(encoded_input: &[u8]) -> String {
     decoded_string
 }
 
-#[allow(dead_code)]
 pub fn encode_aes(str: String) -> String {
     let mut string;
     let mut str_bytes = str.as_bytes();

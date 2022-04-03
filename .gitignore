@@ -1,8 +1,8 @@
-/target
-/src/secret/mod.rs
+target
 *.db
 TODO.txt
 .vscode
 *.sh
+secret.rs
 *.secret_rs
 .cargo/

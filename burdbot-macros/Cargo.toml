@@ -1,0 +1,9 @@
+[package]
+name = "burdbot-macros"
+version = "0.1.0"
+authors = ["DELIBURD"]
+edition = "2021"
+
+[dependencies]
+burdbot-macros-impl = { version = "^0.1", path = "burdbot-macros-impl" }
+burdbot-macros-internal = { version = "^0.1", path = "burdbot-macros-internal" }

@@ -164,14 +164,13 @@ checksum = "a4a45a46ab1f2412e53d3a0ade76ffad2025804294569aae387231a0cd6e0899"
 name = "burdbot"
 version = "0.4.0"
 dependencies = [
- "aes",
  "async-ctrlc",
  "base64 0.13.0",
  "bimap",
+ "burdbot-macros",
  "bytes 1.1.0",
  "chrono",
  "futures",
- "hex",
  "lazy_static",
  "log 0.4.16",
  "once_cell",
@@ -186,10 +185,33 @@ dependencies = [
  "songbird",
  "strum",
  "strum_macros",
- "syn",
  "thiserror",
  "tokio",
  "urlencoding",
+]
+
+[[package]]
+name = "burdbot-macros"
+version = "0.1.0"
+dependencies = [
+ "burdbot-macros-impl",
+ "burdbot-macros-internal",
+]
+
+[[package]]
+name = "burdbot-macros-impl"
+version = "0.1.0"
+dependencies = [
+ "burdbot-macros-internal",
+ "syn",
+]
+
+[[package]]
+name = "burdbot-macros-internal"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "hex",
 ]
 
 [[package]]

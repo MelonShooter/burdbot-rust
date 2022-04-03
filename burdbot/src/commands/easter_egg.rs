@@ -1,11 +1,11 @@
-use burdbot::*;
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::{Args, CommandResult};
 use serenity::model::channel::Message;
 
-use crate::argument_parser;
-use crate::util;
+use burdbot_macros::{aes_encode_decode, obfuscated_command};
+
+use crate::{argument_parser, util};
 
 #[obfuscated_command]
 #[only_in("guilds")]

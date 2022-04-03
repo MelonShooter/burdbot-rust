@@ -1,0 +1,12 @@
+[package]
+name = "burdbot-macros-impl"
+version = "0.1.0"
+authors = ["DELIBURD"]
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+burdbot-macros-internal = { version = "^0.1", path = "../burdbot-macros-internal" }
+syn = {version="^1",features=["full","fold"]}
