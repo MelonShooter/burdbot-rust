@@ -1,5 +1,6 @@
 pub mod argument_parser;
 pub mod forvo;
+pub mod id_search_engine;
 pub mod vocaroo;
 
 mod birthday_tracker;
