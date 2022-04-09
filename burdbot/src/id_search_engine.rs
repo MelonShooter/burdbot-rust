@@ -32,13 +32,16 @@ type Bucket = Vec<Id>;
 
 const CHOPPED_LOWER_BIT_LIMIT: u32 = Id::BITS - TIMESTAMP_SIZE;
 
-struct FuzzyMatch {
+/// THe minimum ID number.
+const MIN_ID_NUMBER: Id = (10 as Id).pow(MIN_ID_DIGITS.saturating_sub(1));
+
+struct SnowflakeFuzzyMatch {
     id: Id,
     left_wildcards: u32,
     right_wildcards: u32,
 }
 
-impl FuzzyMatch {
+impl SnowflakeFuzzyMatch {
     pub fn new(id: Id, left_wildcards: u32, right_wildcards: u32) -> Self {
         Self {
             id,
@@ -48,14 +51,49 @@ impl FuzzyMatch {
     }
 }
 
-impl PartialEq<Id> for FuzzyMatch {
+impl PartialEq<Id> for SnowflakeFuzzyMatch {
     fn eq(&self, other: &Id) -> bool {
-        todo!()
+        fn snowflake_len(mut id: Id) -> u32 {
+            // We know all IDs must be at least this many digits
+            let mut result = MIN_ID_DIGITS;
+            id /= MIN_ID_NUMBER;
+
+            while id >= 10 {
+                result += 1;
+                id /= 10;
+            }
+
+            result
+        }
+
+        let mut other = *other;
+        let added_digits = self.left_wildcards + self.right_wildcards;
+
+        if added_digits == 0 {
+            return self.id == other;
+        }
+
+        let total_fuzzy_match_len = snowflake_len(self.id) + added_digits;
+
+        // We can skip the equals if the ID's fuzzy base 10 length isn't equal to
+        // other's length.
+        // TODO: See if this can be made more efficient or if this check makes it less efficient.
+        if total_fuzzy_match_len != snowflake_len(other) {
+            return false;
+        }
+
+        // Cuts off the left wildcard digits from the original ID
+        other %= (10 as Id).pow(total_fuzzy_match_len - self.left_wildcards);
+
+        // Cuts off the right wildcard digits from the original ID
+        other /= (10 as Id).pow(self.right_wildcards);
+
+        self.id == other
     }
 }
 
-impl PartialEq<FuzzyMatch> for Id {
-    fn eq(&self, other: &FuzzyMatch) -> bool {
+impl PartialEq<SnowflakeFuzzyMatch> for Id {
+    fn eq(&self, other: &SnowflakeFuzzyMatch) -> bool {
         other == self
     }
 }
@@ -84,9 +122,6 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         // This is the same as log2(digits_chopped) + 1.
         u32::BITS - T.leading_zeros()
     };
-
-    /// THe minimum ID number.
-    const MIN_ID_NUMBER: Id = (10 as Id).pow(MIN_ID_DIGITS.saturating_sub(1));
 
     /// A number that contains 1's in the bits not occupied by the timestamp of the
     /// snowflake ID.
@@ -313,24 +348,13 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         }
     }
 
-    /// Adds an ID into the correct bucket without sorting it.
-    ///
-    /// Note: This will cause unspecified behavior if removal or searches
-    /// are done to any bucket in this unsorted state. You must sort the buckets
-    /// using [`sort_all_buckets`] before doing those operations.
-    fn add_id_unsorted(&mut self, id: Id) {
-        self.reallocate_on_add::<false>(1);
-
-        let index = Self::get_id_index(self.buckets.len(), id);
-
-        self.buckets[index].push(id);
-        self.len += 1;
-    }
-
     /// Adds an ID to the search engine. This will expand the capacity of the internal data structures if enough elements are added.
     /// If the ID is already in the search engine, this function might still expand the internal capacity, but won't duplicate the ID
     /// in the search engine. Returns true if the ID was inserted successfully and false if it was already in the search engine.
+    /// Panics if the ID's base 10 length is less than 17 as this is not possible for a Discord ID.
     pub fn add_id(&mut self, id: Id) -> bool {
+        assert!(id >= MIN_ID_NUMBER, "ID is not of the minimum length, {MIN_ID_DIGITS}.");
+
         self.reallocate_on_add::<true>(1);
 
         let bucket = self.get_bucket_mut(id);
@@ -368,7 +392,7 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
     }
 
     pub fn contains(&self, id: Id) -> bool {
-        if id < Self::MIN_ID_NUMBER || Self::get_max_id_number().filter(|&max| id > max).is_some() {
+        if id < MIN_ID_NUMBER || Self::get_max_id_number().filter(|&max| id > max).is_some() {
             return false;
         }
 
@@ -395,10 +419,12 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         // Match the exact ID first and do a fuzzy match if it doesn't work.
         bucket.binary_search(&id).ok().map(|_| id).or_else(|| {
             for (left_wildcards, right_wildcards) in self.wildcards.iter().copied() {
-                let fuzzy_match = FuzzyMatch::new(id, left_wildcards, right_wildcards);
+                let fuzzy_match = SnowflakeFuzzyMatch::new(id, left_wildcards, right_wildcards);
 
                 // TODO: Make more efficient by breaking early when none of the IDs can be potential matches anymore
                 // take advantage of the fact this iterator goes in ascending order.
+                // We can also break early while iterating through the buckets, take advantage of that.
+                // certain iterations might actually be able to be combined together too
 
                 if let Some(&fuzzy_match) = bucket.iter().filter(|&&id| id == fuzzy_match).next() {
                     return Some(fuzzy_match);
@@ -411,20 +437,74 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         })
     }
 
-    pub fn find_fuzzy_matches(&self) -> Vec<Id> {
-        todo!()
+    pub fn find_fuzzy_matches(&self, id: Id) -> Vec<Id> {
+        let max_id = Self::get_max_id_number();
+
+        if max_id.filter(|&max| id > max).is_some() {
+            return Vec::new();
+        }
+
+        let bucket = self.get_bucket(id);
+
+        // Match the exact ID first and do a fuzzy match if it doesn't work.
+        bucket.binary_search(&id).ok().map(|_| vec![id]).unwrap_or_else(|| {
+            let mut fuzzy_matches = Vec::new();
+
+            for (left_wildcards, right_wildcards) in self.wildcards.iter().copied() {
+                let fuzzy_match = SnowflakeFuzzyMatch::new(id, left_wildcards, right_wildcards);
+
+                // TODO: Make more efficient by breaking early when none of the IDs can be potential matches anymore
+                // take advantage of the fact this iterator goes in ascending order.
+                // We can also break early while iterating through the buckets, take advantage of that.
+                // certain iterations might actually be able to be combined together too
+
+                fuzzy_matches.extend(bucket.iter().copied().filter(|&id| id == fuzzy_match));
+            }
+
+            // TODO: Benchmark if parallelizing the search here would make it more efficient.
+
+            fuzzy_matches
+        })
     }
 }
 
 impl<const MAX_DIGITS_CHOPPED: u32> Extend<Id> for SnowflakeIdSearchEngine<MAX_DIGITS_CHOPPED> {
     /// Adds the provided [`IntoIterator`] containing [`Id`]s to the search engine.
     /// Any duplicates encountered in the iterator will be ignored.
+    /// Panics if any of the IDs in this iterator are below the minimum length of a Discord
+    /// snowflake ID, 17.
     fn extend<T: IntoIterator<Item = Id>>(&mut self, iter: T) {
         // if iterator size hint indicates bucket count must be increased to stay in line with load factor, do so
         // size hint can lie so take that into account by enumerating the elements
-        // if we have to add more than 1/2 the load factor of elements per bucket on average, add them unsorted and sort them all at the end.
         // make sure that if this path is taken that we also get rid of duplicates using dedup after sorting
-        todo!()
+        let iter = iter.into_iter();
+        if let (_, Some(upper_bound)) = iter.size_hint() {
+            // If we have more than 1/2 the load factor of elements per bucket about to be added, add them unsorted first and sort later, removing duplicates.
+            if upper_bound > self.load_factor / 2 * self.buckets.len() {
+                self.reallocate_on_add::<false>(upper_bound);
+
+                for (index, id) in iter.enumerate() {
+                    assert!(id >= MIN_ID_NUMBER, "ID is not of the minimum length, {MIN_ID_DIGITS}.");
+
+                    if index >= upper_bound {
+                        // Size hints can lie, so this check is written just in case.
+                        self.reallocate_on_add::<false>(1);
+                    }
+
+                    let index = Self::get_id_index(self.buckets.len(), id);
+
+                    self.buckets[index].push(id);
+                    self.len += 1;
+                }
+
+                self.sort_all_buckets();
+                self.buckets.dedup();
+            } else {
+                for id in iter {
+                    self.add_id(id);
+                }
+            }
+        }
     }
 }
 
