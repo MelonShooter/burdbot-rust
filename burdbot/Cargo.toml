@@ -33,3 +33,6 @@ strum = "^0.21"
 strum_macros = "^0.21"
 base64 = "^0.13"
 thiserror = "^1"
+
+[dev-dependencies]
+rand_pcg = "^0.3"

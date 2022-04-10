@@ -1,9 +1,11 @@
 use std::mem;
+use std::num::ParseIntError;
 use std::ops::{Index, IndexMut};
 use std::time::{Duration, SystemTime, SystemTimeError};
 
 use log::warn;
 use once_cell::sync::OnceCell;
+use thiserror::Error;
 
 /// The default load factor to use for the buckets
 /// in the search engine.
@@ -35,16 +37,87 @@ const CHOPPED_LOWER_BIT_LIMIT: u32 = Id::BITS - TIMESTAMP_SIZE;
 /// THe minimum ID number.
 const MIN_ID_NUMBER: Id = (10 as Id).pow(MIN_ID_DIGITS.saturating_sub(1));
 
+// TODO: maybe make this associated fn of SnowflakeFuzzyMatch and add const
+// generic to optimize the order reduction.
+const fn snowflake_len(mut id: Id) -> u32 {
+    const DIGIT_REDUCTION_FROM_MIN: u32 = 4;
+    const ORDERS_LESS_MIN: Id = MIN_ID_NUMBER / (10 as Id).pow(DIGIT_REDUCTION_FROM_MIN.saturating_sub(1));
+
+    let mut result = 0;
+
+    if id >= ORDERS_LESS_MIN {
+        result += MIN_ID_DIGITS.saturating_sub(DIGIT_REDUCTION_FROM_MIN);
+        id /= ORDERS_LESS_MIN;
+    }
+
+    while id > 0 {
+        result += 1;
+        id /= 10;
+    }
+
+    result
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct FuzzyMatchedId {
+    leading_zeros: u8,
+    no_leading_zeros_id: Id,
+}
+
+#[derive(Debug, Error)]
+pub enum FuzzyMatchedIdConversionError {
+    #[error("Conversion was over max ID length.")]
+    OverIdLen,
+    #[error("Conversion failed due to parse error: {0}.")]
+    GenericParseError(#[from] ParseIntError),
+}
+
+impl TryFrom<&str> for FuzzyMatchedId {
+    type Error = FuzzyMatchedIdConversionError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        const MAX_ID_LEN: usize = snowflake_len(Id::MAX) as usize;
+
+        if value.len() > MAX_ID_LEN {
+            return Err(FuzzyMatchedIdConversionError::OverIdLen);
+        }
+
+        if let Some(nonzero_idx) = value.find(|c| c != '0') {
+            Ok((&value[nonzero_idx..]).parse::<Id>().map(|id| FuzzyMatchedId {
+                leading_zeros: nonzero_idx as u8,
+                no_leading_zeros_id: id,
+            })?)
+        } else {
+            Ok(FuzzyMatchedId {
+                leading_zeros: value.len() as u8,
+                no_leading_zeros_id: 0,
+            })
+        }
+    }
+}
+
+impl TryFrom<Id> for FuzzyMatchedId {
+    type Error = (); // TODO: Possibly change to ! when it stabilizes.
+
+    fn try_from(value: Id) -> Result<Self, Self::Error> {
+        Ok(FuzzyMatchedId {
+            leading_zeros: 0,
+            no_leading_zeros_id: value,
+        })
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
 struct SnowflakeFuzzyMatch {
-    id: Id,
+    fuzzy_id: FuzzyMatchedId,
     left_wildcards: u32,
     right_wildcards: u32,
 }
 
 impl SnowflakeFuzzyMatch {
-    pub fn new(id: Id, left_wildcards: u32, right_wildcards: u32) -> Self {
+    pub fn new(id: FuzzyMatchedId, left_wildcards: u32, right_wildcards: u32) -> Self {
         Self {
-            id,
+            fuzzy_id: id,
             left_wildcards,
             right_wildcards,
         }
@@ -53,42 +126,30 @@ impl SnowflakeFuzzyMatch {
 
 impl PartialEq<Id> for SnowflakeFuzzyMatch {
     fn eq(&self, other: &Id) -> bool {
-        fn snowflake_len(mut id: Id) -> u32 {
-            // We know all IDs must be at least this many digits
-            let mut result = MIN_ID_DIGITS;
-            id /= MIN_ID_NUMBER;
-
-            while id >= 10 {
-                result += 1;
-                id /= 10;
-            }
-
-            result
-        }
-
         let mut other = *other;
         let added_digits = self.left_wildcards + self.right_wildcards;
+        let FuzzyMatchedId {
+            leading_zeros,
+            no_leading_zeros_id,
+        } = self.fuzzy_id;
 
-        if added_digits == 0 {
-            return self.id == other;
-        }
+        // how do we account for leading zeros. self.id contains the leading zeros
 
-        let total_fuzzy_match_len = snowflake_len(self.id) + added_digits;
+        let total_fuzzy_match_len = snowflake_len(no_leading_zeros_id) + added_digits;
+        let modulo_operand = (10 as Id).saturating_pow(total_fuzzy_match_len.saturating_sub(self.left_wildcards) + leading_zeros as u32);
 
-        // We can skip the equals if the ID's fuzzy base 10 length isn't equal to
-        // other's length.
-        // TODO: See if this can be made more efficient or if this check makes it less efficient.
-        if total_fuzzy_match_len != snowflake_len(other) {
+        // This is a special case we have to take into account because otherwise this'll match a number without the left wildcards here.
+        if self.left_wildcards > 0 && other < modulo_operand * (10 as Id).pow(self.left_wildcards - 1) {
             return false;
         }
 
         // Cuts off the left wildcard digits from the original ID
-        other %= (10 as Id).pow(total_fuzzy_match_len - self.left_wildcards);
+        other %= modulo_operand;
 
         // Cuts off the right wildcard digits from the original ID
         other /= (10 as Id).pow(self.right_wildcards);
 
-        self.id == other
+        no_leading_zeros_id == other
     }
 }
 
@@ -182,7 +243,7 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
     fn initialize_wildcard_vector() -> Vec<(u32, u32)> {
         let mut wildcards = Vec::with_capacity(Self::WILDCARD_ARRAY_SIZE);
 
-        for digits_added in 0..=(T * 2) {
+        for digits_added in 1..=(T * 2) {
             for left_wildcards in digits_added.saturating_sub(T)..=digits_added.min(T) {
                 wildcards.push((left_wildcards, digits_added - left_wildcards));
             }
@@ -403,14 +464,30 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         self.get_bucket(id).binary_search(&id).is_ok()
     }
 
-    pub fn fuzzy_contains(&self, id: Id) -> bool {
+    pub fn fuzzy_contains<S: TryInto<FuzzyMatchedId>>(&self, id: S) -> bool {
         self.find_fuzzy_match(id).is_some()
     }
 
-    pub fn find_fuzzy_match(&self, id: Id) -> Option<Id> {
+    fn fuzzy_id_with_leading_zeros(fuzzy_id: FuzzyMatchedId) -> Id {
+        let FuzzyMatchedId {
+            leading_zeros,
+            no_leading_zeros_id,
+        } = fuzzy_id;
+
+        if leading_zeros == 0 {
+            no_leading_zeros_id
+        } else {
+            no_leading_zeros_id.saturating_add(10u64.pow(leading_zeros as u32 + snowflake_len(no_leading_zeros_id)))
+        }
+    }
+
+    pub fn find_fuzzy_match<S: TryInto<FuzzyMatchedId>>(&self, fuzzy_id: S) -> Option<Id> {
+        let fuzzy_id = fuzzy_id.try_into().ok()?;
+        let id = fuzzy_id.no_leading_zeros_id;
+
         let max_id = Self::get_max_id_number();
 
-        if max_id.filter(|&max| id > max).is_some() {
+        if max_id.filter(|&max| Self::fuzzy_id_with_leading_zeros(fuzzy_id) > max).is_some() {
             return None;
         }
 
@@ -419,7 +496,7 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         // Match the exact ID first and do a fuzzy match if it doesn't work.
         bucket.binary_search(&id).ok().map(|_| id).or_else(|| {
             for (left_wildcards, right_wildcards) in self.wildcards.iter().copied() {
-                let fuzzy_match = SnowflakeFuzzyMatch::new(id, left_wildcards, right_wildcards);
+                let fuzzy_match = SnowflakeFuzzyMatch::new(fuzzy_id, left_wildcards, right_wildcards);
 
                 // TODO: Make more efficient by breaking early when none of the IDs can be potential matches anymore
                 // take advantage of the fact this iterator goes in ascending order.
@@ -437,10 +514,17 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         })
     }
 
-    pub fn find_fuzzy_matches(&self, id: Id) -> Vec<Id> {
+    pub fn find_fuzzy_matches<S: TryInto<FuzzyMatchedId>>(&self, fuzzy_id: S) -> Vec<Id> {
+        let fuzzy_id = match fuzzy_id.try_into() {
+            Ok(id) => id,
+            Err(_) => return Vec::new(),
+        };
+
+        let id = fuzzy_id.no_leading_zeros_id;
+
         let max_id = Self::get_max_id_number();
 
-        if max_id.filter(|&max| id > max).is_some() {
+        if max_id.filter(|&max| Self::fuzzy_id_with_leading_zeros(fuzzy_id) > max).is_some() {
             return Vec::new();
         }
 
@@ -451,14 +535,14 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
             let mut fuzzy_matches = Vec::new();
 
             for (left_wildcards, right_wildcards) in self.wildcards.iter().copied() {
-                let fuzzy_match = SnowflakeFuzzyMatch::new(id, left_wildcards, right_wildcards);
+                let fuzzy_match = SnowflakeFuzzyMatch::new(fuzzy_id, left_wildcards, right_wildcards);
 
                 // TODO: Make more efficient by breaking early when none of the IDs can be potential matches anymore
                 // take advantage of the fact this iterator goes in ascending order.
                 // We can also break early while iterating through the buckets, take advantage of that.
                 // certain iterations might actually be able to be combined together too
 
-                fuzzy_matches.extend(bucket.iter().copied().filter(|&id| id == fuzzy_match));
+                fuzzy_matches.extend(bucket.iter().filter(|&&id| id == fuzzy_match));
             }
 
             // TODO: Benchmark if parallelizing the search here would make it more efficient.
@@ -546,5 +630,212 @@ impl<const MAX_DIGITS_CHOPPED: u32> PartialEq for SnowflakeIdSearchEngine<MAX_DI
         }
 
         self.buckets.iter().flatten().copied().all(|id| other.contains(id))
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    // TODO:
+    // Test SnowflakeFuzzyMatch equality
+    // Test assert_chopped_lower_bit_limit
+    // Test get_max_id_number (will need to review manually)
+    // Test initialize_wildcard_vector
+    // Test create_buckets
+    // Test length and other internal state after adding, extending, and removing
+    // Test all the contains and fuzzy matching functions to ensure they return the correct thing
+    // tests ctors
+    // Test error cases in assert_chopped_lower_bit_limit, create_buckets, all ctors, add_id, and extend (using #[should_panic] attribute)
+    // write tests in a dedicated test folder combining creating search engines in all 4 initial states, making sure they're empty, getting elements
+    // inserting, removing elements, checking contains, and fuzzy matching
+    // DOCUMENT
+    // then do a practical test on all existing users in span-eng server, fuzzy matching
+    // non-existent and existent IDs too all of them
+    use lazy_static::lazy_static;
+    use rand::distributions::Uniform;
+    use rand::{Rng, SeedableRng};
+
+    use crate::id_search_engine::snowflake_len;
+
+    use super::{Id, SnowflakeFuzzyMatch, MIN_ID_NUMBER};
+
+    const REALISTIC_MAX_ID: Id = 999_999_999_999_999_999; // This is a possible 18 digit timestamp for 2022-07-22T11:22:59.101Z.
+
+    fn random_realistic_snowflakes() -> &'static [Id] {
+        lazy_static! {
+            static ref RANDOM_SNOWFLAKES: Vec<Id> = {
+                let rng = rand_pcg::Pcg64Mcg::seed_from_u64(129388342034342);
+
+                rng.sample_iter(Uniform::new_inclusive(MIN_ID_NUMBER, REALISTIC_MAX_ID))
+                    .take(1_000_000)
+                    .collect::<Vec<_>>()
+            };
+        }
+
+        &*RANDOM_SNOWFLAKES
+    }
+
+    #[test]
+    fn snowflake_len_test() {
+        assert_eq!(snowflake_len(861128391953352906), 18);
+        assert_eq!(snowflake_len(83919533), 8);
+
+        let mut rand = rand_pcg::Pcg64Mcg::seed_from_u64(123863);
+
+        for len in 6..20 {
+            for _ in 0..100_000 {
+                // Test with randomized float [0.1, 1) multiplied by 10^(desired length) casted to integers.
+                // We use floats to ensure an even distribution across orders.
+                let random_float: f64 = rand.gen_range(0.1..1.0);
+                let random_id = random_float * 10u64.pow(len) as f64;
+
+                assert_eq!(
+                    len,
+                    snowflake_len(random_id as Id),
+                    "Snowflake len test failed. Length of snowflake: {len}. \
+                     Got length: {}. The snowflake was {}",
+                    snowflake_len(random_id as Id),
+                    random_id as Id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn snowflake_fuzzy_match_test() {
+        for id in rand_pcg::Pcg64Mcg::seed_from_u64(432563546374)
+            .sample_iter(Uniform::new_inclusive(10_000_000_000, MIN_ID_NUMBER / 100))
+            .take(10_000)
+        {
+            let mut fuzzy_1 = SnowflakeFuzzyMatch {
+                fuzzy_id: id.try_into().unwrap(),
+                left_wildcards: 2,
+                right_wildcards: 2,
+            };
+            let mut id_string = id.to_string();
+            id_string.insert_str(0, "72");
+            id_string.push_str("19");
+
+            let id = id_string.parse().unwrap();
+
+            assert!(fuzzy_1 == id);
+
+            id_string.pop();
+            let id = id_string.parse().unwrap();
+
+            assert!(fuzzy_1 != id);
+
+            fuzzy_1.right_wildcards -= 1;
+
+            assert!(fuzzy_1 == id);
+
+            fuzzy_1.left_wildcards -= 1;
+            fuzzy_1.right_wildcards += 1;
+
+            assert!(fuzzy_1 != id);
+
+            fuzzy_1.left_wildcards += 1;
+            fuzzy_1.right_wildcards -= 1;
+
+            fuzzy_1.left_wildcards -= 1;
+            id_string.remove(0);
+            let id = id_string.parse().unwrap();
+
+            assert!(fuzzy_1 == id);
+
+            fuzzy_1.left_wildcards -= 1;
+            id_string.remove(0);
+            let id = id_string.parse().unwrap();
+
+            assert!(fuzzy_1 == id);
+
+            fuzzy_1.right_wildcards -= 1;
+            id_string.pop();
+            fuzzy_1.left_wildcards += 1;
+            id_string.insert(0, '2');
+            let id = id_string.parse().unwrap();
+
+            assert!(fuzzy_1 == id);
+
+            fuzzy_1.left_wildcards -= 1;
+            fuzzy_1.right_wildcards += 1;
+
+            assert!(fuzzy_1 != id);
+        }
+    }
+
+    fn gen_fuzzy_match(str: &str, lower: usize, upper: usize) -> SnowflakeFuzzyMatch {
+        let id = &str[lower..str.len() - upper];
+
+        SnowflakeFuzzyMatch {
+            fuzzy_id: id.try_into().expect("Snowflake in tests should always be snowflakes."),
+            left_wildcards: lower as u32,
+            right_wildcards: upper as u32,
+        }
+    }
+
+    #[test]
+    fn realistic_snowflake_fuzzy_match_true_cases_test() {
+        let snowflakes = random_realistic_snowflakes();
+
+        // true test case to test out
+        for snowflake in snowflakes.iter().copied() {
+            let str = snowflake.to_string();
+
+            for i in 0..6 {
+                for j in 0..6 {
+                    let snowflake_match = gen_fuzzy_match(str.as_str(), i, j);
+
+                    assert_eq!(snowflake_match, snowflake);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn realistic_snowflake_fuzzy_match_false_cases_test() {
+        fn gen_number_length_not_num(num: Id, len: usize, rand: &mut impl Iterator<Item = char>) -> String {
+            let num_as_str = num.to_string();
+            let mut number = String::with_capacity(len); // Generate number that's the same length, but not the snowflake
+
+            while number.is_empty() || number == num_as_str {
+                number.clear();
+
+                for _ in 0..len {
+                    let digit = rand.next().unwrap();
+
+                    number.push(digit);
+                }
+            }
+
+            number
+        }
+
+        let rand = rand_pcg::Pcg64Mcg::seed_from_u64(854342512);
+        let mut char_gen = rand.sample_iter(Uniform::new_inclusive('0', '9'));
+        let snowflakes = random_realistic_snowflakes();
+
+        for snowflake in snowflakes.iter().copied().take(10_000) {
+            let str = snowflake.to_string();
+
+            for left in 0..4 {
+                for right in 0..4 {
+                    let mut same_len_non_snowflake_1 = gen_number_length_not_num(snowflake, str.len(), &mut char_gen);
+                    let subtracted_fuzzy_match = gen_fuzzy_match(same_len_non_snowflake_1.as_str(), left, right);
+
+                    assert_ne!(subtracted_fuzzy_match, snowflake);
+
+                    for _ in 0..left {
+                        same_len_non_snowflake_1.insert(0, char_gen.next().unwrap());
+                    }
+
+                    for _ in 0..right {
+                        same_len_non_snowflake_1.push(char_gen.next().unwrap());
+                    }
+
+                    assert_ne!(gen_fuzzy_match(same_len_non_snowflake_1.as_str(), left, right), snowflake);
+                }
+            }
+        }
     }
 }
