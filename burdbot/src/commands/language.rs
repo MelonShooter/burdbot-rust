@@ -28,7 +28,7 @@ async fn parse_term(ctx: &Context, msg: &Message, args: &mut Args) -> Result<Str
             argument_parser::not_enough_arguments(ctx, msg.channel_id, 0, 1).await;
 
             Err(NotEnoughArgumentsError::new(1, 0))
-        }
+        },
     }
 }
 
@@ -38,7 +38,7 @@ fn get_pronounce_message(term: &str, country: Country, requested_country: Option
             format!(
             "Here is the pronunciation of ``{term}``. The pronunciation from the country closest in terms of accent to the requested country is {country}."
         )
-        }
+        },
         _ => format!("Here is the pronunciation of ``{term}``. Country: {country}."),
     }
 }

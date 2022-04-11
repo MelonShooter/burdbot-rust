@@ -14,12 +14,7 @@ async fn banfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_i
     let target_id = target.user.id;
 
     Ok(if target.roles.contains(&role_id) {
-        format!(
-            "{} ({}) already is banned from the {} channel(s).",
-            target.user.name.as_str(),
-            target_id,
-            ch_name
-        )
+        format!("{} ({}) already is banned from the {} channel(s).", target.user.name.as_str(), target_id, ch_name)
     } else {
         match target.add_role(&ctx, role_id).await {
             Ok(()) => {
@@ -39,7 +34,7 @@ async fn banfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role_i
                     .await?;
 
                 format!("Successfully banned {} ({}) from the {} channel(s).", target_name, target_id, ch_name)
-            }
+            },
             Err(_) => format!(
                 "Failed to ban {} ({}) from the {} channel(s). Check that the user exists \
                 and that the bot has the Manage Roles permission.",
@@ -74,7 +69,7 @@ async fn unbanfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role
                     .await?;
 
                 format!("Successfully unbanned {} ({}) from the {} channels.", target_name, target_id, ch_name)
-            }
+            },
             Err(_) => format!(
                 "Failed to unban {} ({}) from the {} channel(s). Check that the user exists \
                 and that the bot has the Manage Roles permission.",
@@ -84,12 +79,7 @@ async fn unbanfromchannel<'a>(ctx: &Context, msg: &Message, mut args: Args, role
             ),
         }
     } else {
-        format!(
-            "{} ({}) was not banned from the {} channel(s) in the first place.",
-            target.user.name.as_str(),
-            target_id,
-            ch_name
-        )
+        format!("{} ({}) was not banned from the {} channel(s) in the first place.", target.user.name.as_str(), target_id, ch_name)
     })
 }
 

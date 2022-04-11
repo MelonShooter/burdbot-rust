@@ -46,12 +46,7 @@ struct Log {
 
 impl Log {
     fn new(entry_id: i64, original_link: String, last_edited_link: Option<String>, reason: String) -> Log {
-        Log {
-            entry_id,
-            original_link,
-            last_edited_link,
-            reason,
-        }
+        Log { entry_id, original_link, last_edited_link, reason }
     }
 
     fn get_original_time(&self) -> i64 {
@@ -83,11 +78,7 @@ async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, a
 
         msg.channel_id.send_message(ctx, |msg| msg.content(reply)).await?;
 
-        Err(Box::new(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
-            arg_pos,
-            arg,
-            ConversionType::NonSelfMember,
-        ))))
+        Err(Box::new(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg_pos, arg, ConversionType::NonSelfMember))))
     } else {
         Ok(member)
     }
@@ -206,14 +197,14 @@ where
             });
 
             log_count
-        }
+        },
         Err(error) => {
             error!("Error while making staff log embed: {:?}", error);
 
             message.content("Something's gone wrong. <@367538590520967181> has been notified.");
 
             -1
-        }
+        },
     }
 }
 
@@ -271,7 +262,7 @@ async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRes
             msg.channel_id.say(ctx, "You must specify a reason for the log.").await?;
 
             return Ok(());
-        }
+        },
     };
 
     let msg_link = msg.link();
@@ -302,7 +293,7 @@ async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRes
                     error!("Error while making staff log embed: {:?}", error);
 
                     m.content(GONE_WRONG)
-                }
+                },
             }
         })
         .await?;
@@ -329,7 +320,7 @@ async fn editstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRe
             msg.channel_id.say(ctx, "You must specify a reason for the log.").await?;
 
             return Ok(());
-        }
+        },
     };
 
     let rows_changed;

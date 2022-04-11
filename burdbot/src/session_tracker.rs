@@ -44,16 +44,11 @@ async fn join_target_voice_channel<T: AsRef<Songbird>>(manager: T) {
                 BurdBotVoiceEventHandler::new(ssrc_user_to_id.clone(), user_id_to_start.clone()),
             );
 
-            handler.add_global_event(
-                CoreEvent::SpeakingUpdate.into(),
-                BurdBotVoiceEventHandler::new(ssrc_user_to_id.clone(), user_id_to_start.clone()),
-            );
+            handler
+                .add_global_event(CoreEvent::SpeakingUpdate.into(), BurdBotVoiceEventHandler::new(ssrc_user_to_id.clone(), user_id_to_start.clone()));
 
-            handler.add_global_event(
-                CoreEvent::ClientDisconnect.into(),
-                BurdBotVoiceEventHandler::new(ssrc_user_to_id, user_id_to_start),
-            );
-        }
+            handler.add_global_event(CoreEvent::ClientDisconnect.into(), BurdBotVoiceEventHandler::new(ssrc_user_to_id, user_id_to_start));
+        },
         Err(err) => match err {
             JoinError::Driver(_) => (),
             _ => log::error!("Failed to join target voice channel!"),
@@ -74,11 +69,7 @@ pub async fn on_voice_state_update(new_state: &VoiceState, context: &Context) {
         return;
     }
 
-    if new_state
-        .channel_id
-        .filter(|id| id == &ChannelId::from(TARGET_VOICE_CHANNEL_ID))
-        .is_none()
-    {
+    if new_state.channel_id.filter(|id| id == &ChannelId::from(TARGET_VOICE_CHANNEL_ID)).is_none() {
         join_target_voice_channel_with_context(context).await;
     }
 }

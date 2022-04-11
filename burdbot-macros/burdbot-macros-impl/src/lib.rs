@@ -32,12 +32,7 @@ struct CommandModifier;
 
 impl Fold for CommandModifier {
     fn fold_item_fn(&mut self, item_fn: ItemFn) -> ItemFn {
-        let mut item = ItemFn {
-            attrs: item_fn.attrs.clone(),
-            vis: item_fn.vis,
-            sig: item_fn.sig,
-            block: item_fn.block,
-        };
+        let mut item = ItemFn { attrs: item_fn.attrs.clone(), vis: item_fn.vis, sig: item_fn.sig, block: item_fn.block };
         let cmd_name = burdbot_macros_internal::decode_aes(item.sig.ident.to_string());
         let cmd_attr = Attribute {
             pound_token: Token!(#)(Span::call_site()),
@@ -63,10 +58,7 @@ impl Fold for CommandModifier {
 
         let first_statement = statements.first().unwrap().to_owned();
 
-        Block {
-            brace_token: block.brace_token,
-            stmts: vec![self.fold_stmt(first_statement)],
-        }
+        Block { brace_token: block.brace_token, stmts: vec![self.fold_stmt(first_statement)] }
     }
 
     fn fold_stmt(&mut self, statement: Stmt) -> Stmt {
@@ -84,10 +76,7 @@ impl Fold for CommandModifier {
     }
 
     fn fold_expr_lit(&mut self, expr_lit: ExprLit) -> ExprLit {
-        ExprLit {
-            attrs: (expr_lit.attrs),
-            lit: (self.fold_lit(expr_lit.lit)),
-        }
+        ExprLit { attrs: (expr_lit.attrs), lit: (self.fold_lit(expr_lit.lit)) }
     }
 
     fn fold_lit(&mut self, lit: Lit) -> Lit {
@@ -131,10 +120,7 @@ pub fn obfuscated_command(_arguments: TokenStream, input_stream: TokenStream) ->
 }
 
 fn create_segment(str: &str) -> PathSegment {
-    PathSegment {
-        ident: Ident::new(str, Span::call_site()),
-        arguments: PathArguments::None,
-    }
+    PathSegment { ident: Ident::new(str, Span::call_site()), arguments: PathArguments::None }
 }
 
 struct Encoder;
@@ -150,10 +136,7 @@ pub fn aes_encode_decode(tokens: TokenStream) -> TokenStream {
     let mut mac = parse_macro_input!(tokens as LitStr);
     mac = Encoder.fold_lit_str(mac);
 
-    let lit = Expr::Lit(ExprLit {
-        attrs: Vec::new(),
-        lit: Lit::Str(mac),
-    });
+    let lit = Expr::Lit(ExprLit { attrs: Vec::new(), lit: Lit::Str(mac) });
     let mut func_call = Punctuated::new();
 
     func_call.push(create_segment("burdbot_macros"));
@@ -163,17 +146,10 @@ pub fn aes_encode_decode(tokens: TokenStream) -> TokenStream {
 
     args.push(lit);
 
-    let path = Path {
-        leading_colon: None,
-        segments: func_call,
-    };
+    let path = Path { leading_colon: None, segments: func_call };
     let expr = ExprCall {
         attrs: Vec::new(),
-        func: Box::new(Expr::Path(ExprPath {
-            attrs: Vec::new(),
-            qself: None,
-            path,
-        })),
+        func: Box::new(Expr::Path(ExprPath { attrs: Vec::new(), qself: None, path })),
         paren_token: Paren(Span::call_site()),
         args,
     };

@@ -33,7 +33,7 @@ async fn handle_vocaroo_error(ctx: &Context, msg: &Message, error: VocarooError<
         _ => {
             error!("{error}");
             error_util::generic_fail(ctx, msg.channel_id).await;
-        }
+        },
     };
 
     if let Err(err) = msg.react(&ctx.http, '❌').await {
@@ -62,9 +62,7 @@ fn format_recording<'a, 'b>(
 }
 
 async fn send_recording(ctx: &Context, channel_id: ChannelId, guild_id: GuildId, vocaroo_data: Bytes, user_id: u64, msg_ref: MessageReference) {
-    let msg_result = channel_id
-        .send_message(&ctx.http, |c| format_recording(c, &vocaroo_data[..], user_id, msg_ref))
-        .await;
+    let msg_result = channel_id.send_message(&ctx.http, |c| format_recording(c, &vocaroo_data[..], user_id, msg_ref)).await;
 
     match msg_result {
         Ok(_) => (),
@@ -73,7 +71,7 @@ async fn send_recording(ctx: &Context, channel_id: ChannelId, guild_id: GuildId,
                 "Couldn't send vocaroo message in channel {channel_id} in server {guild_id} because of HTTP error: {err:?}). \
                  This is generally due to a lack of permissions."
             )
-        }
+        },
         Err(err) => warn!("Couldn't send vocaroo message in channel {channel_id} in server {guild_id} because of error: {err}"),
     };
 }
@@ -106,7 +104,7 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
         match vocaroo::download_vocaroo(content, MAX_VOCAROO_RECORDING_SIZE).await {
             Ok(vocaroo_data) => {
                 send_recording(ctx, channel_id, guild_id, vocaroo_data, user_id, msg_ref).await;
-            }
+            },
             Err(error) => handle_vocaroo_error(ctx, msg, error).await,
         }
     }

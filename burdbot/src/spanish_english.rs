@@ -35,16 +35,8 @@ async fn control_channel_access(http: &Http, channel: &Channel, allow: bool) -> 
     let everyone_id = RoleId::from(SPANISH_ENGLISH_SERVER_ID); // They're the same in this case.
 
     let mut permission_overwrite = match channel {
-        Channel::Guild(ch) => ch
-            .permission_overwrites
-            .iter()
-            .find(|p| p.kind == PermissionOverwriteType::Role(everyone_id))
-            .cloned(),
-        Channel::Category(cat) => cat
-            .permission_overwrites
-            .iter()
-            .find(|p| p.kind == PermissionOverwriteType::Role(everyone_id))
-            .cloned(),
+        Channel::Guild(ch) => ch.permission_overwrites.iter().find(|p| p.kind == PermissionOverwriteType::Role(everyone_id)).cloned(),
+        Channel::Category(cat) => cat.permission_overwrites.iter().find(|p| p.kind == PermissionOverwriteType::Role(everyone_id)).cloned(),
         _ => None,
     }
     .expect("Every channel should have an @everyone permission overwrite");
@@ -83,7 +75,7 @@ async fn get_english_class_channels(cache: impl AsRef<Cache>) -> Vec<Channel> {
             }
 
             channels
-        }
+        },
         None => channels,
     }
 }
@@ -150,10 +142,7 @@ async fn control_english_channel_access(http: Arc<Http>, english_channels: Vec<C
 async fn do_english_class_check(ctx: &Context, mut teacher_map: impl DerefMut<Target = TypeMap>) {
     let english_channels = get_english_class_channels(ctx).await;
     let teachers_present = &get_teachers_present(ctx, &english_channels).await;
-    let teacher_map = teacher_map
-        .deref_mut()
-        .get_mut::<Teachers>()
-        .expect("Teachers should always exist in the type map.");
+    let teacher_map = teacher_map.deref_mut().get_mut::<Teachers>().expect("Teachers should always exist in the type map.");
 
     for teacher in teachers_present {
         teacher_map.insert(*teacher, None);
@@ -181,16 +170,12 @@ pub async fn on_voice_state_update(old_state: Option<&VoiceState>, new_state: &V
         let http = ctx.http.clone();
 
         if is_teacher_leaving {
-            let teachers = write_data
-                .get_mut::<Teachers>()
-                .expect("Teachers should be a thing due to the match above.");
+            let teachers = write_data.get_mut::<Teachers>().expect("Teachers should be a thing due to the match above.");
 
             if teachers.len() > 1 {
                 teachers.remove(&teacher_id);
             } else {
-                let teacher_task = teachers
-                    .get_mut(&teacher_id)
-                    .expect("The teachers should always exist due to the match above and the lock.");
+                let teacher_task = teachers.get_mut(&teacher_id).expect("The teachers should always exist due to the match above and the lock.");
                 *teacher_task = Some(tokio::spawn(async move {
                     time::sleep(Duration::from_secs(60 * 10)).await;
 
@@ -213,7 +198,7 @@ pub async fn on_voice_state_update(old_state: Option<&VoiceState>, new_state: &V
                 } else {
                     None
                 }
-            }
+            },
             None => None,
         };
 

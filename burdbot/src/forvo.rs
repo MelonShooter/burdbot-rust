@@ -42,11 +42,7 @@ pub struct ForvoRegexCaptureError {
 
 impl ForvoRegexCaptureError {
     pub fn new(regex_str: &'static str, capture_group_idx: usize, capture_type: ForvoCaptureType) -> Self {
-        Self {
-            regex_str,
-            capture_group_idx,
-            capture_type,
-        }
+        Self { regex_str, capture_group_idx, capture_type }
     }
 }
 
@@ -186,7 +182,7 @@ impl Country {
                 error!("Error encountered in the forvo module, get_language(): {self} has an invalid or inexistent language property value.");
 
                 Language::Unknown
-            }
+            },
         }
     }
 }
@@ -199,7 +195,7 @@ impl Display for Country {
                 error!("Error encountered in the forvo module, Display::fmt(): Couldn't find flag for {self}.");
 
                 write!(f, "UNDEFINED FLAG")
-            }
+            },
         }
     }
 }
@@ -215,7 +211,7 @@ impl From<Country> for NodeIndex {
                 );
 
                 return NodeIndex::<DefaultIx>::end();
-            }
+            },
             None => {
                 error!(
                     "Error encountered in the forvo module, Display::fmt(): Couldn't convert the Country {country} to a node index: \
@@ -223,7 +219,7 @@ impl From<Country> for NodeIndex {
                 );
 
                 return NodeIndex::<DefaultIx>::end();
-            }
+            },
         };
 
         NodeIndex::new(index)
@@ -245,19 +241,14 @@ struct ForvoRecording {
 
 impl ForvoRecording {
     pub fn new(country: Country, recording_link: String, language: Language) -> ForvoRecording {
-        ForvoRecording {
-            country,
-            recording_link,
-            language,
-        }
+        ForvoRecording { country, recording_link, language }
     }
 }
 
 fn get_language_recording(captures: Captures, regex: &'static str, language: Language) -> PossibleForvoRecording {
     // TODO: refactor vocaroo error handling to follow same model
-    let url_base64_data = captures
-        .get(1)
-        .ok_or_else(|| ForvoError::BadBase64RegexMatching(ForvoRegexCaptureError::new(regex, 1, ForvoCaptureType::Base64)))?;
+    let url_base64_data =
+        captures.get(1).ok_or_else(|| ForvoError::BadBase64RegexMatching(ForvoRegexCaptureError::new(regex, 1, ForvoCaptureType::Base64)))?;
     let country = captures
         .get(2)
         .ok_or_else(|| ForvoError::BadCountryRegexMatching(ForvoRegexCaptureError::new(regex, 2, ForvoCaptureType::Country)))?
@@ -325,7 +316,7 @@ where
                         This should never happen. Returning u32::MAX as the distance...");
 
             return u32::MAX;
-        }
+        },
     };
 
     let dist = match accent_differences.get(&(country, recording.country)) {
@@ -357,7 +348,7 @@ where
 
                 u32::MAX
             })
-        }
+        },
     };
 
     dist
@@ -373,18 +364,11 @@ pub struct RecordingData<'a> {
 
 impl<'a> RecordingData<'a> {
     fn new(recording: ForvoRecording, term: &'a str) -> Self {
-        Self {
-            country: recording.country,
-            term,
-            recording_link: recording.recording_link,
-            recording: None,
-        }
+        Self { country: recording.country, term, recording_link: recording.recording_link, recording: None }
     }
 
     pub async fn get_recording(&mut self) -> Result<(&[u8], Country, &str)> {
-        let recording = self
-            .recording
-            .get_or_insert(get_pronunciation_from_link(self.recording_link.as_str()).await?);
+        let recording = self.recording.get_or_insert(get_pronunciation_from_link(self.recording_link.as_str()).await?);
 
         Ok((recording, self.country, self.term))
     }
@@ -418,7 +402,7 @@ fn possible_recordings_to_data(
             );
 
             err.into_inner()
-        }
+        },
     };
 
     for possible_recording in possible_recordings {
@@ -427,7 +411,7 @@ fn possible_recordings_to_data(
                 if is_closer(&curr, min, country, &mut accent_differences) {
                     closest_recording = Some(curr)
                 }
-            }
+            },
             (Ok(curr), None) => closest_recording = Some(curr),
             (Err(err), _) => possible_data.push(Err(err)),
         }

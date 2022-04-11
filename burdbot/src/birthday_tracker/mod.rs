@@ -46,11 +46,7 @@ impl BirthdayDateTime {
 
 impl From<DateTime<Utc>> for BirthdayDateTime {
     fn from(date_time: DateTime<Utc>) -> Self {
-        BirthdayDateTime {
-            month: date_time.month(),
-            day: date_time.day(),
-            hour: date_time.hour(),
-        }
+        BirthdayDateTime { month: date_time.month(), day: date_time.day(), hour: date_time.hour() }
     }
 }
 
@@ -75,7 +71,7 @@ impl FromSql for BirthdayDateTime {
                 let hour = groups.get(3).unwrap().as_str().parse::<u32>().unwrap();
 
                 Ok(BirthdayDateTime { month, day, hour })
-            }
+            },
             None => Err(FromSqlError::InvalidType),
         })
     }

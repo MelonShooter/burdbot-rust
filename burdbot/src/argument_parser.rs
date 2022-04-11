@@ -45,11 +45,7 @@ pub struct BadOptionError {
 
 impl BadOptionError {
     pub fn new(arg_pos: usize, provided_choice: String, choices: String) -> Self {
-        Self {
-            arg_pos,
-            provided_choice,
-            choices,
-        }
+        Self { arg_pos, provided_choice, choices }
     }
 }
 
@@ -93,11 +89,7 @@ pub struct ArgumentConversionError {
 
 impl ArgumentConversionError {
     pub fn new(arg_pos: usize, arg: String, conversion_type: ConversionType) -> Self {
-        Self {
-            arg_pos,
-            arg,
-            conversion_type,
-        }
+        Self { arg_pos, arg, conversion_type }
     }
 }
 
@@ -133,52 +125,32 @@ pub struct BoundedArgumentInfo<'a> {
 
 impl BoundedArgumentInfo<'_> {
     pub fn new(args: &mut Args, arg_pos: usize, args_needed: usize, start: i64, end: i64) -> BoundedArgumentInfo<'_> {
-        BoundedArgumentInfo {
-            args,
-            arg_pos,
-            args_needed,
-            start,
-            end,
-        }
+        BoundedArgumentInfo { args, arg_pos, args_needed, start, end }
     }
 }
 
 pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: BoundedArgumentInfo<'_>) -> Result<i64> {
-    let BoundedArgumentInfo {
-        start,
-        end,
-        args,
-        arg_pos,
-        args_needed,
-    } = arg_info;
+    let BoundedArgumentInfo { start, end, args, arg_pos, args_needed } = arg_info;
 
     match args.parse::<i64>() {
         Ok(month_number) => {
             if month_number < start || month_number > end {
                 check_within_range(ctx, msg.channel_id, month_number, arg_pos, start, end).await;
 
-                Err(ArgumentParseError::OutOfBounds(ArgumentOutOfBoundsError::new(
-                    start,
-                    end,
-                    month_number,
-                    arg_pos,
-                )))
+                Err(ArgumentParseError::OutOfBounds(ArgumentOutOfBoundsError::new(start, end, month_number, arg_pos)))
             } else {
                 args.advance(); // Get past the number argument.
 
                 Ok(month_number) // Safe because of above check.
             }
-        }
+        },
 
         Err(error) => {
             if let ArgError::Eos = error {
                 // Error thrown because we've reached the end.
                 not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
-                Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(
-                    args_needed,
-                    arg_pos - 1,
-                )))
+                Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(args_needed, arg_pos - 1)))
             } else {
                 // Must be a parse error.
                 check_within_range(ctx, msg.channel_id, args.current().unwrap(), arg_pos, start, end).await;
@@ -189,7 +161,7 @@ pub async fn parse_bounded_arg(ctx: impl AsRef<Http>, msg: &Message, arg_info: B
                     ConversionType::Number,
                 )))
             }
-        }
+        },
     }
 }
 
@@ -198,10 +170,7 @@ where
     T: Deref<Target = Regex>,
 {
     if mention_matcher.is_match(arg) {
-        mention_matcher
-            .captures(arg)
-            .and_then(|captures| captures.get(1))
-            .map(|mat| mat.as_str().parse::<u64>().unwrap())
+        mention_matcher.captures(arg).and_then(|captures| captures.get(1)).map(|mat| mat.as_str().parse::<u64>().unwrap())
     } else {
         None
     }
@@ -241,17 +210,14 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
 
                 return Ok(member);
             }
-        }
+        },
         Err(error) => {
             if let ArgError::Eos = error {
                 not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
-                return Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(
-                    args_needed,
-                    arg_pos - 1,
-                )));
+                return Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(args_needed, arg_pos - 1)));
             }
-        }
+        },
     }
 
     // TODO: find way to do it by message ID and/or fuzzy matching numbers?
@@ -270,11 +236,7 @@ pub async fn parse_member(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'
 
     util::send_message(ctx, msg.channel_id, msg_str, "parse_member").await;
 
-    Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
-        arg_pos,
-        arg.to_owned(),
-        ConversionType::Member,
-    )))
+    Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::Member)))
 }
 
 fn parse_role_mention(arg: &str) -> Option<u64> {
@@ -320,25 +282,19 @@ where
             args.advance();
 
             Ok(arg)
-        }
+        },
         Err(error) => {
             if let ArgError::Eos = error {
                 not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
-                Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(
-                    args_needed,
-                    arg_pos - 1,
-                )))
+                Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(args_needed, arg_pos - 1)))
             } else {
                 let options = bad_option_message(ctx, msg, arg_pos, choices.into_iter()).await;
-                let current_arg = args
-                    .current()
-                    .expect("The current argument doesn't exist. This should never happen here.")
-                    .to_owned();
+                let current_arg = args.current().expect("The current argument doesn't exist. This should never happen here.").to_owned();
 
                 Err(ArgumentParseError::BadOption(BadOptionError::new(arg_pos, current_arg, options)))
             }
-        }
+        },
     }
 }
 
@@ -369,17 +325,14 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
 
                 return Ok(role_id);
             }
-        }
+        },
         Err(error) => {
             if let ArgError::Eos = error {
                 not_enough_arguments(ctx, msg.channel_id, arg_pos - 1, args_needed).await;
 
-                return Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(
-                    args_needed,
-                    arg_pos - 1,
-                )));
+                return Err(ArgumentParseError::NotEnoughArguments(NotEnoughArgumentsError::new(args_needed, arg_pos - 1)));
             }
-        }
+        },
     }
 
     let arg = args.current().unwrap();
@@ -396,9 +349,5 @@ pub async fn parse_role(ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>
 
     util::send_message(ctx, msg.channel_id, msg_str, "parse_role").await;
 
-    Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
-        arg_pos,
-        arg.to_owned(),
-        ConversionType::Role,
-    )))
+    Err(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::Role)))
 }

@@ -25,20 +25,8 @@ use crate::error::SerenitySQLiteError;
 use crate::util;
 
 pub const MONTH_TO_DAYS: [i64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-pub const MONTH_TO_NAME: [&str; 12] = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-];
+pub const MONTH_TO_NAME: [&str; 12] =
+    ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 pub struct BirthdayInfoConfirmation {
     pub user_id: u64,
@@ -51,14 +39,7 @@ pub struct BirthdayInfoConfirmation {
 
 impl BirthdayInfoConfirmation {
     pub fn new(user_id: u64, month: u32, day: u32, time_zone: i64, handle: JoinHandle<()>, is_privileged: bool) -> BirthdayInfoConfirmation {
-        BirthdayInfoConfirmation {
-            user_id,
-            month,
-            day,
-            time_zone,
-            is_privileged,
-            handle,
-        }
+        BirthdayInfoConfirmation { user_id, month, day, time_zone, is_privileged, handle }
     }
 }
 

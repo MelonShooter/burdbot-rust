@@ -26,9 +26,7 @@ fn get_server_role(transaction: &Transaction, guild_id: u64) -> rusqlite::Result
     SELECT role_id FROM bday_role_list
     WHERE guild_id = ?";
 
-    transaction
-        .query_row(role_select_statement, [guild_id], |row| row.get::<_, u64>(0))
-        .optional()
+    transaction.query_row(role_select_statement, [guild_id], |row| row.get::<_, u64>(0)).optional()
 }
 
 pub async fn add_birthday_to_db(ctx: &Context, channel_id: ChannelId, bday_info: &BirthdayInfoConfirmation) -> SerenitySQLiteResult<()> {
@@ -78,7 +76,7 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: ChannelId, bday_info:
             Some(role_id_result) => {
                 role_id_option = Some(role_id_result?);
                 message = format!("{}'s birthday has been saved.", user_id);
-            }
+            },
             None => {
                 role_id_option = None;
                 message = format!(
@@ -86,7 +84,7 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: ChannelId, bday_info:
                     Please ask a staff member to set one.",
                     user_id
                 );
-            }
+            },
         };
     }
 
@@ -126,9 +124,7 @@ pub async fn get_birthday(ctx: &Context, channel_id: ChannelId, user_id: u64) ->
             SELECT bday_date
             FROM bday
             WHERE user_id = ?";
-    let bday_option = connection
-        .query_row(bday_select_str, [user_id], |row| row.get::<_, BirthdayDateTime>(0))
-        .optional()?;
+    let bday_option = connection.query_row(bday_select_str, [user_id], |row| row.get::<_, BirthdayDateTime>(0)).optional()?;
 
     if let Some(bday) = bday_option {
         channel_id
@@ -153,9 +149,7 @@ pub async fn get_birthday(ctx: &Context, channel_id: ChannelId, user_id: u64) ->
     } else {
         let msg = format!("No birthday found from the user {}", user_id);
 
-        channel_id
-            .send_message(&ctx.http, |message| message.embed(|embed| embed.description(msg)))
-            .await?;
+        channel_id.send_message(&ctx.http, |message| message.embed(|embed| embed.description(msg))).await?;
     }
 
     Ok(())
@@ -178,9 +172,7 @@ pub async fn remove_birthday(ctx: &Context, channel_id: ChannelId, guild_id: u64
             [user_id],
         )?;
 
-        rows_changed = transaction
-            .query_row("SELECT total_changes();", [], |row| row.get::<_, usize>(0))
-            .unwrap();
+        rows_changed = transaction.query_row("SELECT total_changes();", [], |row| row.get::<_, usize>(0)).unwrap();
 
         // If more than 1 row changed then we deleted a foreign key too from bday_user_list
         if rows_changed > 1 {
@@ -201,11 +193,7 @@ pub async fn remove_birthday(ctx: &Context, channel_id: ChannelId, guild_id: u64
         }
     }
     // Give this message only if their bday was actually found
-    let message = if rows_changed > 0 {
-        format!("{}'s birthday was removed.", user_id)
-    } else {
-        format!("No birthday was found for {}.", user_id)
-    };
+    let message = if rows_changed > 0 { format!("{}'s birthday was removed.", user_id) } else { format!("No birthday was found for {}.", user_id) };
 
     util::send_message(ctx, channel_id, message, "remove_birthday").await;
 

@@ -49,7 +49,7 @@ fn get_vocaroo_mp3_url(url: &str) -> Result<String> {
             error!("Error encountered matching vocaroo ID in link. This should never happen. Returning MalformedUrl error.");
 
             return Err(VocarooError::MalformedUrl(url));
-        }
+        },
         None => return Err(VocarooError::MalformedUrl(url)),
     };
 
@@ -63,11 +63,7 @@ pub async fn download_vocaroo<'url>(url: &'url str, max_size: u64) -> Result<'_,
 
     // Technically these string clones aren't necessary if I were to use match, but it would make the code way less readable. They'll probably get optimized out anyways though.
     let url: String = get_vocaroo_mp3_url(url)?;
-    let head_response = VOCAROO_CLIENT
-        .head(&*url)
-        .send()
-        .await
-        .map_err(|err| VocarooError::FailedHead(url.clone(), err))?;
+    let head_response = VOCAROO_CLIENT.head(&*url).send().await.map_err(|err| VocarooError::FailedHead(url.clone(), err))?;
     let headers = head_response.headers();
     let content_type = headers
         .get("Content-Type")
@@ -91,11 +87,7 @@ pub async fn download_vocaroo<'url>(url: &'url str, max_size: u64) -> Result<'_,
         return Err(VocarooError::OversizedFile(url, max_size));
     }
 
-    let response = VOCAROO_CLIENT
-        .get(&*url)
-        .send()
-        .await
-        .map_err(|err| VocarooError::FailedGet(url.clone(), err))?;
+    let response = VOCAROO_CLIENT.get(&*url).send().await.map_err(|err| VocarooError::FailedGet(url.clone(), err))?;
 
     if !response.status().is_success() {
         return Err(VocarooError::FailedDownload(url, response.status().as_u16()));

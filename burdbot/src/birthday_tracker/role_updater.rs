@@ -47,10 +47,7 @@ fn update_bday_db_roles() -> rusqlite::Result<DatabaseRoleInfo> {
 
     transaction.commit()?;
 
-    Ok(DatabaseRoleInfo {
-        removal_list: bdays_to_remove,
-        addition_list: bdays_to_add,
-    })
+    Ok(DatabaseRoleInfo { removal_list: bdays_to_remove, addition_list: bdays_to_add })
 }
 
 fn get_date_time_to_use() -> DateTime<Utc> {
@@ -76,9 +73,8 @@ fn get_and_delete_old_bdays(transaction: &Transaction, date_time: DateTime<Utc>)
 
     let date_time_fmt = BirthdayDateTime::from(date_time);
 
-    let rows = user_selection_statement.query_map([date_time_fmt], |row| {
-        Ok((row.get::<_, u64>(0)?, row.get::<_, u64>(1)?, row.get::<_, u64>(2)?))
-    })?;
+    let rows =
+        user_selection_statement.query_map([date_time_fmt], |row| Ok((row.get::<_, u64>(0)?, row.get::<_, u64>(1)?, row.get::<_, u64>(2)?)))?;
 
     for row in rows {
         query_info.push(row.unwrap());
@@ -131,12 +127,7 @@ fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> ru
     let earliest_date_time_fmt = BirthdayDateTime::from(earliest_date_time);
 
     let rows = user_selection_statement.query_map([curr_date_time_fmt, earliest_date_time_fmt], |row| {
-        Ok((
-            row.get::<_, u64>(0)?,
-            row.get::<_, u64>(1)?,
-            row.get::<_, u64>(2)?,
-            row.get::<_, BirthdayDateTime>(3)?,
-        ))
+        Ok((row.get::<_, u64>(0)?, row.get::<_, u64>(1)?, row.get::<_, u64>(2)?, row.get::<_, BirthdayDateTime>(3)?))
     })?;
 
     let mut insertion_statement = transaction.prepare(

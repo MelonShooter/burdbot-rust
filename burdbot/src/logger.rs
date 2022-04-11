@@ -50,7 +50,7 @@ async fn get_deliburd_channel_id(cache_and_http: impl CacheHttp) -> Option<Chann
             eprintln!("Couldn't create DM channel with {DELIBURD_ID} to send logs to. Error: {err}\nSending logs to fallback file instead.");
 
             None
-        }
+        },
     }
 }
 
@@ -75,9 +75,7 @@ impl LogSender {
     pub async fn send(&self) {
         let channel_id_option = match DELIBURD_CHANNEL_ID.get() {
             Some(option) => option,
-            None => DELIBURD_CHANNEL_ID
-                .try_insert(get_deliburd_channel_id(&self.cache_and_http).await)
-                .unwrap_or_else(|(option, _)| option),
+            None => DELIBURD_CHANNEL_ID.try_insert(get_deliburd_channel_id(&self.cache_and_http).await).unwrap_or_else(|(option, _)| option),
         };
 
         if let &Some(id) = channel_id_option {

@@ -28,10 +28,7 @@ impl EventHandler for BurdBotEventHandler {
     }
 
     async fn message(&self, ctx: Context, new_message: Message) {
-        join!(
-            spanish_english::on_message_receive(&ctx, &new_message),
-            vocaroo::on_message_received(&ctx, &new_message)
-        );
+        join!(spanish_english::on_message_receive(&ctx, &new_message), vocaroo::on_message_received(&ctx, &new_message));
     }
 
     async fn cache_ready(&self, context: Context, _guilds: Vec<GuildId>) {
@@ -55,10 +52,7 @@ pub struct BurdBotVoiceEventHandler {
 
 impl BurdBotVoiceEventHandler {
     pub fn new(ssrc_to_user_id_map: Arc<RwLock<BiHashMap<u32, u64>>>, user_id_to_start_map: Arc<RwLock<HashMap<u64, Instant>>>) -> Self {
-        Self {
-            ssrc_to_user_id: ssrc_to_user_id_map,
-            user_id_to_start: user_id_to_start_map,
-        }
+        Self { ssrc_to_user_id: ssrc_to_user_id_map, user_id_to_start: user_id_to_start_map }
     }
 }
 
@@ -68,17 +62,17 @@ impl VoiceEventHandler for BurdBotVoiceEventHandler {
         match context {
             EventContext::SpeakingStateUpdate(Speaking { ssrc, user_id, .. }) => {
                 session_tracker::on_speaking_state_update(self, user_id, *ssrc);
-            }
+            },
 
             EventContext::SpeakingUpdate { speaking, ssrc } => {
                 session_tracker::on_speaking_update(self, *speaking, *ssrc);
-            }
+            },
 
             EventContext::ClientDisconnect(ClientDisconnect { user_id }) => {
                 session_tracker::on_client_disconnect(self, *user_id);
-            }
+            },
 
-            _ => {}
+            _ => {},
         }
 
         None
