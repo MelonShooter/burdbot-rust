@@ -474,11 +474,20 @@ impl<const MAX_DIGITS_CHOPPED: u32> Extend<Id> for SnowflakeIdSearchEngine<MAX_D
                     let index = Self::get_id_index(self.buckets.len(), id);
 
                     self.buckets[index].push(id);
-                    self.len += 1;
                 }
 
                 self.sort_all_buckets();
-                self.buckets.dedup();
+
+                let mut new_length = 0;
+
+                // We need to recalculate the length because otherwise duplicates would be counted.
+                for bucket in self.buckets.iter_mut() {
+                    bucket.dedup();
+
+                    new_length += bucket.len();
+                }
+
+                self.len = new_length;
             } else {
                 for id in iter {
                     self.add_id(id);
@@ -535,7 +544,6 @@ mod test {
     use std::collections::HashSet;
 
     // TODO:
-    // Test length and other internal state after extending
     // Test all the fuzzy matching functions to ensure they return the correct thing
     // Test error cases in assert_chopped_lower_bit_limit, create_buckets, all ctors, add_id, and extend (using #[should_panic] attribute)
     // write tests in a dedicated test folder combining creating search engines in all 4 initial states, making sure they're empty, getting elements
