@@ -1,11 +1,5 @@
-use std::mem;
-use std::num::ParseIntError;
-use std::ops::{Index, IndexMut};
-use std::time::{Duration, SystemTime, SystemTimeError};
-
-use log::warn;
-use once_cell::sync::OnceCell;
-use thiserror::Error;
+use core::mem;
+use core::ops::{Index, IndexMut};
 
 /// The default load factor to use for the buckets
 /// in the search engine.
@@ -25,9 +19,6 @@ const TIMESTAMP_SIZE: u32 = 42;
 
 /// The lowest number of digits possible in a Discord ID.
 const MIN_ID_DIGITS: u32 = 17;
-
-/// The first second of Jan 1, 2015.
-static DISCORD_EPOCH: OnceCell<SystemTime> = OnceCell::new();
 
 type Id = u64;
 type Bucket = Vec<Id>;
@@ -64,26 +55,21 @@ pub struct FuzzyMatchedId {
     no_leading_zeros_id: Id,
 }
 
-#[derive(Debug, Error)]
-pub enum FuzzyMatchedIdConversionError {
-    #[error("Conversion was over max ID length.")]
-    OverIdLen,
-    #[error("Conversion failed due to parse error: {0}.")]
-    GenericParseError(#[from] ParseIntError),
-}
-
 impl TryFrom<&str> for FuzzyMatchedId {
-    type Error = FuzzyMatchedIdConversionError;
+    type Error = (); // Since this is used internally, we don't actually care how it errored, just that it did.
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         const MAX_ID_LEN: usize = snowflake_len(Id::MAX) as usize;
 
         if value.len() > MAX_ID_LEN {
-            return Err(FuzzyMatchedIdConversionError::OverIdLen);
+            return Err(());
         }
 
         if let Some(nonzero_idx) = value.find(|c| c != '0') {
-            Ok((&value[nonzero_idx..]).parse::<Id>().map(|id| FuzzyMatchedId { leading_zeros: nonzero_idx as u8, no_leading_zeros_id: id })?)
+            (&value[nonzero_idx..])
+                .parse::<Id>()
+                .map(|id| FuzzyMatchedId { leading_zeros: nonzero_idx as u8, no_leading_zeros_id: id })
+                .map_err(|_| ())
         } else {
             Ok(FuzzyMatchedId { leading_zeros: (value.len() - 1) as u8, no_leading_zeros_id: 0 })
         }
@@ -187,46 +173,6 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
             Self::MAX_BITS_CHOPPED_OFF <= CHOPPED_LOWER_BIT_LIMIT,
             "The amount of bits chopped off by taking away {T} digits from an ID was over the limit of {CHOPPED_LOWER_BIT_LIMIT}."
         );
-    }
-
-    /// Returns the max current ID number based on the current system's time.
-    /// If it fails due to an incorrect system time, the function will return None.
-    /// Because there's a delay between when this function is called and when the
-    /// result is used, the max ID number will be stale as soon as the number
-    /// is found. Realistically, this shouldn't matter as long as the result is
-    /// used within a reasonable amount of time so that no valid user ID
-    /// can be generated above this maximum before it's used.
-    fn get_max_id_number() -> Option<Id> {
-        fn error_on_fail(option: Option<Id>, error: Option<SystemTimeError>) -> Option<Id> {
-            if let Some(_) = option {
-                return option;
-            }
-
-            let msg = "Couldn't get current time relative to Discord epoch due to bad system time. \
-            This won't cause incorrect behavior in terms of the expected output, but contains() will act just \
-            like no_length_check_contains() and all fuzzy match/contains functions might be less efficient.";
-
-            if let Some(error) = error {
-                warn!("{msg} Additional errors caused by this: {error}");
-            } else {
-                warn!("{msg}");
-            }
-
-            return None;
-        }
-
-        // The current time constrained to TIMESTAMP_SIZE bits, returning None if the system time is set
-        // to a time prior to the Discord epoch or the time in ms since then is more than 42 bits.
-        let discord_epoch = DISCORD_EPOCH.get_or_init(|| SystemTime::UNIX_EPOCH + Duration::from_secs(1420070400));
-        let current_time = match discord_epoch.elapsed() {
-            Ok(time) => error_on_fail(time.as_millis().try_into().ok().filter(|&t| (t >> TIMESTAMP_SIZE) == 0), None)?,
-            Err(err) => error_on_fail(None, Some(err))?,
-        };
-
-        let shifted_timestamp = current_time << (Id::BITS - TIMESTAMP_SIZE);
-        let one_extended_timestamp = shifted_timestamp | Self::NON_TIMESTAMP_ONES;
-
-        Some(one_extended_timestamp)
     }
 
     fn initialize_wildcard_vector() -> Vec<(u32, u32)> {
@@ -434,7 +380,7 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
     }
 
     pub fn contains(&self, id: Id) -> bool {
-        if id < MIN_ID_NUMBER || Self::get_max_id_number().filter(|&max| id > max).is_some() {
+        if id < MIN_ID_NUMBER {
             return false;
         }
 
@@ -449,26 +395,9 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         self.find_fuzzy_match(id).is_some()
     }
 
-    fn fuzzy_id_with_leading_zeros(fuzzy_id: FuzzyMatchedId) -> Id {
-        let FuzzyMatchedId { leading_zeros, no_leading_zeros_id } = fuzzy_id;
-
-        if leading_zeros == 0 {
-            no_leading_zeros_id
-        } else {
-            no_leading_zeros_id.saturating_add(10u64.pow(leading_zeros as u32 + snowflake_len(no_leading_zeros_id)))
-        }
-    }
-
     pub fn find_fuzzy_match<S: TryInto<FuzzyMatchedId>>(&self, fuzzy_id: S) -> Option<Id> {
         let fuzzy_id = fuzzy_id.try_into().ok()?;
         let id = fuzzy_id.no_leading_zeros_id;
-
-        let max_id = Self::get_max_id_number();
-
-        if max_id.filter(|&max| Self::fuzzy_id_with_leading_zeros(fuzzy_id) > max).is_some() {
-            return None;
-        }
-
         let bucket = self.get_bucket(id);
 
         // Match the exact ID first and do a fuzzy match if it doesn't work.
@@ -499,13 +428,6 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         };
 
         let id = fuzzy_id.no_leading_zeros_id;
-
-        let max_id = Self::get_max_id_number();
-
-        if max_id.filter(|&max| Self::fuzzy_id_with_leading_zeros(fuzzy_id) > max).is_some() {
-            return Vec::new();
-        }
-
         let bucket = self.get_bucket(id);
 
         // Match the exact ID first and do a fuzzy match if it doesn't work.
@@ -613,6 +535,8 @@ impl<const MAX_DIGITS_CHOPPED: u32> PartialEq for SnowflakeIdSearchEngine<MAX_DI
 
 #[cfg(test)]
 mod test {
+
+    use std::collections::HashSet;
 
     // TODO:
     // Test length and other internal state after adding, extending, and removing
@@ -915,13 +839,6 @@ mod test {
     }
 
     #[test]
-    fn get_max_id_number_test() {
-        // Test if the lower bits are set to 1.
-        let max_id = SnowflakeIdSearchEngine::<2>::get_max_id_number().expect("Bad system time configuration.");
-        assert_eq!((max_id << TIMESTAMP_SIZE).leading_ones(), Id::BITS - TIMESTAMP_SIZE);
-    }
-
-    #[test]
     fn init_wildcard_array_test() {
         let vec = SnowflakeIdSearchEngine::<0>::initialize_wildcard_vector();
         let vec_2 = SnowflakeIdSearchEngine::<1>::initialize_wildcard_vector();
@@ -1070,7 +987,25 @@ mod test {
     }
 
     #[test]
-    fn contains_test() {}
+    fn contains_test() {
+        let mut search_engine = SnowflakeIdSearchEngine::<2>::new();
+        let rng = rand_pcg::Pcg64Mcg::seed_from_u64(242395723);
+        let mut id_gen = rng.sample_iter(Uniform::new_inclusive(MIN_ID_NUMBER, REALISTIC_MAX_ID));
+        let id_set = id_gen.by_ref().take(100_000).collect::<HashSet<_>>();
+        let id_vec = id_gen.take(100_000).filter(|id| !id_set.contains(id)).collect::<Vec<_>>();
+
+        for id in id_vec.iter().copied() {
+            search_engine.add_id(id);
+        }
+
+        for id in id_vec {
+            assert!(search_engine.contains(id), "Search engine doesn't contain value that it should: {id}.");
+        }
+
+        for id in id_set {
+            assert!(!search_engine.contains(id), "Search engine contains value that it shouldn't: {id}.");
+        }
+    }
 
     #[test]
     fn remove_test() {}
