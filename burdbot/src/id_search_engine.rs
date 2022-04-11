@@ -460,7 +460,7 @@ impl<const MAX_DIGITS_CHOPPED: u32> Extend<Id> for SnowflakeIdSearchEngine<MAX_D
         let iter = iter.into_iter();
         if let (_, Some(upper_bound)) = iter.size_hint() {
             // If we have more than 1/2 the load factor of elements per bucket about to be added, add them unsorted first and sort later, removing duplicates.
-            if upper_bound > self.load_factor / 2 * self.buckets.len() {
+            if upper_bound > self.load_factor * self.buckets.len() / 2 {
                 self.reallocate_on_add::<false>(upper_bound);
 
                 for (index, id) in iter.enumerate() {
@@ -535,8 +535,8 @@ mod test {
     use std::collections::HashSet;
 
     // TODO:
-    // Test length and other internal state after adding, extending, and removing
-    // Test all the contains and fuzzy matching functions to ensure they return the correct thing
+    // Test length and other internal state after extending
+    // Test all the fuzzy matching functions to ensure they return the correct thing
     // Test error cases in assert_chopped_lower_bit_limit, create_buckets, all ctors, add_id, and extend (using #[should_panic] attribute)
     // write tests in a dedicated test folder combining creating search engines in all 4 initial states, making sure they're empty, getting elements
     // inserting, removing elements, checking contains, and fuzzy matching
@@ -912,6 +912,22 @@ mod test {
         assert_eq!(search_engine.wildcards, vec![(0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (1, 2), (2, 1), (2, 2)]);
     }
 
+    fn assert_sorted_without_duplicates(search_engine: &SnowflakeIdSearchEngine<2>) {
+        for (idx, bucket) in search_engine.buckets.iter().enumerate() {
+            assert!(bucket.windows(2).all(|e| e[0] < e[1]), "Bucket {idx} wasn't sorted or had duplicates. Bucket state: {bucket:?}");
+
+            for id in bucket.iter().copied() {
+                let idx_len = format!("{:b}", search_engine.buckets.len()).len() as u64 - 1; // It's a power of two so this gets a potential index's length.
+
+                assert_eq!(
+                    idx as u64,
+                    (id << (TIMESTAMP_SIZE as u64 - idx_len)) >> (Id::BITS as u64 - idx_len),
+                    "{id} was in the wrong bucket. Was in bucket {idx}"
+                )
+            }
+        }
+    }
+
     #[test]
     fn add_unique_ids_and_expansion_test() {
         let capacity = 256 * DEFAULT_LOAD_FACTOR;
@@ -934,22 +950,7 @@ mod test {
         assert_eq!(search_engine.len(), capacity + 1, "The length isn't correct.");
         assert!(search_engine.buckets.len().is_power_of_two(), "Search engine bucket array length not a power of two.");
 
-        for (idx, bucket) in search_engine.buckets.iter().enumerate() {
-            assert!(
-                bucket.windows(2).all(|e| e[0] < e[1]),
-                "Bucket {idx} wasn't sorted or somehow had duplicates even though all IDs inserted were unique. Bucket state: {bucket:?}"
-            );
-
-            for id in bucket.iter().copied() {
-                let idx_len = format!("{:b}", search_engine.buckets.len()).len() as u64 - 1; // It's a power of two so this gets a potential index's length.
-
-                assert_eq!(
-                    idx as u64,
-                    (id << (TIMESTAMP_SIZE as u64 - idx_len)) >> (Id::BITS as u64 - idx_len),
-                    "{id} was in the wrong bucket. Was in bucket {idx}"
-                )
-            }
-        }
+        assert_sorted_without_duplicates(&search_engine);
     }
 
     #[test]
@@ -972,19 +973,7 @@ mod test {
 
         assert_eq!(search_engine.len(), capacity, "The length isn't correct. Duplicates shouldn't increase the search engine's length");
 
-        for (idx, bucket) in search_engine.buckets.iter().enumerate() {
-            assert!(bucket.windows(2).all(|e| e[0] < e[1]), "Bucket {idx} wasn't sorted or had duplicates. Bucket state: {bucket:?}");
-
-            for id in bucket.iter().copied() {
-                let idx_len = format!("{:b}", search_engine.buckets.len()).len() as u64 - 1; // It's a power of two so this gets a potential index's length.
-
-                assert_eq!(
-                    idx as u64,
-                    (id << (TIMESTAMP_SIZE as u64 - idx_len)) >> (Id::BITS as u64 - idx_len),
-                    "{id} was in the wrong bucket. Was in bucket {idx}"
-                )
-            }
-        }
+        assert_sorted_without_duplicates(&search_engine);
     }
 
     #[test]
@@ -1129,8 +1118,41 @@ mod test {
     }
 
     #[test]
-    fn extend_test() {}
+    fn extend_test() {
+        let mut search_engine = SnowflakeIdSearchEngine::<2>::new();
+        let unique_ids_len = 100_000;
+        let unique_ids = rand_pcg::Pcg64Mcg::seed_from_u64(47203572)
+            .sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID))
+            .take(unique_ids_len)
+            .collect::<HashSet<_>>();
 
-    #[test]
-    fn extend_unsorted_insertion_test() {}
+        search_engine.extend(unique_ids.clone());
+
+        assert_eq!(
+            search_engine.len(),
+            unique_ids_len,
+            "The search engine length wasn't the right length. {} unique IDs were inserted.",
+            unique_ids_len
+        );
+
+        assert_sorted_without_duplicates(&search_engine);
+
+        assert!(
+            unique_ids_len <= DEFAULT_LOAD_FACTOR * search_engine.buckets.len(),
+            "The bucket array is not properly sized in accordance to the load factor. Load factor: {DEFAULT_LOAD_FACTOR}.\
+             Number of buckets: {}. Number of unique IDs in search engine: {unique_ids_len}.",
+            search_engine.buckets.len()
+        );
+
+        search_engine.extend(unique_ids);
+
+        assert_eq!(
+            search_engine.len(),
+            unique_ids_len,
+            "The search engine length wasn't the right length. {} unique IDs were inserted.",
+            unique_ids_len
+        );
+
+        assert_sorted_without_duplicates(&search_engine);
+    }
 }
