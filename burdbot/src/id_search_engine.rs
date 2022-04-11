@@ -89,7 +89,7 @@ impl TryFrom<&str> for FuzzyMatchedId {
             })?)
         } else {
             Ok(FuzzyMatchedId {
-                leading_zeros: value.len() as u8,
+                leading_zeros: (value.len() - 1) as u8,
                 no_leading_zeros_id: 0,
             })
         }
@@ -125,6 +125,7 @@ impl SnowflakeFuzzyMatch {
 }
 
 impl PartialEq<Id> for SnowflakeFuzzyMatch {
+    /// The equality check here has unspecified behavior if other is 0 or 1 because it's simply not possible in our data structure.
     fn eq(&self, other: &Id) -> bool {
         let mut other = *other;
         let added_digits = self.left_wildcards + self.right_wildcards;
@@ -133,18 +134,20 @@ impl PartialEq<Id> for SnowflakeFuzzyMatch {
             no_leading_zeros_id,
         } = self.fuzzy_id;
 
-        // how do we account for leading zeros. self.id contains the leading zeros
+        if added_digits == 0 {
+            return no_leading_zeros_id == other;
+        }
 
-        let total_fuzzy_match_len = snowflake_len(no_leading_zeros_id) + added_digits;
-        let modulo_operand = (10 as Id).saturating_pow(total_fuzzy_match_len.saturating_sub(self.left_wildcards) + leading_zeros as u32);
+        let total_fuzzy_match_len = snowflake_len(no_leading_zeros_id).max(1) + added_digits;
 
-        // This is a special case we have to take into account because otherwise this'll match a number without the left wildcards here.
-        if self.left_wildcards > 0 && other < modulo_operand * (10 as Id).pow(self.left_wildcards - 1) {
+        // Check if the numbers we're matching are of the same length
+        //  println!("{} {}", total_fuzzy_match_len + leading_zeros as u32, snowflake_len(other));
+        if total_fuzzy_match_len + leading_zeros as u32 != snowflake_len(other) {
             return false;
         }
 
         // Cuts off the left wildcard digits from the original ID
-        other %= modulo_operand;
+        other %= (10 as Id).saturating_pow(total_fuzzy_match_len + leading_zeros as u32 - self.left_wildcards);
 
         // Cuts off the right wildcard digits from the original ID
         other /= (10 as Id).pow(self.right_wildcards);
@@ -637,7 +640,7 @@ impl<const MAX_DIGITS_CHOPPED: u32> PartialEq for SnowflakeIdSearchEngine<MAX_DI
 mod test {
 
     // TODO:
-    // Test SnowflakeFuzzyMatch equality
+    // Test creation of FuzzyMatchedId
     // Test assert_chopped_lower_bit_limit
     // Test get_max_id_number (will need to review manually)
     // Test initialize_wildcard_vector
@@ -657,7 +660,7 @@ mod test {
 
     use crate::id_search_engine::snowflake_len;
 
-    use super::{Id, SnowflakeFuzzyMatch, MIN_ID_NUMBER};
+    use super::{FuzzyMatchedId, Id, SnowflakeFuzzyMatch, MIN_ID_NUMBER};
 
     const REALISTIC_MAX_ID: Id = 999_999_999_999_999_999; // This is a possible 18 digit timestamp for 2022-07-22T11:22:59.101Z.
 
@@ -718,21 +721,21 @@ mod test {
 
             let id = id_string.parse().unwrap();
 
-            assert!(fuzzy_1 == id);
+            assert_eq!(fuzzy_1, id);
 
             id_string.pop();
             let id = id_string.parse().unwrap();
 
-            assert!(fuzzy_1 != id);
+            assert_ne!(fuzzy_1, id);
 
             fuzzy_1.right_wildcards -= 1;
 
-            assert!(fuzzy_1 == id);
+            assert_eq!(fuzzy_1, id);
 
             fuzzy_1.left_wildcards -= 1;
             fuzzy_1.right_wildcards += 1;
 
-            assert!(fuzzy_1 != id);
+            assert_ne!(fuzzy_1, id);
 
             fuzzy_1.left_wildcards += 1;
             fuzzy_1.right_wildcards -= 1;
@@ -741,13 +744,13 @@ mod test {
             id_string.remove(0);
             let id = id_string.parse().unwrap();
 
-            assert!(fuzzy_1 == id);
+            assert_eq!(fuzzy_1, id);
 
             fuzzy_1.left_wildcards -= 1;
             id_string.remove(0);
             let id = id_string.parse().unwrap();
 
-            assert!(fuzzy_1 == id);
+            assert_eq!(fuzzy_1, id);
 
             fuzzy_1.right_wildcards -= 1;
             id_string.pop();
@@ -755,12 +758,12 @@ mod test {
             id_string.insert(0, '2');
             let id = id_string.parse().unwrap();
 
-            assert!(fuzzy_1 == id);
+            assert_eq!(fuzzy_1, id);
 
             fuzzy_1.left_wildcards -= 1;
             fuzzy_1.right_wildcards += 1;
 
-            assert!(fuzzy_1 != id);
+            assert_ne!(fuzzy_1, id);
         }
     }
 
@@ -768,7 +771,7 @@ mod test {
         let id = &str[lower..str.len() - upper];
 
         SnowflakeFuzzyMatch {
-            fuzzy_id: id.try_into().expect("Snowflake in tests should always be snowflakes."),
+            fuzzy_id: id.try_into().expect("IDs in tests should always be valid numbers."),
             left_wildcards: lower as u32,
             right_wildcards: upper as u32,
         }
@@ -779,7 +782,7 @@ mod test {
         let snowflakes = random_realistic_snowflakes();
 
         // true test case to test out
-        for snowflake in snowflakes.iter().copied() {
+        for snowflake in snowflakes.iter().copied().take(10_000) {
             let str = snowflake.to_string();
 
             for i in 0..6 {
@@ -837,5 +840,89 @@ mod test {
                 }
             }
         }
+    }
+
+    #[test]
+    fn snowflake_leading_zero_test() {
+        fn create_fuzzy_snowflake(left: u32, right: u32, leading_zeros: u8, id: Id) -> SnowflakeFuzzyMatch {
+            let fuzzy_id = FuzzyMatchedId {
+                leading_zeros,
+                no_leading_zeros_id: id,
+            };
+
+            SnowflakeFuzzyMatch::new(fuzzy_id, left, right)
+        }
+
+        // In all of these tests, we don't care whether it matches 0 or 1 or not because our data structure prevents 0 or 1 from being inserted.
+        // Tests 0, which shouldn't match 1000
+        // Tests 0000
+        // Tests 0300, which should match just 300
+        // Tests X0 which should match 50
+        // Tests X0000 which should match 20000
+        // Tests X0300, which should match 10300 and 90300 but not 300 or 2300
+        // Tests X0009245, which should match 30009245 but not 5009245 or 709245 or 69245 or 9245
+        // Test XX0X which should match 8705 and 1000 but not 10000 or 604 or 3
+        // Test XX000000X which should match 740000000 and 100000000, but not 43000000 or 1000000000
+        // Test XX005951X which should match 760059513 and 100059510, but not 4460059515 or 3790059515
+
+        let zero = create_fuzzy_snowflake(0, 0, 0, 0);
+        let four_zero = create_fuzzy_snowflake(0, 0, 3, 0);
+        let zero_300 = create_fuzzy_snowflake(0, 0, 1, 300);
+        let x_0 = create_fuzzy_snowflake(1, 0, 0, 0);
+        let x_0000 = create_fuzzy_snowflake(1, 0, 3, 0);
+        let x_0300 = create_fuzzy_snowflake(1, 0, 1, 300);
+        let x_0009245 = create_fuzzy_snowflake(1, 0, 3, 9245);
+        let xx_0_x = create_fuzzy_snowflake(2, 1, 0, 0);
+        let xx_000000_x = create_fuzzy_snowflake(2, 1, 5, 0);
+        let xx_005951_x = create_fuzzy_snowflake(2, 1, 2, 5951);
+
+        assert_ne!(zero, 1000);
+
+        assert_ne!(four_zero, 10);
+        assert_ne!(four_zero, 100);
+        assert_ne!(four_zero, 1000);
+        assert_ne!(four_zero, 10000);
+
+        assert_eq!(zero_300, 300);
+        assert_ne!(zero_300, 30);
+        assert_ne!(zero_300, 3000);
+        assert_ne!(zero_300, 30000);
+
+        assert_eq!(x_0, 50);
+        assert_ne!(x_0, 500);
+
+        assert_eq!(x_0000, 20000);
+        assert_eq!(x_0000, 80000);
+        assert_ne!(x_0000, 2000);
+        assert_ne!(x_0000, 200);
+        assert_ne!(x_0000, 20);
+        assert_ne!(x_0000, 2);
+
+        assert_eq!(x_0300, 10300);
+        assert_eq!(x_0300, 90300);
+        assert_ne!(x_0300, 300);
+        assert_ne!(x_0300, 2300);
+
+        assert_eq!(x_0009245, 3_0009245);
+        assert_ne!(x_0009245, 5009245);
+        assert_ne!(x_0009245, 709245);
+        assert_ne!(x_0009245, 69245);
+        assert_ne!(x_0009245, 9245);
+
+        assert_eq!(xx_0_x, 8705);
+        assert_eq!(xx_0_x, 1000);
+        assert_ne!(xx_0_x, 10000);
+        assert_ne!(xx_0_x, 604);
+        assert_ne!(xx_0_x, 3);
+
+        assert_eq!(xx_000000_x, 740000005);
+        assert_eq!(xx_000000_x, 100000000);
+        assert_ne!(xx_000000_x, 43000000);
+        assert_ne!(xx_000000_x, 1000000000);
+
+        assert_eq!(xx_005951_x, 760059513);
+        assert_eq!(xx_005951_x, 100059510);
+        assert_ne!(xx_005951_x, 4460059515);
+        assert_ne!(xx_005951_x, 3790059515);
     }
 }
