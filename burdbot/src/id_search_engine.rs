@@ -254,8 +254,22 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
     }
 
     fn create_buckets(capacity: usize, load_factor: usize) -> Vec<Bucket> {
-        let min_bucket_count = capacity / load_factor;
-        let min_bucket_count = min_bucket_count.next_power_of_two();
+        // Taken from core's impl of div_ceil because it's not stable
+        // TODO: Use std's div_ceil when it's stable.
+        pub const fn div_ceil(lhs: usize, rhs: usize) -> usize {
+            let d = lhs / rhs;
+            let r = lhs % rhs;
+            if r > 0 && rhs > 0 {
+                d + 1
+            } else {
+                d
+            }
+        }
+
+        let min_bucket_count = div_ceil(capacity, load_factor);
+
+        // We need to start out with at least 2 buckets to prevent a shift-right overflow issue in get_id_index().
+        let min_bucket_count = min_bucket_count.next_power_of_two().max(2);
 
         // We must ensure that the digits we're chopping from the upper bits doesn't cut into the bits we
         // use to determine the bucket index. Since the bucket index is gotten from the lower portion of the timestamp and
@@ -303,8 +317,8 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
 
         // We want the number of bits the bucket index takes and get just those bits,
         // which is the maximum between the number of trailing zeroes when the number
-        // of buckets is a power of two and 1.
-        let index_bit_count = bucket_len.trailing_zeros().max(1);
+        // of buckets is a power of two.
+        let index_bit_count = bucket_len.trailing_zeros();
         let index = (id << (TIMESTAMP_SIZE - index_bit_count)) >> (usize::BITS - index_bit_count);
 
         index as usize
@@ -357,9 +371,8 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         debug_assert!(self.len != 0, "The number of IDs in the search engine when calling reallocate_on_remove should never be 0.");
 
         let new_capacity = self.len - elements_to_be_removed;
-        let expected_load_factor = new_capacity / self.buckets.len();
 
-        if (expected_load_factor as f64) < self.load_factor as f64 * LOAD_FACTOR_SHRINK_LIMIT {
+        if (new_capacity as f64) < (self.load_factor * self.buckets.len()) as f64 * LOAD_FACTOR_SHRINK_LIMIT {
             self.reallocate_buckets::<true>(new_capacity);
         }
     }
@@ -372,8 +385,7 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
     fn reallocate_on_add<const SHOULD_SORT: bool>(&mut self, elements_to_be_added: usize) {
         let new_capacity = self.len + elements_to_be_added;
 
-        // Need a length check to avoid dividing by zero.
-        if self.len == 0 || new_capacity / self.buckets.len() > self.load_factor {
+        if new_capacity > self.load_factor * self.buckets.len() {
             self.reallocate_buckets::<SHOULD_SORT>(new_capacity);
         }
     }
@@ -986,4 +998,89 @@ mod test {
         assert_eq!(search_engine.load_factor, 10);
         assert_eq!(search_engine.wildcards, vec![(0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (1, 2), (2, 1), (2, 2)]);
     }
+
+    #[test]
+    fn add_test() {
+        let capacity = 256 * DEFAULT_LOAD_FACTOR;
+        let mut search_engine = SnowflakeIdSearchEngine::<2>::with_capacity(capacity);
+        let num_buckets = search_engine.buckets.len();
+        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024).sample_iter(Uniform::new(MIN_ID_NUMBER, 962992508063711231));
+
+        for _ in 0..capacity {
+            search_engine.add_id(rng.next().unwrap());
+        }
+
+        // Given the default laod factor, the number of buckets never should've changed
+        assert_eq!(num_buckets, search_engine.buckets.len(), "The search engine bucket array shouldn't have expanded yet.");
+
+        // Adding one more element should cause the number of buckets to double though
+        search_engine.add_id(rng.next().unwrap());
+
+        assert_eq!(num_buckets * 2, search_engine.buckets.len(), "The search engine bucket array never expanded.");
+        assert_eq!(search_engine.len(), capacity + 1, "The length isn't correct.");
+
+        for (idx, bucket) in search_engine.buckets.iter().enumerate() {
+            assert!(bucket.windows(2).all(|e| e[0] < e[1]), "Bucket {idx} wasn't sorted or had duplicates.");
+
+            for id in bucket.iter().copied() {
+                assert!(search_engine.buckets.len().is_power_of_two(), "Search engine bucket array length not a power of two.");
+
+                let idx_len = format!("{:b}", search_engine.buckets.len()).len() as u64 - 1; // It's a power of two so this gets a potential index's length.
+
+                assert_eq!(
+                    idx as u64,
+                    (id << (TIMESTAMP_SIZE as u64 - idx_len)) >> (Id::BITS as u64 - idx_len),
+                    "{id} was in the wrong bucket. Was in bucket {idx}"
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn eq_test() {
+        let mut search_engine = SnowflakeIdSearchEngine::<2>::new();
+        let mut search_engine_2 = SnowflakeIdSearchEngine::<2>::with_capacity(78645);
+        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(234);
+        let rand_to_insert = rng.gen_range(MIN_ID_NUMBER..962992508063711231);
+        let rand_vec = rng.sample_iter(Uniform::new(MIN_ID_NUMBER, 962992508063711231)).take(4096).collect::<Vec<_>>();
+
+        for rand in rand_vec.iter().copied() {
+            if rand_to_insert == rand {
+                continue;
+            }
+
+            search_engine.add_id(rand);
+        }
+
+        assert_eq!(search_engine.clone(), search_engine);
+
+        for rand in rand_vec.iter().copied() {
+            if rand_to_insert == rand {
+                continue;
+            }
+
+            search_engine_2.add_id(rand);
+        }
+
+        assert_eq!(search_engine, search_engine_2);
+
+        search_engine_2.add_id(rand_to_insert);
+
+        assert_ne!(search_engine, search_engine_2);
+    }
+
+    #[test]
+    fn contains_test() {}
+
+    #[test]
+    fn remove_test() {}
+
+    #[test]
+    fn remove_shrink_test() {}
+
+    #[test]
+    fn extend_test() {}
+
+    #[test]
+    fn extend_unsorted_insertion_test() {}
 }
