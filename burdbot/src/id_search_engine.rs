@@ -159,10 +159,6 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         u32::BITS - T.leading_zeros()
     };
 
-    /// A number that contains 1's in the bits not occupied by the timestamp of the
-    /// snowflake ID.
-    const NON_TIMESTAMP_ONES: Id = !(Id::MAX << (Id::BITS - TIMESTAMP_SIZE));
-
     // TODO: Make a const array of this size when generic_const_exprs stabilizes that contains the
     // the wildcards (u32, u32) and just iterate through that instead in the fuzzy match functions. This is the
     // size of what the array needs to be to hold the elements.
@@ -917,31 +913,69 @@ mod test {
     }
 
     #[test]
-    fn add_test() {
+    fn add_unique_ids_and_expansion_test() {
         let capacity = 256 * DEFAULT_LOAD_FACTOR;
         let mut search_engine = SnowflakeIdSearchEngine::<2>::with_capacity(capacity);
         let num_buckets = search_engine.buckets.len();
-        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024).sample_iter(Uniform::new(MIN_ID_NUMBER, 962992508063711231));
+        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024).sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID));
+        let unique_ids = rng.by_ref().take(capacity).collect::<HashSet<_>>();
 
-        for _ in 0..capacity {
-            search_engine.add_id(rng.next().unwrap());
+        for id in unique_ids.iter().copied() {
+            assert!(search_engine.add_id(id), "Unique ID caused add_id to return false.");
         }
 
         // Given the default laod factor, the number of buckets never should've changed
         assert_eq!(num_buckets, search_engine.buckets.len(), "The search engine bucket array shouldn't have expanded yet.");
 
         // Adding one more element should cause the number of buckets to double though
-        search_engine.add_id(rng.next().unwrap());
+        assert!(search_engine.add_id(rng.filter(|id| (!unique_ids.contains(id))).next().unwrap()), "Unique ID caused add_id to return false.");
 
         assert_eq!(num_buckets * 2, search_engine.buckets.len(), "The search engine bucket array never expanded.");
         assert_eq!(search_engine.len(), capacity + 1, "The length isn't correct.");
+        assert!(search_engine.buckets.len().is_power_of_two(), "Search engine bucket array length not a power of two.");
 
         for (idx, bucket) in search_engine.buckets.iter().enumerate() {
-            assert!(bucket.windows(2).all(|e| e[0] < e[1]), "Bucket {idx} wasn't sorted or had duplicates.");
+            assert!(
+                bucket.windows(2).all(|e| e[0] < e[1]),
+                "Bucket {idx} wasn't sorted or somehow had duplicates even though all IDs inserted were unique. Bucket state: {bucket:?}"
+            );
 
             for id in bucket.iter().copied() {
-                assert!(search_engine.buckets.len().is_power_of_two(), "Search engine bucket array length not a power of two.");
+                let idx_len = format!("{:b}", search_engine.buckets.len()).len() as u64 - 1; // It's a power of two so this gets a potential index's length.
 
+                assert_eq!(
+                    idx as u64,
+                    (id << (TIMESTAMP_SIZE as u64 - idx_len)) >> (Id::BITS as u64 - idx_len),
+                    "{id} was in the wrong bucket. Was in bucket {idx}"
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn add_duplicate_ids_test() {
+        let capacity = 256 * DEFAULT_LOAD_FACTOR;
+        let mut search_engine = SnowflakeIdSearchEngine::<2>::with_capacity(capacity);
+        let rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024).sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID));
+        let unique_ids = rng.take(capacity).collect::<HashSet<_>>().into_iter().collect::<Vec<_>>();
+        let rand_idxs = rand_pcg::Pcg64Mcg::seed_from_u64(634241).sample_iter(Uniform::new(0, unique_ids.len()));
+        let duplicates = rand_idxs.take(capacity / 5).map(|idx| unique_ids[idx]);
+
+        for id in unique_ids.iter().copied() {
+            assert!(search_engine.add_id(id), "Unique ID caused add_id to return false.");
+        }
+
+        // We will add a few elements that are duplicates
+        for duplicate in duplicates {
+            assert!(!search_engine.add_id(duplicate), "Duplicate ID caused add_id to return true.");
+        }
+
+        assert_eq!(search_engine.len(), capacity, "The length isn't correct. Duplicates shouldn't increase the search engine's length");
+
+        for (idx, bucket) in search_engine.buckets.iter().enumerate() {
+            assert!(bucket.windows(2).all(|e| e[0] < e[1]), "Bucket {idx} wasn't sorted or had duplicates. Bucket state: {bucket:?}");
+
+            for id in bucket.iter().copied() {
                 let idx_len = format!("{:b}", search_engine.buckets.len()).len() as u64 - 1; // It's a power of two so this gets a potential index's length.
 
                 assert_eq!(
@@ -958,8 +992,8 @@ mod test {
         let mut search_engine = SnowflakeIdSearchEngine::<2>::new();
         let mut search_engine_2 = SnowflakeIdSearchEngine::<2>::with_capacity(78645);
         let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(234);
-        let rand_to_insert = rng.gen_range(MIN_ID_NUMBER..962992508063711231);
-        let rand_vec = rng.sample_iter(Uniform::new(MIN_ID_NUMBER, 962992508063711231)).take(4096).collect::<Vec<_>>();
+        let rand_to_insert = rng.gen_range(MIN_ID_NUMBER..REALISTIC_MAX_ID);
+        let rand_vec = rng.sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID)).take(4096).collect::<Vec<_>>();
 
         for rand in rand_vec.iter().copied() {
             if rand_to_insert == rand {
@@ -1008,10 +1042,91 @@ mod test {
     }
 
     #[test]
-    fn remove_test() {}
+    fn remove_test() {
+        // Add random unique elements to the list
+        // Remove elements (collect added elements into a hashset and a vec so we can get a rand index, but also make unique)
+        // Remove elements not in the hashset
+        let bucket_count = 256;
+        let capacity = bucket_count * DEFAULT_LOAD_FACTOR;
+        let mut search_engine = SnowflakeIdSearchEngine::<2>::with_capacity(capacity);
+        let rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024).sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID));
+        let unique_ids_set = rng.take(capacity).collect::<HashSet<_>>();
+        let unique_ids = unique_ids_set.iter().copied().collect::<Vec<_>>();
+
+        for id in unique_ids.iter().copied() {
+            search_engine.add_id(id);
+        }
+
+        // This is to ensure we don't accidentally shrink the search engine.
+        let elements_to_take = capacity as f64 * (LOAD_FACTOR_SHRINK_LIMIT * 1.5);
+
+        let random_unique_idxs = rand_pcg::Pcg64Mcg::seed_from_u64(6452312)
+            .sample_iter(Uniform::new(0, unique_ids.len()))
+            .map(|idx| unique_ids[idx])
+            .take(elements_to_take as usize)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        for id in random_unique_idxs.iter().copied() {
+            assert!(
+                search_engine.remove_id(id),
+                "Removal of element in search engine caused remove_id() to return false. ID that caused this: {id}."
+            );
+        }
+
+        assert_eq!(unique_ids.len() - random_unique_idxs.len(), search_engine.len, "Length of the search engine wasn't correct after removals.");
+
+        for id in random_unique_idxs.iter().copied() {
+            assert!(!search_engine.contains(id), "Search engine still contains element that was removed. ID that caused this: {id}.");
+        }
+
+        let rand_id_gen = rand_pcg::Pcg64Mcg::seed_from_u64(21831)
+            .sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID))
+            .take(10_000)
+            .filter(|id| !unique_ids_set.contains(id));
+
+        for id in random_unique_idxs.iter().copied().chain(rand_id_gen) {
+            assert!(
+                !search_engine.remove_id(id),
+                "Removal of element not in search engine caused remove_id() to return false. ID that caused this: {id}."
+            );
+        }
+
+        // The search engine shouldn't have shrunk at this point.
+        assert_eq!(search_engine.buckets.len(), bucket_count);
+        assert_eq!(
+            unique_ids.len() - random_unique_idxs.len(),
+            search_engine.len,
+            "Length of the search engine shouldn't have changed after non-existent removals."
+        );
+    }
 
     #[test]
-    fn remove_shrink_test() {}
+    fn remove_shrink_test() {
+        let bucket_count = 256;
+        let capacity = bucket_count * DEFAULT_LOAD_FACTOR;
+        let mut search_engine = SnowflakeIdSearchEngine::<2>::with_capacity(capacity);
+        let rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024).sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID));
+        let unique_ids_set = rng.take(capacity).collect::<HashSet<_>>();
+        let unique_ids = unique_ids_set.iter().copied().collect::<Vec<_>>();
+
+        for id in unique_ids.iter().copied() {
+            search_engine.add_id(id);
+        }
+
+        for id in unique_ids.into_iter().take(((capacity as f64 * (1. - LOAD_FACTOR_SHRINK_LIMIT)) as usize) + 1) {
+            search_engine.remove_id(id);
+        }
+
+        assert!(
+            search_engine.buckets.len() < bucket_count,
+            "The search engine never shrunk. The bucket count is {} and the current number of elements \
+             in the search engine is {}",
+            search_engine.buckets.len(),
+            search_engine.len()
+        );
+    }
 
     #[test]
     fn extend_test() {}
