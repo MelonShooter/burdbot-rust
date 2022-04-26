@@ -194,7 +194,6 @@ async fn id_argument_to_member<T: AsRef<Cache>>(
     return cache
         .as_ref()
         .member(guild_id, user_id)
-        .await
         .ok_or_else(|| ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::Member).into());
 }
 
@@ -308,7 +307,6 @@ async fn id_argument_to_role<T: AsRef<Cache>>(
     return cache
         .as_ref()
         .guild_field(guild_id, |guild| guild.roles.get(&role_id.into()).map(|role| role.id))
-        .await
         .flatten()
         .ok_or_else(|| ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg_pos, arg.to_owned(), ConversionType::Role)));
 }

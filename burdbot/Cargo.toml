@@ -7,32 +7,34 @@ license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
 
 [dependencies]
 burdbot-macros = { version = "0.1.0", path = "../burdbot-macros" }
-serenity = "^0.10"
-tokio = { version = "^1", features = ["rt-multi-thread", "time"] }
-simplelog = "^0.11"
-log = "^0.4"
-once_cell = "^1"
-rusqlite = { version = "^0.25", features = ["chrono", "bundled"] }
-songbird = "^0.1"
-bimap = "^0.6"
-futures = "^0.3"
-chrono = "^0.4"
-lazy_static = "^1"
-regex = "^1"
-async-ctrlc = { version = "^1", features = ["termination"] }
-rand = "^0.8"
-reqwest = { version = "^0.11", default-features = false, features = ["rustls-tls"] }
-bytes = "^1"
-urlencoding = "^1"
-scraper = "^0.12"
-petgraph = "^0.6.0"
-strum = "^0.21"
-strum_macros = "^0.21"
-base64 = "^0.13"
-thiserror = "^1"
+serenity = "0.11"
+tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+simplelog = "0.12"
+log = "0.4"
+once_cell = "1"
+rusqlite = { version = "0.27", features = ["chrono", "bundled"] }
+bimap = "0.6"
+futures = "0.3"
+chrono = "0.4"
+lazy_static = "1"
+regex = "1"
+async-ctrlc = { version = "1", features = ["termination"] }
+rand = "0.8"
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }
+bytes = "1"
+urlencoding = "2"
+scraper = "0.13"
+petgraph = "0.6.0"
+strum = "0.24"
+strum_macros = "0.24"
+base64 = "0.13"
+thiserror = "1"
+songbird = {version = "0.2", optional = true}
 
 [dev-dependencies]
-rand_pcg = "^0.3"
+rand_pcg = "0.3"

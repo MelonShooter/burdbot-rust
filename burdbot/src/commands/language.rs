@@ -23,7 +23,7 @@ use super::error_util;
 
 async fn parse_term(ctx: &Context, msg: &Message, args: &mut Args) -> Result<String, NotEnoughArgumentsError> {
     match args.current() {
-        Some(arg) => Ok(urlencoding::encode(arg)),
+        Some(arg) => Ok(urlencoding::encode(arg).into_owned()),
         None => {
             argument_parser::not_enough_arguments(ctx, msg.channel_id, 0, 1).await;
 

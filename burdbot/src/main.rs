@@ -9,9 +9,11 @@ mod error;
 mod event_handler;
 mod logger;
 mod secret;
-mod session_tracker;
 mod spanish_english;
 mod util;
+
+#[cfg(feature = "songbird")]
+mod session_tracker;
 
 use async_ctrlc::CtrlC;
 use chrono::{Timelike, Utc};
@@ -19,7 +21,7 @@ use event_handler::BurdBotEventHandler;
 use log::{debug, info, warn, LevelFilter};
 use logger::{DiscordLogger, LogSender};
 use rusqlite::Connection;
-use serenity::client::bridge::gateway::{GatewayIntents, ShardManager};
+use serenity::client::bridge::gateway::ShardManager;
 use serenity::client::Context;
 use serenity::framework::standard::macros::hook;
 use serenity::framework::standard::CommandResult;
@@ -27,23 +29,29 @@ use serenity::framework::StandardFramework;
 use serenity::http::Http;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
-use serenity::prelude::Mutex;
+use serenity::prelude::{GatewayIntents, Mutex};
 use serenity::Client;
 use simplelog::{CombinedLogger, ConfigBuilder, WriteLogger};
-use songbird::driver::{Config, DecodeMode};
-use songbird::{SerenityInit, Songbird};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio::time;
 
+#[cfg(feature = "songbird")]
+use {
+    songbird::driver::DecodeMode,
+    songbird::{Config, SerenityInit, Songbird},
+};
+
+#[cfg(feature = "songbird")]
 pub(crate) const IS_SESSION_TRACKER_ENABLED: bool = false;
+
 pub(crate) const BURDBOT_DB: &str = "burdbot.db";
 pub(crate) const DELIBURD_ID: u64 = 367538590520967181;
 pub(crate) const PREFIX: &str = ",";
 const BURDBOT_LOGGER_BUFFER_SIZE: usize = (1 << 10) * 32; // 32KB
-const DEFAULT_LOGGER_BUFFER_SIZE: usize = (1 << 10) * 1; // 1KB
+const DEFAULT_LOGGER_BUFFER_SIZE: usize = 1 << 10; // 1KB
 const LOGGER_WRITE_COOLDOWN: Duration = Duration::from_secs(15);
 const LOGGER_FAILED_FILE: &str = "failed-to-send-logs.txt";
 const LOGGER_FILE_NAME: &str = "log.txt";
@@ -165,17 +173,23 @@ async fn main() {
         .group(&commands::ADMINISTRATIVE_GROUP)
         .group(&commands::LANGUAGE_GROUP);
 
-    let songbird = Songbird::serenity();
-
-    songbird.set_config(Config::default().decode_mode(DecodeMode::Decode));
+    #[cfg(feature = "songbird")]
+    let songbird_config = Config::default().decode_mode(DecodeMode::Decode);
 
     create_sql_tables();
 
-    let mut client = Client::builder(secret::TOKEN)
+    #[cfg(feature = "songbird")]
+    let mut client = Client::builder(secret::TOKEN, GatewayIntents::all())
         .framework(framework)
-        .intents(GatewayIntents::all())
         .event_handler(BurdBotEventHandler)
-        .register_songbird_with(songbird)
+        .register_songbird_from_config(songbird_config)
+        .await
+        .expect("Couldn't build client.");
+
+    #[cfg(not(feature = "songbird"))]
+    let mut client = Client::builder(secret::TOKEN, GatewayIntents::all())
+        .framework(framework)
+        .event_handler(BurdBotEventHandler)
         .await
         .expect("Couldn't build client.");
 

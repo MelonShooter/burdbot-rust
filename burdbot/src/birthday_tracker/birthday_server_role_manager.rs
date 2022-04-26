@@ -6,7 +6,7 @@ use serenity::model::id::{ChannelId, RoleId};
 use crate::error::{SerenitySQLiteError, SerenitySQLiteResult};
 use crate::{util, BURDBOT_DB};
 
-use super::role_updater;
+use super::{role_updater, RM_BDAY_ROLE_REASON};
 
 const NO_BIRTHDAY_SERVER_ROLE: &str = "This server has no birthday role currently.";
 
@@ -42,7 +42,7 @@ pub async fn set_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id: u
 }
 
 async fn is_actual_role(ctx: &Context, guild_id: u64, role_id: u64) -> bool {
-    ctx.cache.guild_field(guild_id, |g| g.roles.contains_key(&RoleId::from(role_id))).await.unwrap_or(false)
+    ctx.cache.guild_field(guild_id, |g| g.roles.contains_key(&RoleId::from(role_id))).unwrap_or(false)
 }
 
 fn get_birthday_role_id_conn(connection: &Connection, guild_id: u64) -> rusqlite::Result<Option<u64>> {
@@ -154,7 +154,7 @@ pub async fn remove_birthday_role(ctx: &Context, channel_id: ChannelId, guild_id
     for deleted_user in deleted_users {
         let mut error_vec = Vec::new();
 
-        if let Err(error) = ctx.http.remove_member_role(guild_id, deleted_user, role_id).await {
+        if let Err(error) = ctx.http.remove_member_role(guild_id, deleted_user, role_id, RM_BDAY_ROLE_REASON).await {
             error_vec.push(error);
         }
 

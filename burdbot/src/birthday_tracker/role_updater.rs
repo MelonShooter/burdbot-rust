@@ -6,6 +6,9 @@ use super::BirthdayDateTime;
 use crate::error::{SerenitySQLiteError, SerenitySQLiteResult};
 use crate::BURDBOT_DB;
 
+pub(crate) const RM_BDAY_ROLE_REASON: Option<&str> = Some("It's no longer their birthday");
+pub(crate) const ADD_BDAY_ROLE_REASON: Option<&str> = Some("It's their birthday");
+
 struct DatabaseRoleInfo {
     removal_list: Vec<(u64, u64, u64)>,
     addition_list: Vec<(u64, u64, u64)>,
@@ -17,7 +20,7 @@ pub async fn update_birthday_roles<T: AsRef<Http>>(http: T) -> SerenitySQLiteRes
     let http = http.as_ref();
 
     for (user_id, guild_id, role_id) in user_role_info.removal_list {
-        if let Err(error) = http.remove_member_role(guild_id, user_id, role_id).await {
+        if let Err(error) = http.remove_member_role(guild_id, user_id, role_id, RM_BDAY_ROLE_REASON).await {
             let removal_errors = error_vector_option.get_or_insert(Vec::new());
 
             removal_errors.push(error);
@@ -25,7 +28,7 @@ pub async fn update_birthday_roles<T: AsRef<Http>>(http: T) -> SerenitySQLiteRes
     }
 
     for (user_id, guild_id, role_id) in user_role_info.addition_list {
-        if let Err(error) = http.add_member_role(guild_id, user_id, role_id).await {
+        if let Err(error) = http.add_member_role(guild_id, user_id, role_id, ADD_BDAY_ROLE_REASON).await {
             let addition_errors = error_vector_option.get_or_insert(Vec::new());
 
             addition_errors.push(error);

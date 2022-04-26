@@ -42,10 +42,10 @@ async fn control_channel_access(http: &Http, channel: &Channel, allow: bool) -> 
     .expect("Every channel should have an @everyone permission overwrite");
 
     if allow {
-        permission_overwrite.allow |= Permissions::READ_MESSAGES;
-        permission_overwrite.deny &= !Permissions::READ_MESSAGES;
+        permission_overwrite.allow |= Permissions::VIEW_CHANNEL;
+        permission_overwrite.deny &= !Permissions::VIEW_CHANNEL;
     } else {
-        permission_overwrite.allow &= !Permissions::READ_MESSAGES;
+        permission_overwrite.allow &= !Permissions::VIEW_CHANNEL;
     }
 
     match channel {
@@ -55,10 +55,10 @@ async fn control_channel_access(http: &Http, channel: &Channel, allow: bool) -> 
     }
 }
 
-async fn get_english_class_channels(cache: impl AsRef<Cache>) -> Vec<Channel> {
+fn get_english_class_channels(cache: impl AsRef<Cache>) -> Vec<Channel> {
     let mut channels = Vec::new();
 
-    let category = match cache.as_ref().channel(ENGLISH_CLASS_CATEGORY_ID).await {
+    let category = match cache.as_ref().channel(ENGLISH_CLASS_CATEGORY_ID) {
         Some(cat) => cat,
         None => return channels,
     };
@@ -66,10 +66,10 @@ async fn get_english_class_channels(cache: impl AsRef<Cache>) -> Vec<Channel> {
     channels.push(category);
 
     // Have to search channel map because of bug. Fixed in #1405 as a breaking change.
-    match cache.as_ref().guild_channels(SPANISH_ENGLISH_SERVER_ID).await {
+    match cache.as_ref().guild_channels(SPANISH_ENGLISH_SERVER_ID) {
         Some(guild_channels) => {
             for (_, channel) in guild_channels {
-                if channel.category_id.map_or(false, |c| c == ENGLISH_CLASS_CATEGORY_ID) {
+                if channel.parent_id.map_or(false, |c| c == ENGLISH_CLASS_CATEGORY_ID) {
                     channels.push(Channel::Guild(channel));
                 }
             }
@@ -80,7 +80,7 @@ async fn get_english_class_channels(cache: impl AsRef<Cache>) -> Vec<Channel> {
     }
 }
 
-async fn get_teachers_present(ctx: &Context, english_channels: &[Channel]) -> Vec<u64> {
+fn get_teachers_present(ctx: &Context, english_channels: &[Channel]) -> Vec<u64> {
     let mut teachers = Vec::new();
 
     // TODO: refactor so that just channel IDs are used, not channels. then figure out how to change it so that it's not as inefficient
@@ -89,25 +89,22 @@ async fn get_teachers_present(ctx: &Context, english_channels: &[Channel]) -> Ve
     for ch in english_channels {
         if let Channel::Guild(channel) = ch {
             if !channel.is_text_based() {
-                let members_roles: Option<Vec<(u64, Vec<RoleId>)>> = ctx
-                    .cache
-                    .guild_field(SPANISH_ENGLISH_SERVER_ID, |g| {
-                        g.voice_states
-                            .values()
-                            .filter_map(|v| {
-                                v.channel_id.and_then(|c| {
-                                    if c == channel.id {
-                                        let id = &v.user_id;
+                let members_roles = ctx.cache.guild_field(SPANISH_ENGLISH_SERVER_ID, |g| {
+                    g.voice_states
+                        .values()
+                        .filter_map(|v| {
+                            v.channel_id.and_then(|c| {
+                                if c == channel.id {
+                                    let id = &v.user_id;
 
-                                        g.members.get(id).map(|m| (id.0, m.roles.clone()))
-                                    } else {
-                                        None
-                                    }
-                                })
+                                    g.members.get(id).map(|m| (id.0, m.roles.clone()))
+                                } else {
+                                    None
+                                }
                             })
-                            .collect()
-                    })
-                    .await;
+                        })
+                        .collect::<Vec<_>>()
+                });
 
                 if let Some(members_roles) = members_roles {
                     let role_id = RoleId::from(ENGLISH_TEACHER_ROLE_ID);
@@ -140,8 +137,8 @@ async fn control_english_channel_access(http: Arc<Http>, english_channels: Vec<C
 // TODO: make sure burdbot has access to channel afterwards.
 
 async fn do_english_class_check(ctx: &Context, mut teacher_map: impl DerefMut<Target = TypeMap>) {
-    let english_channels = get_english_class_channels(ctx).await;
-    let teachers_present = &get_teachers_present(ctx, &english_channels).await;
+    let english_channels = get_english_class_channels(ctx);
+    let teachers_present = &get_teachers_present(ctx, &english_channels);
     let teacher_map = teacher_map.deref_mut().get_mut::<Teachers>().expect("Teachers should always exist in the type map.");
 
     for teacher in teachers_present {
@@ -182,7 +179,7 @@ pub async fn on_voice_state_update(old_state: Option<&VoiceState>, new_state: &V
                     let mut write_data = data.write().await;
 
                     if let Some(teachers) = write_data.get_mut::<Teachers>() {
-                        control_english_channel_access(http, get_english_class_channels(cache).await, false).await;
+                        control_english_channel_access(http, get_english_class_channels(cache), false).await;
                         teachers.remove(&teacher_id);
                     };
                 }));
@@ -212,7 +209,7 @@ pub async fn on_voice_state_update(old_state: Option<&VoiceState>, new_state: &V
                 join_handle.abort();
             }
 
-            control_english_channel_access(ctx.http.clone(), get_english_class_channels(ctx).await, true).await;
+            control_english_channel_access(ctx.http.clone(), get_english_class_channels(ctx), true).await;
         }
     }
 }

@@ -13,3 +13,4 @@ opt-level = 3
 
 [patch.crates-io]
 audiopus = { git = 'https://github.com/DoumanAsh/audiopus/', branch = 'better_sys' }
+serenity = { git = 'https://github.com/serenity-rs/serenity', branch = 'current' }

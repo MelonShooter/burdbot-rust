@@ -20,6 +20,8 @@ use crate::util;
 use crate::BURDBOT_DB;
 
 use super::BirthdayDateTime;
+use super::ADD_BDAY_ROLE_REASON;
+use super::RM_BDAY_ROLE_REASON;
 
 fn get_server_role(transaction: &Transaction, guild_id: u64) -> rusqlite::Result<Option<u64>> {
     let role_select_statement = "
@@ -45,7 +47,7 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: ChannelId, bday_info:
 
     let user_id = bday_info.user_id;
     let channel_selector = |channel: &GuildChannel| *channel.guild_id.as_u64();
-    let guild_id = ctx.cache.guild_channel_field(channel_id, channel_selector).await.unwrap();
+    let guild_id = ctx.cache.guild_channel_field(channel_id, channel_selector).unwrap();
     let bday_date_naive_local = NaiveDate::from_ymd(2021, bday_info.month, bday_info.day).and_hms(0, 0, 0);
     let bday_date_naive_utc = bday_date_naive_local - Duration::hours(bday_info.time_zone);
     let bday_date_time = BirthdayDateTime::new(bday_date_naive_utc.month(), bday_date_naive_utc.day(), bday_date_naive_utc.hour());
@@ -102,7 +104,7 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: ChannelId, bday_info:
 
             connection.execute(insertion_statement, params!(user_id, bday_date_time))?;
 
-            if let Err(error) = ctx.http.add_member_role(guild_id, user_id, role_id).await {
+            if let Err(error) = ctx.http.add_member_role(guild_id, user_id, role_id, ADD_BDAY_ROLE_REASON).await {
                 warn!(
                     "Error while trying to add role to user while adding bday to db. Likely not a concern \
                         considering this most likely occurred because the role was removed while \
@@ -138,7 +140,7 @@ pub async fn get_birthday(ctx: &Context, channel_id: ChannelId, user_id: u64) ->
                         time_stamp = time_stamp.with_year(time_stamp.year() + 1).unwrap();
                     }
 
-                    embed.timestamp(&time_stamp);
+                    embed.timestamp(time_stamp);
 
                     let msg = format!("{}'s next birthday will start at ", user_id);
 
@@ -183,7 +185,7 @@ pub async fn remove_birthday(ctx: &Context, channel_id: ChannelId, guild_id: u64
     }
 
     if let Some(id) = role_id {
-        if let Err(error) = ctx.http.remove_member_role(guild_id, user_id, id).await {
+        if let Err(error) = ctx.http.remove_member_role(guild_id, user_id, id, RM_BDAY_ROLE_REASON).await {
             warn!(
                 "Error while trying to remove birthday from database. Likely not a concern \
                     considering this most likely occurred because the role was removed while \

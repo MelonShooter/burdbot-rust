@@ -36,6 +36,5 @@ pub async fn get_member_permissions<T: AsRef<Cache>>(cache: T, guild_id: GuildId
                     .fold(Permissions::empty(), |acc, permissions| acc | permissions)
             })
         })
-        .await
         .flatten()
 }

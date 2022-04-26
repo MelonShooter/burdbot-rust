@@ -57,7 +57,7 @@ async fn get_deliburd_channel_id(cache_and_http: impl CacheHttp) -> Option<Chann
 pub(crate) async fn on_cache_ready(ctx: &Context) {
     let set_result = DELIBURD_CHANNEL_ID.set(get_deliburd_channel_id(ctx).await);
 
-    if let Err(_) = set_result {
+    if set_result.is_err() {
         info!("The DM channel ID OnceCell already had a value in it. This can only happen if the cache wasn't ready fast enough.");
     }
 }
@@ -142,7 +142,7 @@ impl DiscordLogger {
         sender: UnboundedSender<LogSender>,
     ) -> Self {
         let logger = DiscordLogger {
-            cache_http: cache_and_http.clone(),
+            cache_http: cache_and_http,
             buffer_size,
             failed_to_send_file,
             send_file_name,
@@ -156,7 +156,7 @@ impl DiscordLogger {
             loop {
                 time::sleep(write_cooldown).await;
 
-                if let None = DELIBURD_CHANNEL_ID.get() {
+                if DELIBURD_CHANNEL_ID.get().is_none() {
                     continue; // Sleep until there's something in OnceCell.
                 }
 
