@@ -246,14 +246,13 @@ impl ForvoRecording {
 }
 
 fn get_language_recording(captures: Captures, regex: &'static str, language: Language) -> PossibleForvoRecording {
-    // TODO: refactor vocaroo error handling to follow same model
     let url_base64_data =
         captures.get(1).ok_or_else(|| ForvoError::BadBase64RegexMatching(ForvoRegexCaptureError::new(regex, 1, ForvoCaptureType::Base64)))?;
     let country = captures
         .get(2)
         .ok_or_else(|| ForvoError::BadCountryRegexMatching(ForvoRegexCaptureError::new(regex, 2, ForvoCaptureType::Country)))?
         .as_str();
-    //.trim(); // Necessary because some countries have leading/trailing whitespace for whatever reason.
+
     let country = country.parse::<Country>()?;
 
     let decoded_bytes = base64::decode(url_base64_data.as_str())?;
