@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 
 use bytes::Bytes;
@@ -7,17 +8,17 @@ use serenity::builder::CreateMessage;
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::CommandResult;
-use serenity::model::channel::{Message, MessageReference};
-use serenity::model::id::{ChannelId, GuildId};
+use serenity::model::channel::{AttachmentType, Message, MessageReference, ReactionType};
 use serenity::prelude::TypeMapKey;
-use serenity::Error;
+use serenity::{json, Error};
 
 use crate::commands::error_util;
 use crate::vocaroo::VocarooError;
 use crate::BURDBOT_DB;
 use crate::{util, vocaroo};
 
-const MAX_VOCAROO_RECORDING_SIZE: u64 = (1 << 20) * 5; // 5MB
+const TOTAL_MAX_VOCAROO_SIZE: usize = (1 << 20) * 6; // 6MiB
+const VOCAROO_ATTACHMENT_LIMIT: usize = 8;
 
 struct VocarooEnabled;
 
@@ -25,64 +26,28 @@ impl TypeMapKey for VocarooEnabled {
     type Value = HashSet<u64>;
 }
 
-async fn handle_vocaroo_error(ctx: &Context, msg: &Message, error: VocarooError<'_>) {
+fn log_and_check_is_severe(error: &VocarooError) -> bool {
     match error {
-        VocarooError::MalformedUrl(_) => return, // We don't care about this error.
+        VocarooError::InvalidUrls(_) => debug!("Encountered link that wasn't recognized as a vocaroo link: {error}"),
         VocarooError::FailedDownload(_, _) => warn!("{error}"),
-        VocarooError::OversizedFile(_, _) | VocarooError::ContentTypeNotMp3(_) => debug!("{error}"),
+        VocarooError::OverSizeLimit(_, _) | VocarooError::ContentTypeNotMp3(_) => debug!("{error}"),
         _ => {
             error!("{error}");
-            error_util::generic_fail(ctx, msg.channel_id).await;
+
+            return true;
         },
     };
 
-    if let Err(err) = msg.react(&ctx.http, '❌').await {
-        let link = msg.link();
-
-        debug!("Failed to react to a vocaroo recording that errored. Error: {err}. Message link: {link}.");
-    }
-}
-
-fn format_recording<'a, 'b>(
-    msg_builder: &'b mut CreateMessage<'a>,
-    vocaroo_data: &'a [u8],
-    user_id: u64,
-    msg_ref: MessageReference,
-) -> &'b mut CreateMessage<'a> {
-    msg_builder.add_file((vocaroo_data, "vocaroo-to-mp3.mp3"));
-
-    let mut msg_str = String::with_capacity(96);
-    msg_str.push_str("Here is <@");
-    msg_str.push_str(user_id.to_string().as_str());
-    msg_str.push_str(">'s vocaroo link as an MP3 file. This is limited to 1 per message.");
-
-    msg_builder.content(msg_str.as_str());
-
-    msg_builder.reference_message(msg_ref)
-}
-
-async fn send_recording(ctx: &Context, channel_id: ChannelId, guild_id: GuildId, vocaroo_data: Bytes, user_id: u64, msg_ref: MessageReference) {
-    let msg_result = channel_id.send_message(&ctx.http, |c| format_recording(c, &vocaroo_data[..], user_id, msg_ref)).await;
-
-    match msg_result {
-        Ok(_) => (),
-        Err(Error::Http(err)) => {
-            debug!(
-                "Couldn't send vocaroo message in channel {channel_id} in server {guild_id} because of HTTP error: {err:?}). \
-                 This is generally due to a lack of permissions."
-            )
-        },
-        Err(err) => warn!("Couldn't send vocaroo message in channel {channel_id} in server {guild_id} because of error: {err}"),
-    };
+    false
 }
 
 pub async fn on_message_received(ctx: &Context, msg: &Message) {
     // Some early exits.
     let content = msg.content.as_str();
-
-    if content.len() > 40 || !content.starts_with("http") {
-        return;
-    }
+    let first_link_idx = match content.find("http") {
+        Some(idx) => idx,
+        None => return,
+    };
 
     let data = ctx.data.read().await;
     let vocaroo_servers = data.get::<VocarooEnabled>();
@@ -98,15 +63,81 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
         }
 
         let msg_ref = MessageReference::from(msg);
-        let channel_id = msg.channel_id;
         let user_id = msg.author.id.0;
 
-        match vocaroo::download_vocaroo(content, MAX_VOCAROO_RECORDING_SIZE).await {
-            Ok(vocaroo_data) => {
-                send_recording(ctx, channel_id, guild_id, vocaroo_data, user_id, msg_ref).await;
-            },
-            Err(error) => handle_vocaroo_error(ctx, msg, error).await,
+        // This needs to be in its own function due to a bug in the compiler
+        // causing a very weird error when a closure is directly used.
+        fn filter_severe(recording: &vocaroo::Result<Bytes>) -> bool {
+            !matches!(recording, Err(ref err) if log_and_check_is_severe(err) )
         }
+
+        let mut recording_count = 0;
+        let mut err_count = 0;
+        let mut recordings = vocaroo::download_vocaroos(&content[first_link_idx..], TOTAL_MAX_VOCAROO_SIZE, VOCAROO_ATTACHMENT_LIMIT)
+            .await
+            .filter(filter_severe)
+            .peekable();
+
+        let mut message = match recordings.peek() {
+            Some(_) => CreateMessage::default(),
+            None => return,
+        };
+
+        for recording in recordings {
+            recording_count += 1;
+
+            match recording {
+                Ok(recording) => {
+                    let recording = Cow::from(recording.to_vec());
+                    let attachment = AttachmentType::Bytes { data: recording, filename: "vocaroo.mp3".to_string() };
+
+                    message.add_file(attachment);
+                },
+                Err(_) => err_count += 1,
+            };
+        }
+
+        async fn error_react<T: Into<ReactionType>>(ctx: &Context, msg: &Message, reaction: T) {
+            error_util::generic_fail(ctx, msg.channel_id).await;
+
+            if let Err(err) = msg.react(&ctx.http, reaction).await {
+                let link = msg.link();
+
+                debug!("Failed to react to a vocaroo recording that errored. Error: {err}. Message link: {link}.");
+            }
+        }
+
+        if err_count == recording_count {
+            error_react(ctx, msg, '❌').await;
+
+            return;
+        } else if err_count > 0 {
+            error_react(ctx, msg, ReactionType::Unicode("⚠️".to_string())).await;
+        }
+
+        let id = msg.channel_id.0;
+        let msg_str = format!(
+            "Here is <@{user_id}>'s vocaroo link as an MP3 \
+             file. This is limited to 1 per message."
+        );
+
+        message.content(msg_str);
+        message.reference_message(msg_ref);
+
+        let map = json::hashmap_to_json_map(message.0);
+
+        // we need a length check here
+
+        match ctx.http.send_files(id, message.2, &map).await {
+            Ok(_) => (),
+            Err(Error::Http(err)) => {
+                debug!(
+                    "Couldn't send vocaroo message in channel {id} in server {guild_id} because of HTTP error: {err:?}). \
+                     This is generally due to a lack of permissions or the message was too large."
+                )
+            },
+            Err(err) => warn!("Couldn't send vocaroo message in channel {id} in server {guild_id} because of error: {err}"),
+        };
     }
 }
 

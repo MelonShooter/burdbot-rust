@@ -1,10 +1,13 @@
-use std::num::ParseIntError;
-
 use bytes::Bytes;
+use futures::future;
 use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
 use reqwest::Client;
+use std::iter;
+use std::num::ParseIntError;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use thiserror::Error;
 
 pub type Result<'a, T> = std::result::Result<T, VocarooError<'a>>;
@@ -12,8 +15,8 @@ pub type Result<'a, T> = std::result::Result<T, VocarooError<'a>>;
 #[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum VocarooError<'a> {
-    #[error("Malformed vocaroo URL provided from the link: {0}.")]
-    MalformedUrl(&'a str),
+    #[error("No vocaroo URLs were found from the link: {0}.")]
+    InvalidUrls(&'a str),
     #[error("Failed Vocaroo HEAD request from the link: {0}. This could mean they stopped accepting these requests. Encountered reqwest error: {1}")]
     FailedHead(String, #[source] reqwest::Error),
     #[error("Failed Vocaroo GET request from the link: {0}. This could mean this isn't the right URL anymore. Encountered reqwest error: {1}")]
@@ -34,64 +37,71 @@ pub enum VocarooError<'a> {
     ContentLengthNotNumber(String, #[source] ParseIntError),
     #[error("Could not convert response body to bytes from the link: {0}. Encountered reqwest error: {1}")]
     BodyToBytesFailure(String, #[source] reqwest::Error),
-    #[error("Vocaroo file at link '{0}' couldn't be converted to an MP3 because it was over the size limit: {1}.")]
-    OversizedFile(String, u64),
+    #[error("Vocaroo file at link '{0}' couldn't be converted to an MP3 because it would go over the total size limit: {1}.")]
+    OverSizeLimit(String, usize),
 }
 
-fn get_vocaroo_mp3_url(url: &str) -> Result<String> {
+fn get_vocaroo_mp3_urls<'a>(url_str: &'a str) -> impl Iterator<Item = String> + 'a {
     lazy_static! {
         static ref VOCAROO_LINK_MATCHER: Regex = Regex::new(r"https?://(?:www\.)?(?:voca\.ro|vocaroo\.com)/([a-zA-Z0-9]+)").unwrap();
     }
 
-    let vocaroo_id = match VOCAROO_LINK_MATCHER.captures(url).map(|c| c.get(1)) {
-        Some(Some(m)) => m.as_str(),
-        Some(None) => {
-            error!("Error encountered matching vocaroo ID in link. This should never happen. Returning MalformedUrl error.");
-
-            return Err(VocarooError::MalformedUrl(url));
-        },
-        None => return Err(VocarooError::MalformedUrl(url)),
-    };
-
-    Ok(format!("https://media.vocaroo.com/mp3/{vocaroo_id}"))
+    VOCAROO_LINK_MATCHER
+        .captures_iter(url_str)
+        .flat_map(|c| c.get(1))
+        .map(|vocaroo_id| format!("https://media.vocaroo.com/mp3/{}", vocaroo_id.as_str()))
 }
 
-pub async fn download_vocaroo<'url>(url: &'url str, max_size: u64) -> Result<'_, Bytes> {
+pub async fn get_content_length(url: &str, client: Client) -> Result<'static, usize> {
+    let head_response = client.head(url).send().await.map_err(|err| VocarooError::FailedHead(url.to_string(), err))?;
+    let headers = head_response.headers();
+    let content_type = headers
+        .get("Content-Type")
+        .ok_or_else(|| VocarooError::NoContentType(url.to_string()))?
+        .to_str()
+        .map_err(|_| VocarooError::ContentTypeNotVisibleASCII(url.to_string()))?;
+
+    if content_type != "audio/mpeg" {
+        return Err(VocarooError::ContentTypeNotMp3(url.to_string()));
+    }
+
+    headers
+        .get("Content-Length")
+        .ok_or_else(|| VocarooError::NoContentLength(url.to_string()))?
+        .to_str()
+        .map_err(|_| VocarooError::ContentLengthNotVisibleASCII(url.to_string()))?
+        .parse::<usize>()
+        .map_err(|err| VocarooError::ContentLengthNotNumber(url.to_string(), err))
+}
+
+pub async fn download_vocaroos(urls: &str, max_size: usize, attachment_count_limit: usize) -> impl Iterator<Item = Result<'_, Bytes>> {
     lazy_static! {
         static ref VOCAROO_CLIENT: Client = Client::new();
     }
 
-    // Technically these string clones aren't necessary if I were to use match, but it would make the code way less readable. They'll probably get optimized out anyways though.
-    let url: String = get_vocaroo_mp3_url(url)?;
-    let head_response = VOCAROO_CLIENT.head(&*url).send().await.map_err(|err| VocarooError::FailedHead(url.clone(), err))?;
-    let headers = head_response.headers();
-    let content_type = headers
-        .get("Content-Type")
-        .ok_or_else(|| VocarooError::NoContentType(url.clone()))?
-        .to_str()
-        .map_err(|_| VocarooError::ContentTypeNotVisibleASCII(url.clone()))?;
+    let recordings = {
+        let total_recording_size = Arc::new(AtomicUsize::new(0));
+        let vocaroo_urls = get_vocaroo_mp3_urls(urls).zip(iter::repeat(total_recording_size.clone()));
 
-    if content_type != "audio/mpeg" {
-        return Err(VocarooError::ContentTypeNotMp3(url));
-    }
+        let recording_futures = vocaroo_urls.map(|(url, total_size)| async move {
+            let content_length = get_content_length(url.as_str(), (*VOCAROO_CLIENT).clone()).await?;
+            let total_size = total_size.fetch_add(content_length, Ordering::Relaxed) + content_length;
 
-    let content_length = headers
-        .get("Content-Length")
-        .ok_or_else(|| VocarooError::NoContentLength(url.clone()))?
-        .to_str()
-        .map_err(|_| VocarooError::ContentLengthNotVisibleASCII(url.clone()))?
-        .parse::<u64>()
-        .map_err(|err| VocarooError::ContentLengthNotNumber(url.clone(), err))?;
+            if total_size > max_size {
+                return Err(VocarooError::OverSizeLimit(url, max_size));
+            }
 
-    if content_length > max_size {
-        return Err(VocarooError::OversizedFile(url, max_size));
-    }
+            let response = VOCAROO_CLIENT.get(&*url).send().await.map_err(|err| VocarooError::FailedGet(url.clone(), err))?;
 
-    let response = VOCAROO_CLIENT.get(&*url).send().await.map_err(|err| VocarooError::FailedGet(url.clone(), err))?;
+            if !response.status().is_success() {
+                return Err(VocarooError::FailedDownload(url, response.status().as_u16()));
+            }
 
-    if !response.status().is_success() {
-        return Err(VocarooError::FailedDownload(url, response.status().as_u16()));
-    }
+            response.bytes().await.map_err(|err| VocarooError::BodyToBytesFailure(url, err))
+        });
 
-    response.bytes().await.map_err(|err| VocarooError::BodyToBytesFailure(url, err))
+        future::join_all(recording_futures).await
+    };
+
+    recordings.into_iter().take(attachment_count_limit)
 }
