@@ -12,7 +12,7 @@ default = []
 
 [dependencies]
 burdbot-macros = { version = "0.1.0", path = "../burdbot-macros" }
-serenity = "0.11"
+serenity = { version = "0.11" }
 tokio = { version = "1", features = ["rt-multi-thread", "time"] }
 simplelog = "0.12"
 log = "0.4"
