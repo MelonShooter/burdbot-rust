@@ -15,7 +15,7 @@ const INITIAL_CAPACITY_FACTOR: f64 = 1.2;
 const LOAD_FACTOR_SHRINK_LIMIT: f64 = 3. / 8.;
 
 /// The size of the timestamp within the Discord ID.
-const TIMESTAMP_SIZE: u32 = 42;
+const TIMESTAMP_BASE2_SIZE: u32 = 42;
 
 /// The lowest number of digits possible in a Discord ID.
 const MIN_ID_DIGITS: u32 = 17;
@@ -23,14 +23,15 @@ const MIN_ID_DIGITS: u32 = 17;
 type Id = u64;
 type Bucket = Vec<Id>;
 
-const CHOPPED_LOWER_BIT_LIMIT: u32 = Id::BITS - TIMESTAMP_SIZE;
+const CHOPPED_LOWER_BIT_LIMIT: u32 = Id::BITS - TIMESTAMP_BASE2_SIZE;
 
 /// THe minimum ID number.
 const MIN_ID_NUMBER: Id = (10 as Id).pow(MIN_ID_DIGITS.saturating_sub(1));
 
 // TODO: maybe make this associated fn of SnowflakeFuzzyMatch and add const
 // generic to optimize the order reduction.
-const fn snowflake_len(mut id: Id) -> u32 {
+/// The number of base 10 digits for a number
+const fn base10_len(mut id: Id) -> u32 {
     const DIGIT_REDUCTION_FROM_MIN: u32 = 4;
     const ORDERS_LESS_MIN: Id = MIN_ID_NUMBER / (10 as Id).pow(DIGIT_REDUCTION_FROM_MIN.saturating_sub(1));
 
@@ -59,7 +60,7 @@ impl TryFrom<&str> for FuzzyMatchedId {
     type Error = (); // Since this is used internally, we don't actually care how it errored, just that it did.
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        const MAX_ID_LEN: usize = snowflake_len(Id::MAX) as usize;
+        const MAX_ID_LEN: usize = base10_len(Id::MAX) as usize;
 
         if value.len() > MAX_ID_LEN {
             return Err(());
@@ -110,11 +111,12 @@ impl PartialEq<Id> for SnowflakeFuzzyMatch {
             return no_leading_zeros_id == other;
         }
 
-        let total_fuzzy_match_len = snowflake_len(no_leading_zeros_id).max(1) + added_digits;
+        // TODO: see if the base10_len can be cached in the SnowflakeFuzzyMatch
+        let total_fuzzy_match_len = base10_len(no_leading_zeros_id).max(1) + added_digits;
 
         // Check if the numbers we're matching are of the same length
         //  println!("{} {}", total_fuzzy_match_len + leading_zeros as u32, snowflake_len(other));
-        if total_fuzzy_match_len + leading_zeros as u32 != snowflake_len(other) {
+        if total_fuzzy_match_len + leading_zeros as u32 != base10_len(other) {
             return false;
         }
 
@@ -167,7 +169,7 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
     fn assert_chopped_lower_bit_limit() {
         assert!(
             Self::MAX_BITS_CHOPPED_OFF <= CHOPPED_LOWER_BIT_LIMIT,
-            "The amount of bits chopped off by taking away {T} digits from an ID was over the limit of {CHOPPED_LOWER_BIT_LIMIT}."
+            "The amount of digits chopped off by taking away {T} digits from an ID was over the limit of {CHOPPED_LOWER_BIT_LIMIT}."
         );
     }
 
@@ -210,15 +212,8 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
 
         let min_bucket_count = div_ceil(capacity, load_factor);
 
-        // We need to start out with at least 2 buckets to prevent a shift-right overflow issue in get_id_index().
-        let min_bucket_count = min_bucket_count.next_power_of_two().max(2);
-
-        // We must ensure that the digits we're chopping from the upper bits doesn't cut into the bits we
-        // use to determine the bucket index. Since the bucket index is gotten from the lower portion of the timestamp and
-        // the timestamp gets cut by MAX_BITS_CHOPPED_OFF bits, TIMESTAMP_SIZE - MAX_BITS_CHOPPED_OFF gets you the number of
-        // bits available to use. So the bits used by the bucket index must be less than or equal to this.
-        assert!(min_bucket_count.trailing_zeros().max(1) <= TIMESTAMP_SIZE - Self::MAX_BITS_CHOPPED_OFF);
-
+        // Make max 8 to prevent excessive reallocation, we go one off from a power of 2 to get a better distribution.
+        let min_bucket_count = min_bucket_count.next_power_of_two().max(8) + 1;
         let mut buckets = Vec::with_capacity(min_bucket_count);
         let bucket_capacity = (load_factor as f64 * INITIAL_CAPACITY_FACTOR) as usize;
 
@@ -253,17 +248,17 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         self.len
     }
 
-    /// Index is based off of the lower <log2(number of buckets)> bits of the upper [`TIMESTAMP_SIZE`] bits of the ID which is the
-    fn get_id_index(bucket_len: usize, id: Id) -> usize {
-        debug_assert!(bucket_len.is_power_of_two(), "The bucket array length should always be a power of two. Got {}", bucket_len);
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 
-        // We want the number of bits the bucket index takes and get just those bits,
-        // which is the maximum between the number of trailing zeroes when the number
-        // of buckets is a power of two.
-        let index_bit_count = bucket_len.trailing_zeros();
-        let index = (id << (TIMESTAMP_SIZE - index_bit_count)) >> (usize::BITS - index_bit_count);
+    fn get_id_index(bucket_len: usize, mut id: Id) -> usize {
+        // write new assert for upper limit in constructor and new assert when reallocating
+        // TODO: Make pow10 lookup table? be careful of overflow
+        id /= 10u64.pow(T);
+        id %= 10u64.pow(base10_len(id) - T);
 
-        index as usize
+        id as usize % bucket_len
     }
 
     fn get_bucket(&self, id: Id) -> &[Id] {
@@ -276,6 +271,25 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         let bucket_index = Self::get_id_index(self.buckets.len(), id);
 
         self.buckets.index_mut(bucket_index)
+    }
+
+    /// Takes into account wildcards and leading zeros to get the hash.
+    ///
+    /// Returns None if the fuzzy match wouldn't be valid given the number of chopped off digits.
+    fn get_bucket_with_fuzzy_match(&self, id: SnowflakeFuzzyMatch) -> Option<&[Id]> {
+        let fuzzy = id.fuzzy_id;
+
+        if fuzzy.leading_zeros != 0 && id.left_wildcards == 0 {
+            return None;
+        }
+
+        let stripped_id = fuzzy.no_leading_zeros_id;
+        let mut bucket_index = stripped_id / 10u64.pow(T - id.right_wildcards);
+        let to_strip = T - id.left_wildcards;
+        bucket_index %= 10u64.pow(base10_len(stripped_id) - to_strip);
+        bucket_index %= self.buckets.len() as u64; // modulo here and in get_id_index probs can be optimized because bucket_len should always be a power of 2?
+
+        Some(self.buckets.index(bucket_index as usize).as_slice())
     }
 
     /// Sorts all the buckets in the search engine.
@@ -300,18 +314,9 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         if SHOULD_SORT {
             self.sort_all_buckets()
         }
-
-        debug_assert!(
-            self.buckets.len().is_power_of_two(),
-            "The reallocated bucket vector wasn't a power of two.\
-             Got length of {}",
-            self.buckets.len()
-        );
     }
 
     fn reallocate_on_remove(&mut self, elements_to_be_removed: usize) {
-        debug_assert!(self.len != 0, "The number of IDs in the search engine when calling reallocate_on_remove should never be 0.");
-
         let new_capacity = self.len - elements_to_be_removed;
 
         if (new_capacity as f64) < (self.load_factor * self.buckets.len()) as f64 * LOAD_FACTOR_SHRINK_LIMIT {
@@ -406,7 +411,10 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
                 // We can also break early while iterating through the buckets, take advantage of that.
                 // certain iterations might actually be able to be combined together too
 
-                if let Some(&fuzzy_match) = bucket.iter().filter(|&&id| id == fuzzy_match).next() {
+                let fuzzy_match =
+                    self.get_bucket_with_fuzzy_match(fuzzy_match).into_iter().flat_map(|b| b.iter().find(|&&id| id == fuzzy_match)).next();
+
+                if let Some(&fuzzy_match) = fuzzy_match {
                     return Some(fuzzy_match);
                 }
             }
@@ -438,7 +446,8 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
                 // We can also break early while iterating through the buckets, take advantage of that.
                 // certain iterations might actually be able to be combined together too
 
-                fuzzy_matches.extend(bucket.iter().filter(|&&id| id == fuzzy_match));
+                fuzzy_matches
+                    .extend(self.get_bucket_with_fuzzy_match(fuzzy_match).into_iter().flat_map(|b| b.iter().find(|&&id| id == fuzzy_match)).next());
             }
 
             // TODO: Benchmark if parallelizing the search here would make it more efficient.
@@ -604,8 +613,8 @@ mod test {
 
     #[test]
     fn snowflake_len_test() {
-        assert_eq!(snowflake_len(861128391953352906), 18);
-        assert_eq!(snowflake_len(83919533), 8);
+        assert_eq!(base10_len(861128391953352906), 18);
+        assert_eq!(base10_len(83919533), 8);
 
         let mut rand = rand_pcg::Pcg64Mcg::seed_from_u64(123863);
 
@@ -618,10 +627,10 @@ mod test {
 
                 assert_eq!(
                     len,
-                    snowflake_len(random_id as Id),
+                    base10_len(random_id as Id),
                     "Snowflake len test failed. Length of snowflake: {len}. \
                      Got length: {}. The snowflake was {}",
-                    snowflake_len(random_id as Id),
+                    base10_len(random_id as Id),
                     random_id as Id
                 );
             }
@@ -862,11 +871,11 @@ mod test {
     fn create_buckets_test() {
         let buckets = SnowflakeIdSearchEngine::<2>::create_buckets(67_000, 20);
 
-        assert_eq!(buckets.len(), 4096);
+        assert_eq!(buckets.len(), 4097);
 
         let buckets_2 = SnowflakeIdSearchEngine::<2>::create_buckets(250_000, 10);
 
-        assert_eq!(buckets_2.len(), 32768);
+        assert_eq!(buckets_2.len(), 32769);
 
         for bucket in buckets {
             assert!(bucket.capacity() >= (20f64 * INITIAL_CAPACITY_FACTOR) as usize);
@@ -929,7 +938,7 @@ mod test {
 
                 assert_eq!(
                     idx as u64,
-                    (id << (TIMESTAMP_SIZE as u64 - idx_len)) >> (Id::BITS as u64 - idx_len),
+                    (id << (TIMESTAMP_BASE2_SIZE as u64 - idx_len)) >> (Id::BITS as u64 - idx_len),
                     "{id} was in the wrong bucket. Was in bucket {idx}"
                 )
             }
@@ -1162,5 +1171,36 @@ mod test {
         );
 
         assert_sorted_without_duplicates(&search_engine);
+    }
+
+    #[test]
+    fn find_fuzzy_matches_test() {
+        let mut engine = SnowflakeIdSearchEngine::<2>::new();
+
+        engine.add_id(367538590520967181);
+        engine.add_id(155422817540767745);
+        engine.add_id(67538590520967181);
+        engine.add_id(36753859052096718);
+        engine.add_id(808377026330492941);
+
+        // the bits we use for the bucket index won't be right if there are left wildcards because the bits we use will be shifted in base 10, how do we fix this?
+        // even right wildcards might be able to shift the bits? is this possible
+        // eg: 67538590520967181 isn't in the same bucket as 36753859052096718 and 367538590520967181
+        // naive solution involves duplicating the IDs to all buckets possible, but this takes more memory and also means we have to rework a lot of existing code
+        // which assumes the load factor is based on len or in extend, where len is calculated based on total number of elements in vecs, because len will no longer line up
+        // with the number of elements in the vectors.
+        // do we base bucket indices off of base 10 digits instead? what're the consequences of this?
+        // can we still use base 2 bits somehow? because our bucket count depends on that
+
+        assert_eq!(engine.find_fuzzy_matches(675385905209671), vec![36753859052096718, 67538590520967181, 367538590520967181]);
+        assert_eq!(engine.find_fuzzy_matches(538590520967181), vec![67538590520967181]);
+        assert_eq!(engine.find_fuzzy_matches(155422817540767745), vec![155422817540767745]);
+
+        // do a leading 0 test on 808377026330492941 with strings and also try finding fuzzy matches of non existent things, like 0 with a bunch of leading zeros, or low numbers
+    }
+
+    #[test]
+    fn find_fuzzy_match_test() {
+        //
     }
 }
