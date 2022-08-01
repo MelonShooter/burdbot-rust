@@ -62,7 +62,7 @@ pub async fn on_voice_state_update(new_state: &VoiceState, context: &Context) {
     }
 
     if let Some(member) = &new_state.member {
-        if member.user.id.as_u64() != context.cache.current_user_id().await.as_u64() {
+        if member.user.id != context.cache.current_user_id() {
             return;
         }
     } else {

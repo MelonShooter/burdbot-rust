@@ -1,6 +1,6 @@
 [package]
 name = "burdbot"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["DELIBURD"]
 edition = "2021"
 license = "MIT"
@@ -34,7 +34,7 @@ strum = "0.24"
 strum_macros = "0.24"
 base64 = "0.13"
 thiserror = "1"
-songbird = {version = "0.2", optional = true}
+songbird = {version = "0.3", optional = true}
 
 [dev-dependencies]
 rand_pcg = "0.3"

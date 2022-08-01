@@ -41,7 +41,7 @@ use tokio::time;
 #[cfg(feature = "songbird")]
 use {
     songbird::driver::DecodeMode,
-    songbird::{Config, SerenityInit, Songbird},
+    songbird::{Config, SerenityInit},
 };
 
 #[cfg(feature = "songbird")]
