@@ -162,7 +162,7 @@ checksum = "37ccbd214614c6783386c1af30caf03192f17891059cecc394b4fb119e363de3"
 
 [[package]]
 name = "burdbot"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "async-ctrlc",
  "base64",

@@ -1,9 +1,15 @@
+use std::time::Duration;
+
 use futures::join;
+use log::info;
 use serenity::async_trait;
+use serenity::client::bridge::gateway::ChunkGuildFilter;
 use serenity::client::{Context, EventHandler};
 use serenity::model::channel::Message;
+use serenity::model::guild::Guild;
 use serenity::model::id::GuildId;
 use serenity::model::prelude::{Ready, VoiceState};
+use tokio::time;
 
 use crate::commands::vocaroo;
 use crate::logger;
@@ -23,6 +29,23 @@ use {
 
 pub struct BurdBotEventHandler;
 
+async fn chunk_guilds(ctx: &Context, guilds: &[GuildId]) {
+    for guild in guilds {
+        let get_unknowns = |g: &Guild| g.member_count - g.members.len() as u64;
+
+        if let Some(left @ 1..) = ctx.cache.guild_field(guild, get_unknowns) {
+            info!("Chunking {guild}... {left} users left.");
+            ctx.shard.chunk_guild(*guild, None, ChunkGuildFilter::None, None);
+
+            while let Some(1..) = ctx.cache.guild_field(guild, get_unknowns) {
+                time::sleep(Duration::from_millis(300)).await;
+            }
+
+            info!("Finished chunking {guild}...");
+        }
+    }
+}
+
 #[async_trait]
 impl EventHandler for BurdBotEventHandler {
     async fn ready(&self, context: Context, _ready: Ready) {
@@ -39,7 +62,9 @@ impl EventHandler for BurdBotEventHandler {
         join!(spanish_english::on_message_receive(&ctx, &new_message), vocaroo::on_message_received(&ctx, &new_message));
     }
 
-    async fn cache_ready(&self, context: Context, _guilds: Vec<GuildId>) {
+    async fn cache_ready(&self, context: Context, guilds: Vec<GuildId>) {
+        chunk_guilds(&context, guilds.as_slice()).await;
+
         crate::on_cache_ready(&context);
 
         join!(spanish_english::on_cache_ready(&context), logger::on_cache_ready(&context));
