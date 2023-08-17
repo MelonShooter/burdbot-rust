@@ -3,7 +3,9 @@ use std::fmt::Debug;
 use std::ops::DerefMut;
 use std::sync::Mutex;
 
+use base64::engine::general_purpose;
 use base64::DecodeError;
+use base64::Engine;
 use lazy_static::lazy_static;
 use log::error;
 use petgraph::algo;
@@ -255,7 +257,7 @@ fn get_language_recording(captures: Captures, regex: &'static str, language: Lan
 
     let country = country.parse::<Country>()?;
 
-    let decoded_bytes = base64::decode(url_base64_data.as_str())?;
+    let decoded_bytes = general_purpose::STANDARD.decode(url_base64_data.as_str())?;
     let decoded_link = String::from_utf8(decoded_bytes)?;
 
     Ok(ForvoRecording::new(country, format!("https://forvo.com/mp3/{}", decoded_link), language))

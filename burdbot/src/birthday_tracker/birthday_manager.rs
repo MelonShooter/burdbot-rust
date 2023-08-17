@@ -48,7 +48,7 @@ pub async fn add_birthday_to_db(ctx: &Context, channel_id: ChannelId, bday_info:
     let user_id = bday_info.user_id;
     let channel_selector = |channel: &GuildChannel| *channel.guild_id.as_u64();
     let guild_id = ctx.cache.guild_channel_field(channel_id, channel_selector).unwrap();
-    let bday_date_naive_local = NaiveDate::from_ymd(2021, bday_info.month, bday_info.day).and_hms(0, 0, 0);
+    let bday_date_naive_local = NaiveDate::from_ymd_opt(2021, bday_info.month, bday_info.day).unwrap().and_hms_opt(0, 0, 0).unwrap();
     let bday_date_naive_utc = bday_date_naive_local - Duration::hours(bday_info.time_zone);
     let bday_date_time = BirthdayDateTime::new(bday_date_naive_utc.month(), bday_date_naive_utc.day(), bday_date_naive_utc.hour());
     let rows_changed = connection.execute(ins_stmt_str, params!(user_id, guild_id, bday_date_time))?;
@@ -133,7 +133,7 @@ pub async fn get_birthday(ctx: &Context, channel_id: ChannelId, user_id: u64) ->
             .send_message(&ctx.http, |msg| {
                 msg.embed(|embed| {
                     let now = Utc::now();
-                    let naive_timestamp = NaiveDate::from_ymd(now.year(), bday.month, bday.day).and_hms(bday.hour, 0, 0);
+                    let naive_timestamp = NaiveDate::from_ymd_opt(now.year(), bday.month, bday.day).unwrap().and_hms_opt(bday.hour, 0, 0).unwrap();
                     let mut time_stamp = DateTime::<Utc>::from_utc(naive_timestamp, Utc);
 
                     if time_stamp < now {
