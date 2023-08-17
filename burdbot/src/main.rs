@@ -8,7 +8,6 @@ mod commands;
 mod error;
 mod event_handler;
 mod logger;
-mod secret;
 mod spanish_english;
 mod util;
 
@@ -33,6 +32,7 @@ use serenity::prelude::{GatewayIntents, Mutex};
 use serenity::Client;
 use simplelog::{CombinedLogger, ConfigBuilder, WriteLogger};
 use std::collections::HashSet;
+use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
@@ -47,6 +47,7 @@ use {
 #[cfg(feature = "songbird")]
 pub(crate) const IS_SESSION_TRACKER_ENABLED: bool = false;
 
+pub(crate) const BURDBOT_TOKEN_NAME: &str = "BURDBOT_TOKEN";
 pub(crate) const BURDBOT_DB: &str = "burdbot.db";
 pub(crate) const DELIBURD_ID: u64 = 367538590520967181;
 pub(crate) const PREFIX: &str = ",";
@@ -175,8 +176,10 @@ async fn main() {
 
     create_sql_tables();
 
+    let token = env::var(BURDBOT_TOKEN_NAME).unwrap();
+
     #[cfg(feature = "songbird")]
-    let mut client = Client::builder(secret::TOKEN, GatewayIntents::all())
+    let mut client = Client::builder(token, GatewayIntents::all())
         .framework(framework)
         .event_handler(BurdBotEventHandler)
         .register_songbird_from_config(songbird_config)
@@ -184,11 +187,8 @@ async fn main() {
         .expect("Couldn't build client.");
 
     #[cfg(not(feature = "songbird"))]
-    let mut client = Client::builder(secret::TOKEN, GatewayIntents::all())
-        .framework(framework)
-        .event_handler(BurdBotEventHandler)
-        .await
-        .expect("Couldn't build client.");
+    let mut client =
+        Client::builder(token, GatewayIntents::all()).framework(framework).event_handler(BurdBotEventHandler).await.expect("Couldn't build client.");
 
     let cache_and_http = &client.cache_and_http;
     let shard_manager = client.shard_manager.clone();
