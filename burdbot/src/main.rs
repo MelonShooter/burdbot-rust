@@ -92,9 +92,6 @@ fn create_sql_tables() {
         CREATE INDEX IF NOT EXISTS bday_date_index
             on bday (bday_date);
 
-        CREATE INDEX IF NOT EXISTS bday_over_date_index
-            on bday_user_list (bday_over_date);
-
         CREATE INDEX IF NOT EXISTS staff_log_index
             on staff_logs (user_id);
     ";
