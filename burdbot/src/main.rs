@@ -73,6 +73,12 @@ fn create_sql_tables() {
             bday_date TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS bday_user_list (
+            user_id INTEGER,
+            bday_over_date TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES bday(user_id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS bday_role_list (
             guild_id INTEGER PRIMARY KEY,
             role_id INTEGER NOT NULL
