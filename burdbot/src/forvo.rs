@@ -43,7 +43,11 @@ pub struct ForvoRegexCaptureError {
 }
 
 impl ForvoRegexCaptureError {
-    pub fn new(regex_str: &'static str, capture_group_idx: usize, capture_type: ForvoCaptureType) -> Self {
+    pub fn new(
+        regex_str: &'static str,
+        capture_group_idx: usize,
+        capture_type: ForvoCaptureType,
+    ) -> Self {
         Self { regex_str, capture_group_idx, capture_type }
     }
 }
@@ -76,7 +80,7 @@ impl From<ForvoRegexCaptureError> for ForvoError {
 
 lazy_static! {
     static ref FORVO_CLIENT: Client = Client::new();
-    static ref COUNTRY_GRAPH: UnGraph<Country, u32> = UnGraph::from_edges(&[
+    static ref COUNTRY_GRAPH: UnGraph<Country, u32> = UnGraph::from_edges([
         (Country::Argentina, Country::Uruguay, 1),
         (Country::Argentina, Country::Chile, 3),
         (Country::Argentina, Country::Peru, 3),
@@ -121,57 +125,138 @@ enum Language {
     Unknown,
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, EnumIter, EnumString, EnumProperty)]
+#[derive(Debug, Default, Hash, PartialEq, Eq, Clone, Copy, EnumIter, EnumString, EnumProperty)]
 pub enum Country {
-    #[strum(serialize = "🇦🇷", serialize = "Argentina", props(flag = "🇦🇷", index = "0", language = "s"))]
+    #[strum(
+        serialize = "🇦🇷",
+        serialize = "Argentina",
+        props(flag = "🇦🇷", index = 0, language = "s")
+    )]
+    #[default]
     Argentina,
-    #[strum(serialize = "🇺🇾", serialize = "Uruguay", props(flag = "🇺🇾", index = "1", language = "s"))]
+    #[strum(
+        serialize = "🇺🇾",
+        serialize = "Uruguay",
+        props(flag = "🇺🇾", index = 1, language = "s")
+    )]
     Uruguay,
-    #[strum(serialize = "🇨🇱", serialize = "Chile", props(flag = "🇨🇱", index = "2", language = "s"))]
+    #[strum(serialize = "🇨🇱", serialize = "Chile", props(flag = "🇨🇱", index = 2, language = "s"))]
     Chile,
-    #[strum(serialize = "🇵🇪", serialize = "Peru", props(flag = "🇵🇪", index = "3", language = "s"))]
+    #[strum(serialize = "🇵🇪", serialize = "Peru", props(flag = "🇵🇪", index = 3, language = "s"))]
     Peru,
-    #[strum(serialize = "🇧🇴", serialize = "Bolivia", props(flag = "🇧🇴", index = "4", language = "s"))]
+    #[strum(
+        serialize = "🇧🇴",
+        serialize = "Bolivia",
+        props(flag = "🇧🇴", index = 4, language = "s")
+    )]
     Bolivia,
-    #[strum(serialize = "🇵🇾", serialize = "Paraguay", props(flag = "🇵🇾", index = "5", language = "s"))]
+    #[strum(
+        serialize = "🇵🇾",
+        serialize = "Paraguay",
+        props(flag = "🇵🇾", index = 5, language = "s")
+    )]
     Paraguay,
-    #[strum(serialize = "🇪🇨", serialize = "Ecuador", props(flag = "🇪🇨", index = "6", language = "s"))]
+    #[strum(
+        serialize = "🇪🇨",
+        serialize = "Ecuador",
+        props(flag = "🇪🇨", index = 6, language = "s")
+    )]
     Ecuador,
-    #[strum(serialize = "🇨🇴", serialize = "Colombia", props(flag = "🇨🇴", index = "7", language = "s"))]
+    #[strum(
+        serialize = "🇨🇴",
+        serialize = "Colombia",
+        props(flag = "🇨🇴", index = 7, language = "s")
+    )]
     Colombia,
-    #[strum(serialize = "🇻🇪", serialize = "Venezuela", props(flag = "🇻🇪", index = "8", language = "s"))]
+    #[strum(
+        serialize = "🇻🇪",
+        serialize = "Venezuela",
+        props(flag = "🇻🇪", index = 8, language = "s")
+    )]
     Venezuela,
-    #[strum(serialize = "🇵🇦", serialize = "Panama", props(flag = "🇵🇦", index = "9", language = "s"))]
+    #[strum(serialize = "🇵🇦", serialize = "Panama", props(flag = "🇵🇦", index = 9, language = "s"))]
     Panama,
-    #[strum(serialize = "🇨🇷", serialize = "Costa Rica", props(flag = "🇨🇷", index = "10", language = "s"))]
+    #[strum(
+        serialize = "🇨🇷",
+        serialize = "Costa Rica",
+        props(flag = "🇨🇷", index = 10, language = "s")
+    )]
     CostaRica,
-    #[strum(serialize = "🇸🇻", serialize = "El Salvador", props(flag = "🇸🇻", index = "11", language = "s"))]
+    #[strum(
+        serialize = "🇸🇻",
+        serialize = "El Salvador",
+        props(flag = "🇸🇻", index = 11, language = "s")
+    )]
     ElSalvador,
-    #[strum(serialize = "🇳🇮", serialize = "Nicaragua", props(flag = "🇳🇮", index = "12", language = "s"))]
+    #[strum(
+        serialize = "🇳🇮",
+        serialize = "Nicaragua",
+        props(flag = "🇳🇮", index = 12, language = "s")
+    )]
     Nicaragua,
-    #[strum(serialize = "🇬🇹", serialize = "Guatemala", props(flag = "🇬🇹", index = "13", language = "s"))]
+    #[strum(
+        serialize = "🇬🇹",
+        serialize = "Guatemala",
+        props(flag = "🇬🇹", index = 13, language = "s")
+    )]
     Guatemala,
-    #[strum(serialize = "🇭🇳", serialize = "Honduras", props(flag = "🇭🇳", index = "14", language = "s"))]
+    #[strum(
+        serialize = "🇭🇳",
+        serialize = "Honduras",
+        props(flag = "🇭🇳", index = 14, language = "s")
+    )]
     Honduras,
-    #[strum(serialize = "🇲🇽", serialize = "Mexico", props(flag = "🇲🇽", index = "15", language = "s"))]
+    #[strum(
+        serialize = "🇲🇽",
+        serialize = "Mexico",
+        props(flag = "🇲🇽", index = 15, language = "s")
+    )]
     Mexico,
-    #[strum(serialize = "🇨🇺", serialize = "Cuba", props(flag = "🇨🇺", index = "16", language = "s"))]
+    #[strum(serialize = "🇨🇺", serialize = "Cuba", props(flag = "🇨🇺", index = 16, language = "s"))]
     Cuba,
-    #[strum(serialize = "🇩🇴", serialize = "Dominican Republic", props(flag = "🇩🇴", index = "17", language = "s"))]
+    #[strum(
+        serialize = "🇩🇴",
+        serialize = "Dominican Republic",
+        props(flag = "🇩🇴", index = 17, language = "s")
+    )]
     DominicanRepublic,
-    #[strum(serialize = "🇪🇸", serialize = "Spain", props(flag = "🇪🇸", index = "18", language = "s"))]
+    #[strum(serialize = "🇪🇸", serialize = "Spain", props(flag = "🇪🇸", index = 18, language = "s"))]
     Spain,
-    #[strum(serialize = "🇺🇸", serialize = "United States", props(flag = "🇺🇸", index = "19", language = "e"))]
+    #[strum(
+        serialize = "🇺🇸",
+        serialize = "United States",
+        props(flag = "🇺🇸", index = 19, language = "e")
+    )]
     UnitedStates,
-    #[strum(serialize = "🇨🇦", serialize = "Canada", props(flag = "🇨🇦", index = "20", language = "e"))]
+    #[strum(
+        serialize = "🇨🇦",
+        serialize = "Canada",
+        props(flag = "🇨🇦", index = 20, language = "e")
+    )]
     Canada,
-    #[strum(serialize = "🇬🇧", serialize = "United Kingdom", props(flag = "🇬🇧", index = "21", language = "e"))]
+    #[strum(
+        serialize = "🇬🇧",
+        serialize = "United Kingdom",
+        props(flag = "🇬🇧", index = 21, language = "e")
+    )]
     UnitedKingdom,
-    #[strum(serialize = "🇮🇪", serialize = "Ireland", props(flag = "🇮🇪", index = "22", language = "e"))]
+    #[strum(
+        serialize = "🇮🇪",
+        serialize = "Ireland",
+        props(flag = "🇮🇪", index = 22, language = "e")
+    )]
     Ireland,
-    #[strum(serialize = "🇦🇺", serialize = "Australia", props(flag = "🇦🇺", index = "23", language = "e"))]
+    #[strum(
+        serialize = "🇦🇺",
+        serialize = "Australia",
+        props(flag = "🇦🇺", index = 23, language = "e")
+    )]
     Australia,
-    #[strum(serialize = "🇳🇿", serialize = "New Zealand", props(flag = "🇳🇿", index = "24", language = "e"))]
+    #[strum(
+        serialize = "🇳🇿",
+        serialize = "New Zealand",
+        props(flag = "🇳🇿", index = 24, language = "e")
+    )]
     NewZealand,
 }
 
@@ -194,7 +279,8 @@ impl Display for Country {
         match self.get_str("flag") {
             Some(flag) => write!(f, "{flag}"),
             None => {
-                error!("Error encountered in the forvo module, Display::fmt(): Couldn't find flag for {self}.");
+                error!("Error encountered in the forvo module, Display::fmt(): Couldn't find flag for country idx {:?}.",
+                       self.get_int("index"));
 
                 write!(f, "UNDEFINED FLAG")
             },
@@ -204,16 +290,8 @@ impl Display for Country {
 
 impl From<Country> for NodeIndex {
     fn from(country: Country) -> Self {
-        let index = match country.get_str("index").map(|index| index.parse()) {
-            Some(Ok(num)) => num,
-            Some(Err(err)) => {
-                error!(
-                    "Error encountered in the forvo module, Display::fmt(): Couldn't convert the Country {country} to a node index: {err}. \
-                     Setting index to the max default node index..."
-                );
-
-                return NodeIndex::<DefaultIx>::end();
-            },
+        let index = match country.get_int("index") {
+            Some(num) => num,
             None => {
                 error!(
                     "Error encountered in the forvo module, Display::fmt(): Couldn't convert the Country {country} to a node index: \
@@ -224,13 +302,7 @@ impl From<Country> for NodeIndex {
             },
         };
 
-        NodeIndex::new(index)
-    }
-}
-
-impl Default for Country {
-    fn default() -> Self {
-        Country::Argentina
+        NodeIndex::new(index as usize)
     }
 }
 
@@ -247,12 +319,27 @@ impl ForvoRecording {
     }
 }
 
-fn get_language_recording(captures: Captures, regex: &'static str, language: Language) -> PossibleForvoRecording {
-    let url_base64_data =
-        captures.get(1).ok_or_else(|| ForvoError::BadBase64RegexMatching(ForvoRegexCaptureError::new(regex, 1, ForvoCaptureType::Base64)))?;
+fn get_language_recording(
+    captures: Captures,
+    regex: &'static str,
+    language: Language,
+) -> PossibleForvoRecording {
+    let url_base64_data = captures.get(1).ok_or_else(|| {
+        ForvoError::BadBase64RegexMatching(ForvoRegexCaptureError::new(
+            regex,
+            1,
+            ForvoCaptureType::Base64,
+        ))
+    })?;
     let country = captures
         .get(2)
-        .ok_or_else(|| ForvoError::BadCountryRegexMatching(ForvoRegexCaptureError::new(regex, 2, ForvoCaptureType::Country)))?
+        .ok_or_else(|| {
+            ForvoError::BadCountryRegexMatching(ForvoRegexCaptureError::new(
+                regex,
+                2,
+                ForvoCaptureType::Country,
+            ))
+        })?
         .as_str();
 
     let country = country.parse::<Country>()?;
@@ -264,9 +351,13 @@ fn get_language_recording(captures: Captures, regex: &'static str, language: Lan
 }
 
 /// Gets language recordings for a given language
-fn get_language_recordings(entries: &ElementRef, language: Language) -> Vec<PossibleForvoRecording> {
+fn get_language_recordings(
+    entries: &ElementRef,
+    language: Language,
+) -> Vec<PossibleForvoRecording> {
     lazy_static! {
-        static ref FORVO_HTML_MATCHER: Regex = Regex::new(r"(?s)Play\(\d+,'(\w+=*).*?'h'\);return.*? from ([a-zA-Z ]+)").unwrap();
+        static ref FORVO_HTML_MATCHER: Regex =
+            Regex::new(r"(?s)Play\(\d+,'(\w+=*).*?'h'\);return.*? from ([a-zA-Z ]+)").unwrap();
     }
 
     FORVO_HTML_MATCHER
@@ -276,9 +367,13 @@ fn get_language_recordings(entries: &ElementRef, language: Language) -> Vec<Poss
 }
 
 /// Possible for outer vec to be empty, techinically not possible for inner vec to be empty, but take it into account anyways
-async fn get_all_recordings(term: &str, requested_country: Option<Country>) -> Result<Vec<Vec<PossibleForvoRecording>>> {
+async fn get_all_recordings(
+    term: &str,
+    requested_country: Option<Country>,
+) -> Result<Vec<Vec<PossibleForvoRecording>>> {
     lazy_static! {
-        static ref LANGUAGE_CONTAINER_SELECTOR: Selector = Selector::parse("div.language-container").expect("Bad CSS selector.");
+        static ref LANGUAGE_CONTAINER_SELECTOR: Selector =
+            Selector::parse("div.language-container").expect("Bad CSS selector.");
     }
 
     let url = format!("https://forvo.com/word/{}/", term);
@@ -291,10 +386,14 @@ async fn get_all_recordings(term: &str, requested_country: Option<Country>) -> R
     };
 
     Ok(document
-        .select(&*LANGUAGE_CONTAINER_SELECTOR)
+        .select(&LANGUAGE_CONTAINER_SELECTOR)
         .filter_map(|e| match (e.value().id(), do_spanish, do_english) {
-            (Some("language-container-es"), true, _) => Some(get_language_recordings(&e, Language::Spanish)),
-            (Some("language-container-en"), _, true) => Some(get_language_recordings(&e, Language::English)),
+            (Some("language-container-es"), true, _) => {
+                Some(get_language_recordings(&e, Language::Spanish))
+            },
+            (Some("language-container-en"), _, true) => {
+                Some(get_language_recordings(&e, Language::English))
+            },
             _ => None,
         })
         .collect())
@@ -304,7 +403,11 @@ async fn get_pronunciation_from_link(forvo_recording: &str) -> reqwest::Result<V
     Ok(FORVO_CLIENT.get(forvo_recording).send().await?.bytes().await?.to_vec())
 }
 
-fn recording_to_distance<T>(recording: &ForvoRecording, input_country: Option<Country>, accent_differences: &mut T) -> u32
+fn recording_to_distance<T>(
+    recording: &ForvoRecording,
+    input_country: Option<Country>,
+    accent_differences: &mut T,
+) -> u32
 where
     T: DerefMut<Target = HashMap<(Country, Country), u32>>,
 {
@@ -323,7 +426,8 @@ where
     let dist = match accent_differences.get(&(country, recording.country)) {
         Some(&distance) => distance,
         None => {
-            let distance_map = algo::dijkstra(&*COUNTRY_GRAPH, country.into(), None, |e| *e.weight());
+            let distance_map =
+                algo::dijkstra(&*COUNTRY_GRAPH, country.into(), None, |e| *e.weight());
             let mut recording_distance: Option<u32> = None;
 
             for (node_idx, distance) in distance_map {
@@ -365,17 +469,29 @@ pub struct RecordingData<'a> {
 
 impl<'a> RecordingData<'a> {
     fn new(recording: ForvoRecording, term: &'a str) -> Self {
-        Self { country: recording.country, term, recording_link: recording.recording_link, recording: None }
+        Self {
+            country: recording.country,
+            term,
+            recording_link: recording.recording_link,
+            recording: None,
+        }
     }
 
     pub async fn get_recording(&mut self) -> Result<(&[u8], Country, &str)> {
-        let recording = self.recording.get_or_insert(get_pronunciation_from_link(self.recording_link.as_str()).await?);
+        let recording = self
+            .recording
+            .get_or_insert(get_pronunciation_from_link(self.recording_link.as_str()).await?);
 
         Ok((recording, self.country, self.term))
     }
 }
 
-fn is_closer<T>(first: &ForvoRecording, second: &ForvoRecording, country: Option<Country>, accent_map: &mut T) -> bool
+fn is_closer<T>(
+    first: &ForvoRecording,
+    second: &ForvoRecording,
+    country: Option<Country>,
+    accent_map: &mut T,
+) -> bool
 where
     T: DerefMut<Target = HashMap<(Country, Country), u32>>,
 {
@@ -384,7 +500,8 @@ where
         return true;
     }
 
-    recording_to_distance(first, country, accent_map) < recording_to_distance(second, country, accent_map)
+    recording_to_distance(first, country, accent_map)
+        < recording_to_distance(second, country, accent_map)
 }
 
 fn possible_recordings_to_data(
@@ -426,10 +543,15 @@ fn possible_recordings_to_data(
 }
 
 /// Document so closest recordings for english and spanish depending on circumstances are provided, but so are failed recordings
-pub async fn fetch_pronunciation(term: &str, requested_country: Option<Country>) -> Result<Vec<Result<RecordingData<'_>>>> {
+pub async fn fetch_pronunciation(
+    term: &str,
+    requested_country: Option<Country>,
+) -> Result<Vec<Result<RecordingData<'_>>>> {
     Ok(get_all_recordings(term, requested_country)
         .await?
         .into_iter()
-        .flat_map(|possible_recordings| possible_recordings_to_data(term, requested_country, possible_recordings))
+        .flat_map(|possible_recordings| {
+            possible_recordings_to_data(term, requested_country, possible_recordings)
+        })
         .collect())
 }

@@ -3,7 +3,6 @@ use serenity::model::Permissions;
 
 use std::collections::HashMap;
 use std::time::Duration;
-use std::u32;
 
 use serenity::framework::standard::{Args, CommandResult};
 
@@ -25,8 +24,20 @@ use crate::error::SerenitySQLiteError;
 use crate::util;
 
 pub const MONTH_TO_DAYS: [i64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-pub const MONTH_TO_NAME: [&str; 12] =
-    ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+pub const MONTH_TO_NAME: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
 
 pub struct BirthdayInfoConfirmation {
     pub user_id: u64,
@@ -38,7 +49,14 @@ pub struct BirthdayInfoConfirmation {
 }
 
 impl BirthdayInfoConfirmation {
-    pub fn new(user_id: u64, month: u32, day: u32, time_zone: i64, handle: JoinHandle<()>, is_privileged: bool) -> BirthdayInfoConfirmation {
+    pub fn new(
+        user_id: u64,
+        month: u32,
+        day: u32,
+        time_zone: i64,
+        handle: JoinHandle<()>,
+        is_privileged: bool,
+    ) -> BirthdayInfoConfirmation {
         BirthdayInfoConfirmation { user_id, month, day, time_zone, is_privileged, handle }
     }
 }
@@ -70,7 +88,7 @@ async fn setmybirthday(context: &Context, message: &Message, mut args: Args) -> 
     let is_privileged_option = permissions.map(Permissions::manage_roles);
 
     if let Some(is_privileged) = is_privileged_option {
-        set_birthday(context, message, args, message.author.id.0, is_privileged).await
+        set_birthday(context, message, args, message.author.id.get(), is_privileged).await
     } else {
         Ok(())
     }
@@ -94,10 +112,16 @@ async fn setuserbirthday(context: &Context, message: &Message, mut args: Args) -
     let arg_info = ArgumentInfo::new(&mut args, 1, 4);
     let member = argument_parser::parse_member(context, message, arg_info).await?;
 
-    set_birthday(context, message, args, member.user.id.0, true).await
+    set_birthday(context, message, args, member.user.id.get(), true).await
 }
 
-async fn set_birthday(context: &Context, message: &Message, mut args: Args, target_id: u64, is_privileged: bool) -> CommandResult {
+async fn set_birthday(
+    context: &Context,
+    message: &Message,
+    mut args: Args,
+    target_id: u64,
+    is_privileged: bool,
+) -> CommandResult {
     args.quoted();
 
     let month_arg_info = BoundedArgumentInfo::new(&mut args, 1, 3, 1, 12);
@@ -109,7 +133,8 @@ async fn set_birthday(context: &Context, message: &Message, mut args: Args, targ
     let day = argument_parser::parse_bounded_arg(context, message, day_arg_info).await? as u32;
 
     let time_zone_arg_info = BoundedArgumentInfo::new(&mut args, 3, 3, -11, 14);
-    let time_zone = argument_parser::parse_bounded_arg(context, message, time_zone_arg_info).await?;
+    let time_zone =
+        argument_parser::parse_bounded_arg(context, message, time_zone_arg_info).await?;
 
     {
         let mut data = context.data.write().await;
@@ -158,21 +183,24 @@ async fn set_birthday(context: &Context, message: &Message, mut args: Args, targ
 
     let ctx_data = context.data.clone();
     let ctx_http = context.http.clone();
-    let author_id = *message.author.id.as_u64();
+    let author_id = message.author.id.get();
     let handle = tokio::spawn(async move {
         sleep(Duration::from_millis(30000)).await;
 
         let data = ctx_data.read().await;
-        let mut birthday_info_map = data.get::<BirthdayInfoConfirmationKey>().unwrap().write().await;
+        let mut birthday_info_map =
+            data.get::<BirthdayInfoConfirmationKey>().unwrap().write().await;
 
-        util::send_message(&ctx_http, channel_id, "Add birthday request expired.", "setbirthday").await;
+        util::send_message(&ctx_http, channel_id, "Add birthday request expired.", "setbirthday")
+            .await;
 
         birthday_info_map.remove(&author_id);
     });
 
     let data = context.data.read().await;
     let mut birthday_info_map = data.get::<BirthdayInfoConfirmationKey>().unwrap().write().await;
-    let info = BirthdayInfoConfirmation::new(target_id, month, day, time_zone, handle, is_privileged);
+    let info =
+        BirthdayInfoConfirmation::new(target_id, month, day, time_zone, handle, is_privileged);
 
     if let Some(old_info) = birthday_info_map.insert(author_id, info) {
         old_info.handle.abort(); // Abort the old timed remove.
@@ -194,13 +222,21 @@ async fn birthdayconfirm(context: &Context, message: &Message) -> CommandResult 
     if let Some(birthday_info_map_lock) = birthday_info_map_lock_option {
         birthday_info_map = birthday_info_map_lock.read().await;
 
-        if let Some(info) = birthday_info_map.get(message.author.id.as_u64()) {
+        if let Some(info) = birthday_info_map.get(&message.author.id.get()) {
             info.handle.abort(); // Abort the request expired message
 
-            if let Err(error) = add_birthday_to_db(context, message.channel_id, info).await {
+            if let Err(error) =
+                add_birthday_to_db(context, message.guild_id.unwrap(), message.channel_id, info)
+                    .await
+            {
                 match error {
-                    SerenitySQLiteError::SerenityError(errors) => error!("Serenity error while adding birthday to db: {}", errors.serenity_errors[0]),
-                    SerenitySQLiteError::SQLiteError(error) => error!("SQLite error while adding birthday to db: {}", error),
+                    SerenitySQLiteError::SerenityError(errors) => error!(
+                        "Serenity error while adding birthday to db: {}",
+                        errors.serenity_errors[0]
+                    ),
+                    SerenitySQLiteError::SQLiteError(error) => {
+                        error!("SQLite error while adding birthday to db: {}", error)
+                    },
                 }
 
                 error_util::generic_fail(context, message.channel_id).await;
@@ -225,7 +261,9 @@ async fn birthdayconfirm(context: &Context, message: &Message) -> CommandResult 
 #[command]
 #[only_in("guilds")]
 #[required_permissions(MANAGE_ROLES)]
-#[description("Removes a user's birthday so that they don't get any special roles on the configured day.")]
+#[description(
+    "Removes a user's birthday so that they don't get any special roles on the configured day."
+)]
 #[usage("<USER>")]
 #[example("367538590520967181")]
 #[example("DELIBURD#7741")]
@@ -233,8 +271,8 @@ async fn birthdayconfirm(context: &Context, message: &Message) -> CommandResult 
 #[bucket("db_operations")]
 async fn removeuserbirthday(context: &Context, message: &Message, mut args: Args) -> CommandResult {
     let arg_info = ArgumentInfo::new(&mut args, 1, 1);
-    let user_id = argument_parser::parse_member(context, message, arg_info).await?.user.id.0;
-    let guild_id = message.guild_id.unwrap().0;
+    let user_id = argument_parser::parse_member(context, message, arg_info).await?.user.id;
+    let guild_id = message.guild_id.unwrap();
 
     birthday_tracker::remove_birthday(context, message.channel_id, guild_id, user_id).await?;
 
@@ -247,7 +285,7 @@ async fn removeuserbirthday(context: &Context, message: &Message, mut args: Args
 #[aliases("getmybday")]
 #[bucket("db_operations")]
 async fn getmybirthday(context: &Context, message: &Message) -> CommandResult {
-    let user_id = message.author.id.0;
+    let user_id = message.author.id.get();
 
     birthday_tracker::get_birthday(context, message.channel_id, user_id).await?;
 
@@ -267,7 +305,7 @@ async fn getuserbirthday(context: &Context, message: &Message, mut args: Args) -
     let arg_info = ArgumentInfo::new(&mut args, 1, 1);
     let member = argument_parser::parse_member(context, message, arg_info).await?;
 
-    birthday_tracker::get_birthday(context, message.channel_id, member.user.id.0).await?;
+    birthday_tracker::get_birthday(context, message.channel_id, member.user.id.get()).await?;
 
     Ok(())
 }
@@ -281,10 +319,14 @@ async fn getuserbirthday(context: &Context, message: &Message, mut args: Args) -
 #[example("@Birthday Role")]
 #[aliases("setserverbdayrole", "setsvbdayrole")]
 #[bucket("very_intense")]
-async fn setserverbirthdayrole(context: &Context, message: &Message, mut args: Args) -> CommandResult {
+async fn setserverbirthdayrole(
+    context: &Context,
+    message: &Message,
+    mut args: Args,
+) -> CommandResult {
     let arg_info = ArgumentInfo::new(&mut args, 1, 1);
-    let role_id = argument_parser::parse_role(context, message, arg_info).await?.0;
-    let guild_id = message.guild_id.unwrap().0;
+    let role_id = argument_parser::parse_role(context, message, arg_info).await?.get();
+    let guild_id = message.guild_id.unwrap().get();
 
     birthday_tracker::set_birthday_role(context, message.channel_id, guild_id, role_id).await?;
 
@@ -298,7 +340,7 @@ async fn setserverbirthdayrole(context: &Context, message: &Message, mut args: A
 #[aliases("getserverbdayrole", "getsvbdayrole")]
 #[bucket("db_operations")]
 async fn getserverbirthdayrole(context: &Context, message: &Message) -> CommandResult {
-    let guild_id = message.guild_id.unwrap().0;
+    let guild_id = message.guild_id.unwrap().get();
 
     birthday_tracker::get_birthday_role(context, message.channel_id, guild_id).await?;
 
@@ -312,9 +354,8 @@ async fn getserverbirthdayrole(context: &Context, message: &Message) -> CommandR
 #[aliases("removeserverbdayrole", "rmserverbdayrole", "removesvbdayrole", "rmsvbdayrole")]
 #[bucket("db_operations")]
 async fn removeserverbirthdayrole(context: &Context, message: &Message) -> CommandResult {
-    let guild_id = message.guild_id.unwrap().0;
-
-    birthday_tracker::remove_birthday_role(context, message.channel_id, guild_id).await?;
+    birthday_tracker::remove_birthday_role(context, message.channel_id, message.guild_id.unwrap())
+        .await?;
 
     Ok(())
 }

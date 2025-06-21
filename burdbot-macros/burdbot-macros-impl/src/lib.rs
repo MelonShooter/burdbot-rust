@@ -26,13 +26,19 @@ use syn::{parse_macro_input, Attribute, Ident, ItemFn};
 
 use proc_macro::TokenStream;
 
-const INCORRECT_EXPR: &str = "The function body should only contain one string literal without a semicolon.";
+const INCORRECT_EXPR: &str =
+    "The function body should only contain one string literal without a semicolon.";
 
 struct CommandModifier;
 
 impl Fold for CommandModifier {
     fn fold_item_fn(&mut self, item_fn: ItemFn) -> ItemFn {
-        let mut item = ItemFn { attrs: item_fn.attrs.clone(), vis: item_fn.vis, sig: item_fn.sig, block: item_fn.block };
+        let mut item = ItemFn {
+            attrs: item_fn.attrs.clone(),
+            vis: item_fn.vis,
+            sig: item_fn.sig,
+            block: item_fn.block,
+        };
         let cmd_name = burdbot_macros_internal::decode_aes(item.sig.ident.to_string());
         let cmd_attr = Attribute {
             pound_token: Token!(#)(Span::call_site()),
@@ -87,7 +93,10 @@ impl Fold for CommandModifier {
     }
 
     fn fold_lit_str(&mut self, str: LitStr) -> LitStr {
-        LitStr::new(burdbot_macros_internal::decode_aes(str.value().as_str()).as_str(), Span::call_site())
+        LitStr::new(
+            burdbot_macros_internal::decode_aes(str.value().as_str()).as_str(),
+            Span::call_site(),
+        )
     }
 }
 
@@ -127,7 +136,10 @@ struct Encoder;
 
 impl Fold for Encoder {
     fn fold_lit_str(&mut self, lit_str: LitStr) -> LitStr {
-        LitStr::new(burdbot_macros_internal::encode_aes(lit_str.value()).as_str(), Span::call_site())
+        LitStr::new(
+            burdbot_macros_internal::encode_aes(lit_str.value()).as_str(),
+            Span::call_site(),
+        )
     }
 }
 

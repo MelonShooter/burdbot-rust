@@ -2,6 +2,7 @@ use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
 use rusqlite::{params, Connection};
+use serenity::all::{CreateEmbedAuthor, CreateEmbedFooter};
 use serenity::builder::{CreateEmbed, CreateMessage};
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
@@ -10,11 +11,13 @@ use serenity::model::channel::Message;
 use serenity::model::guild::Member;
 use serenity::model::id::MessageId;
 use serenity::model::prelude::User;
-use serenity::utils::Color;
+use serenity::model::Color;
 
 use crate::{argument_parser, BURDBOT_DB};
 
-use crate::argument_parser::{ArgumentConversionError, ArgumentInfo, ArgumentParseError, BoundedArgumentInfo, ConversionType};
+use crate::argument_parser::{
+    ArgumentConversionError, ArgumentInfo, ArgumentParseError, BoundedArgumentInfo, ConversionType,
+};
 
 const GONE_WRONG: &str = "Something's gone wrong. <@367538590520967181> has been notified.";
 
@@ -45,7 +48,12 @@ struct Log {
 }
 
 impl Log {
-    fn new(entry_id: i64, original_link: String, last_edited_link: Option<String>, reason: String) -> Log {
+    fn new(
+        entry_id: i64,
+        original_link: String,
+        last_edited_link: Option<String>,
+        reason: String,
+    ) -> Log {
         Log { entry_id, original_link, last_edited_link, reason }
     }
 
@@ -64,8 +72,16 @@ impl Log {
     }
 }
 
-async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, arg_pos: usize, args_needed: usize) -> CommandResult<Member> {
-    let member = argument_parser::parse_member(ctx, msg, ArgumentInfo::new(args, arg_pos, args_needed)).await?;
+async fn parse_staff_log_member(
+    ctx: &Context,
+    msg: &Message,
+    args: &mut Args,
+    arg_pos: usize,
+    args_needed: usize,
+) -> CommandResult<Member> {
+    let member =
+        argument_parser::parse_member(ctx, msg, ArgumentInfo::new(args, arg_pos, args_needed))
+            .await?;
 
     if member.user == msg.author {
         args.rewind();
@@ -76,9 +92,13 @@ async fn parse_staff_log_member(ctx: &Context, msg: &Message, args: &mut Args, a
 
         let reply = "You cannot read or modify your own staff log.";
 
-        msg.channel_id.send_message(ctx, |msg| msg.content(reply)).await?;
+        msg.channel_id.send_message(ctx, CreateMessage::new().content(reply)).await?;
 
-        Err(Box::new(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(arg_pos, arg, ConversionType::NonSelfMember))))
+        Err(Box::new(ArgumentParseError::ArgumentConversionError(ArgumentConversionError::new(
+            arg_pos,
+            arg,
+            ConversionType::NonSelfMember,
+        ))))
     } else {
         Ok(member)
     }
@@ -156,54 +176,50 @@ fn format_field(log: &Log, is_first: bool) -> String {
     }
 }
 
-fn make_staff_log_embed<F>(invoker: &User, message: &mut CreateMessage, member: &Member, func: F) -> i64
+fn make_staff_log_embed<F>(invoker: &User, member: &Member, func: F) -> (Option<i64>, CreateMessage)
 where
-    F: FnOnce(&mut CreateEmbed, i64) -> &mut CreateEmbed,
+    F: FnOnce(CreateEmbed, i64) -> CreateEmbed,
 {
-    let id = member.user.id.0;
+    let id = member.user.id.get();
+    let mut message = CreateMessage::new();
 
     match get_staff_logs(id) {
         Ok(logs) => {
             let log_count = logs.len() as i64;
+            let username = member.user.tag();
+            let nickname = member.display_name();
+            let avatar =
+                member.user.avatar_url().unwrap_or_else(|| member.user.default_avatar_url());
+            let author = CreateEmbedAuthor::new(format!("{} ({})\n{}", username, nickname, id))
+                .icon_url(avatar);
+            let embed_footer = CreateEmbedFooter::new(format!("Requested by: {}", invoker.tag()))
+                .icon_url(invoker.avatar_url().unwrap_or_else(|| invoker.default_avatar_url()));
+            let mut embed = CreateEmbed::new()
+                .title("Staff Log")
+                .color(id_to_color(id))
+                .author(author)
+                .footer(embed_footer);
 
-            message.embed(|embed| {
-                let username = member.user.tag();
-                let nickname = member.display_name();
-                let avatar = member.user.avatar_url().unwrap_or_else(|| member.user.default_avatar_url());
+            if logs.is_empty() {
+                embed = embed.description("This user has no logs.");
+            } else {
+                embed = embed.field("⁣Log #1:", format_field(&logs[0], true), false);
 
-                embed.title("Staff Log");
-                embed.color(id_to_color(id));
-                embed.author(|author| {
-                    author.name(format!("{} ({})\n{}", username, nickname, id));
-                    author.icon_url(avatar)
-                });
-
-                if logs.is_empty() {
-                    embed.description("This user has no logs.");
-                } else {
-                    embed.field("⁣Log #1:", format_field(&logs[0], true), false);
-
-                    for log in logs.iter().skip(1) {
-                        embed.field("⁣", format_field(log, false), false);
-                    }
+                for log in logs.iter().skip(1) {
+                    embed = embed.field("⁣", format_field(log, false), false);
                 }
+            }
 
-                embed.footer(|footer| {
-                    footer.text(format!("Requested by: {}", invoker.tag()));
-                    footer.icon_url(invoker.avatar_url().unwrap_or_else(|| invoker.default_avatar_url()))
-                });
-
-                func(embed, log_count)
-            });
-
-            log_count
+            embed = func(embed, log_count);
+            (Some(log_count), message.embed(embed))
         },
         Err(error) => {
             error!("Error while making staff log embed: {:?}", error);
 
-            message.content("Something's gone wrong. <@367538590520967181> has been notified.");
+            message =
+                message.content("Something's gone wrong. <@367538590520967181> has been notified.");
 
-            -1
+            (None, message)
         },
     }
 }
@@ -215,7 +231,8 @@ fn add_log(user_id: u64, entry_id: i64, original_link: &str, reason: &str) -> ru
                 VALUES(?, ?, ?, ?, ?);
         ";
 
-    connection.execute(insert_query, params![user_id, entry_id, original_link, None::<u8>, reason])?;
+    connection
+        .execute(insert_query, params![user_id, entry_id, original_link, None::<u8>, reason])?;
 
     Ok(())
 }
@@ -234,11 +251,7 @@ async fn stafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
     let target = parse_staff_log_member(ctx, msg, &mut args, 1, 1).await?;
 
     msg.channel_id
-        .send_message(&ctx, |m| {
-            make_staff_log_embed(&msg.author, m, &target, |e, _| e);
-
-            m
-        })
+        .send_message(&ctx, make_staff_log_embed(&msg.author, &target, |e, _| e).1)
         .await?;
 
     Ok(())
@@ -255,7 +268,7 @@ async fn stafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 #[aliases("addslog", "addsl", "asl")]
 async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let target = parse_staff_log_member(ctx, msg, &mut args, 1, 2).await?;
-    let target_id = target.user.id.0;
+    let target_id = target.user.id.get();
     let reason = match args.remains() {
         Some(reason) => reason,
         None => {
@@ -266,37 +279,28 @@ async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRes
     };
 
     let msg_link = msg.link();
+    let (log_ct, mut msg_content) =
+        make_staff_log_embed(&msg.author, &target, |embed, log_count| {
+            let log = &Log::new(log_count + 1, msg_link.clone(), None, reason.to_string());
 
-    msg.channel_id
-        .send_message(ctx, |m| {
-            m.content("Added staff log.");
-
-            // Add the new log manually.
-            let entry_id = 1 + make_staff_log_embed(&msg.author, m, &target, |embed, log_count| {
-                let log = &Log::new(log_count + 1, msg_link.clone(), None, reason.to_string());
-
-                if log_count == 0 {
-                    embed.field("⁣Log #1:", format_field(log, true), false)
-                } else {
-                    embed.field("⁣", format_field(log, false), false)
-                }
-            });
-
-            // Means the staff log embed failed, so return early.
-            if entry_id == 0 {
-                return m;
+            if log_count == 0 {
+                embed.field("⁣Log #1:", format_field(log, true), false)
+            } else {
+                embed.field("⁣", format_field(log, false), false)
             }
+        });
 
-            match add_log(target_id, entry_id, msg_link.as_str(), reason) {
-                Ok(_) => m,
-                Err(error) => {
-                    error!("Error while making staff log embed: {:?}", error);
+    if let Some(ct) = log_ct {
+        let entry_id = ct + 1;
 
-                    m.content(GONE_WRONG)
-                },
-            }
-        })
-        .await?;
+        if let Err(err) = add_log(target_id, entry_id, msg_link.as_str(), reason) {
+            error!("Error while making staff log embed: {:?}", err);
+
+            msg_content = msg_content.content(GONE_WRONG)
+        }
+    }
+
+    msg.channel_id.send_message(ctx, msg_content).await?;
 
     Ok(())
 }
@@ -312,8 +316,13 @@ async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRes
 #[aliases("editslog", "editsl", "esl")]
 async fn editstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let target = parse_staff_log_member(ctx, msg, &mut args, 1, 3).await?;
-    let entry_id = argument_parser::parse_bounded_arg(ctx, msg, BoundedArgumentInfo::new(&mut args, 1, 3, 1, i64::MAX)).await?;
-    let target_id = target.user.id.0;
+    let entry_id = argument_parser::parse_bounded_arg(
+        ctx,
+        msg,
+        BoundedArgumentInfo::new(&mut args, 1, 3, 1, i64::MAX),
+    )
+    .await?;
+    let target_id = target.user.id.get();
     let reason = match args.remains() {
         Some(reason) => reason,
         None => {
@@ -333,22 +342,26 @@ async fn editstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRe
                 WHERE user_id = ? AND entry_id = ?;
         ";
 
-        rows_changed = connection.execute(update_query, params![msg.link(), reason, target_id, entry_id])?;
+        rows_changed =
+            connection.execute(update_query, params![msg.link(), reason, target_id, entry_id])?;
     }
 
-    msg.channel_id
-        .send_message(ctx, |m| {
-            if rows_changed > 0 {
-                m.content("Edited staff log.");
+    let msg_content = if rows_changed > 0 {
+        let (log_ct, mut m) = make_staff_log_embed(&msg.author, &target, |c, _| c);
 
-                make_staff_log_embed(&msg.author, m, &target, |e, _| e);
+        if log_ct.is_some() {
+            // If successful, then set msg content
+            m = m.content("Edited staff log.")
+        }
 
-                m
-            } else {
-                m.content("Could not find the given log entry. Please verify that this log entry exists.")
-            }
-        })
-        .await?;
+        m
+    } else {
+        CreateMessage::new().content(
+            "Could not find the given log entry. Please verify that this log entry exists.",
+        )
+    };
+
+    msg.channel_id.send_message(ctx, msg_content).await?;
 
     Ok(())
 }
@@ -364,8 +377,13 @@ async fn editstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRe
 #[aliases("removeslog", "removesl", "rmsl")]
 async fn removestafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let target = parse_staff_log_member(ctx, msg, &mut args, 1, 2).await?;
-    let entry_id = argument_parser::parse_bounded_arg(ctx, msg, BoundedArgumentInfo::new(&mut args, 2, 2, 1, i64::MAX)).await?;
-    let target_id = target.user.id.0;
+    let entry_id = argument_parser::parse_bounded_arg(
+        ctx,
+        msg,
+        BoundedArgumentInfo::new(&mut args, 2, 2, 1, i64::MAX),
+    )
+    .await?;
+    let target_id = target.user.id.get();
 
     let rows_changed;
 
@@ -393,19 +411,22 @@ async fn removestafflog(ctx: &Context, msg: &Message, mut args: Args) -> Command
         transaction.commit()?;
     }
 
-    msg.channel_id
-        .send_message(ctx, |m| {
-            if rows_changed > 0 {
-                m.content("Successfully removed entry from staff log.");
+    let msg_content = if rows_changed > 0 {
+        let (log_ct, mut m) = make_staff_log_embed(&msg.author, &target, |c, _| c);
 
-                make_staff_log_embed(&msg.author, m, &target, |e, _| e);
+        if log_ct.is_some() {
+            // If successful, then set msg content
+            m = m.content("Successfully removed entry from staff log.")
+        }
 
-                m
-            } else {
-                m.content("Could not find the given log entry. Please verify that this log entry exists.")
-            }
-        })
-        .await?;
+        m
+    } else {
+        CreateMessage::new().content(
+            "Could not find the given log entry. Please verify that this log entry exists.",
+        )
+    };
+
+    msg.channel_id.send_message(ctx, msg_content).await?;
 
     Ok(())
 }

@@ -37,12 +37,12 @@ pub enum SerenitySQLiteError {
 
 impl From<serenity::Error> for SerenitySQLiteError {
     fn from(errors: serenity::Error) -> Self {
-        errors.into()
+        SerenityErrors::from(errors).into()
     }
 }
 
 impl From<Vec<serenity::Error>> for SerenitySQLiteError {
     fn from(errors: Vec<serenity::Error>) -> Self {
-        errors.into()
+        SerenityErrors::from(errors).into()
     }
 }

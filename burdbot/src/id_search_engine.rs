@@ -33,7 +33,8 @@ const MIN_ID_NUMBER: Id = (10 as Id).pow(MIN_ID_DIGITS.saturating_sub(1));
 /// The number of base 10 digits for a number
 const fn base10_len(mut id: Id) -> u32 {
     const DIGIT_REDUCTION_FROM_MIN: u32 = 4;
-    const ORDERS_LESS_MIN: Id = MIN_ID_NUMBER / (10 as Id).pow(DIGIT_REDUCTION_FROM_MIN.saturating_sub(1));
+    const ORDERS_LESS_MIN: Id =
+        MIN_ID_NUMBER / (10 as Id).pow(DIGIT_REDUCTION_FROM_MIN.saturating_sub(1));
 
     let mut result = 0;
 
@@ -67,9 +68,12 @@ impl TryFrom<&str> for FuzzyMatchedId {
         }
 
         if let Some(nonzero_idx) = value.find(|c| c != '0') {
-            (&value[nonzero_idx..])
+            value[nonzero_idx..]
                 .parse::<Id>()
-                .map(|id| FuzzyMatchedId { leading_zeros: nonzero_idx as u8, no_leading_zeros_id: id })
+                .map(|id| FuzzyMatchedId {
+                    leading_zeros: nonzero_idx as u8,
+                    no_leading_zeros_id: id,
+                })
                 .map_err(|_| ())
         } else {
             Ok(FuzzyMatchedId { leading_zeros: (value.len() - 1) as u8, no_leading_zeros_id: 0 })
@@ -121,7 +125,8 @@ impl PartialEq<Id> for SnowflakeFuzzyMatch {
         }
 
         // Cuts off the left wildcard digits from the original ID
-        other %= (10 as Id).saturating_pow(total_fuzzy_match_len + leading_zeros as u32 - self.left_wildcards);
+        other %= (10 as Id)
+            .saturating_pow(total_fuzzy_match_len + leading_zeros as u32 - self.left_wildcards);
 
         // Cuts off the right wildcard digits from the original ID
         other /= (10 as Id).pow(self.right_wildcards);
@@ -188,13 +193,23 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
     pub fn new() -> SnowflakeIdSearchEngine<T> {
         Self::assert_chopped_lower_bit_limit();
 
-        SnowflakeIdSearchEngine::<T> { buckets: Vec::new(), len: 0, load_factor: DEFAULT_LOAD_FACTOR, wildcards: Self::initialize_wildcard_vector() }
+        SnowflakeIdSearchEngine::<T> {
+            buckets: Vec::new(),
+            len: 0,
+            load_factor: DEFAULT_LOAD_FACTOR,
+            wildcards: Self::initialize_wildcard_vector(),
+        }
     }
 
     pub fn with_load_factor(load_factor: usize) -> SnowflakeIdSearchEngine<T> {
         Self::assert_chopped_lower_bit_limit();
 
-        SnowflakeIdSearchEngine::<T> { buckets: Vec::new(), len: 0, load_factor, wildcards: Self::initialize_wildcard_vector() }
+        SnowflakeIdSearchEngine::<T> {
+            buckets: Vec::new(),
+            len: 0,
+            load_factor,
+            wildcards: Self::initialize_wildcard_vector(),
+        }
     }
 
     fn create_buckets(capacity: usize, load_factor: usize) -> Vec<Bucket> {
@@ -233,7 +248,10 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         }
     }
 
-    pub fn with_capacity_and_load_factor(capacity: usize, load_factor: usize) -> SnowflakeIdSearchEngine<T> {
+    pub fn with_capacity_and_load_factor(
+        capacity: usize,
+        load_factor: usize,
+    ) -> SnowflakeIdSearchEngine<T> {
         Self::assert_chopped_lower_bit_limit();
 
         SnowflakeIdSearchEngine::<T> {
@@ -319,7 +337,9 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
     fn reallocate_on_remove(&mut self, elements_to_be_removed: usize) {
         let new_capacity = self.len - elements_to_be_removed;
 
-        if (new_capacity as f64) < (self.load_factor * self.buckets.len()) as f64 * LOAD_FACTOR_SHRINK_LIMIT {
+        if (new_capacity as f64)
+            < (self.load_factor * self.buckets.len()) as f64 * LOAD_FACTOR_SHRINK_LIMIT
+        {
             self.reallocate_buckets::<true>(new_capacity);
         }
     }
@@ -404,15 +424,19 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         // Match the exact ID first and do a fuzzy match if it doesn't work.
         bucket.binary_search(&id).ok().map(|_| id).or_else(|| {
             for (left_wildcards, right_wildcards) in self.wildcards.iter().copied() {
-                let fuzzy_match = SnowflakeFuzzyMatch::new(fuzzy_id, left_wildcards, right_wildcards);
+                let fuzzy_match =
+                    SnowflakeFuzzyMatch::new(fuzzy_id, left_wildcards, right_wildcards);
 
                 // TODO: Make more efficient by breaking early when none of the IDs can be potential matches anymore
                 // take advantage of the fact this iterator goes in ascending order.
                 // We can also break early while iterating through the buckets, take advantage of that.
                 // certain iterations might actually be able to be combined together too
 
-                let fuzzy_match =
-                    self.get_bucket_with_fuzzy_match(fuzzy_match).into_iter().flat_map(|b| b.iter().find(|&&id| id == fuzzy_match)).next();
+                let fuzzy_match = self
+                    .get_bucket_with_fuzzy_match(fuzzy_match)
+                    .into_iter()
+                    .flat_map(|b| b.iter().find(|&&id| id == fuzzy_match))
+                    .next();
 
                 if let Some(&fuzzy_match) = fuzzy_match {
                     return Some(fuzzy_match);
@@ -439,15 +463,20 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
             let mut fuzzy_matches = Vec::new();
 
             for (left_wildcards, right_wildcards) in self.wildcards.iter().copied() {
-                let fuzzy_match = SnowflakeFuzzyMatch::new(fuzzy_id, left_wildcards, right_wildcards);
+                let fuzzy_match =
+                    SnowflakeFuzzyMatch::new(fuzzy_id, left_wildcards, right_wildcards);
 
                 // TODO: Make more efficient by breaking early when none of the IDs can be potential matches anymore
                 // take advantage of the fact this iterator goes in ascending order.
                 // We can also break early while iterating through the buckets, take advantage of that.
                 // certain iterations might actually be able to be combined together too
 
-                fuzzy_matches
-                    .extend(self.get_bucket_with_fuzzy_match(fuzzy_match).into_iter().flat_map(|b| b.iter().find(|&&id| id == fuzzy_match)).next());
+                fuzzy_matches.extend(
+                    self.get_bucket_with_fuzzy_match(fuzzy_match)
+                        .into_iter()
+                        .flat_map(|b| b.iter().find(|&&id| id == fuzzy_match))
+                        .next(),
+                );
             }
 
             // TODO: Benchmark if parallelizing the search here would make it more efficient.
@@ -473,7 +502,10 @@ impl<const MAX_DIGITS_CHOPPED: u32> Extend<Id> for SnowflakeIdSearchEngine<MAX_D
                 self.reallocate_on_add::<false>(upper_bound);
 
                 for (index, id) in iter.enumerate() {
-                    assert!(id >= MIN_ID_NUMBER, "ID is not of the minimum length, {MIN_ID_DIGITS}.");
+                    assert!(
+                        id >= MIN_ID_NUMBER,
+                        "ID is not of the minimum length, {MIN_ID_DIGITS}."
+                    );
 
                     if index >= upper_bound {
                         // Size hints can lie, so this check is written just in case.
@@ -549,7 +581,6 @@ impl<const MAX_DIGITS_CHOPPED: u32> PartialEq for SnowflakeIdSearchEngine<MAX_DI
 
 #[cfg(test)]
 mod test {
-
     use std::collections::HashSet;
 
     // TODO:
@@ -562,8 +593,8 @@ mod test {
     // non-existent and existent IDs too all of them
     // write benchmarks
     use lazy_static::lazy_static;
-    use rand::distributions::Uniform;
-    use rand::{Rng, SeedableRng};
+    use rand_09::distr::Uniform;
+    use rand_09::{Rng, SeedableRng};
 
     use crate::id_search_engine::*;
 
@@ -576,7 +607,7 @@ mod test {
         let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(129388342034342);
 
         for _ in 0..10000 {
-            let id = rng.gen::<Id>();
+            let id = rng.random::<Id>();
             let fuzzy_id = FuzzyMatchedId::try_from(id).unwrap();
 
             assert_eq!(fuzzy_id.leading_zeros, 0);
@@ -584,9 +615,9 @@ mod test {
         }
 
         for _ in 0..10000 {
-            let rand_id = rng.gen::<Id>() / 1000;
+            let rand_id = rng.random::<Id>() / 1000;
             let mut id = rand_id.to_string();
-            let num_leading_zeros = rng.gen_range(0..3);
+            let num_leading_zeros = rng.random_range(0..3);
 
             for _ in 0..num_leading_zeros {
                 id.insert(0, '0');
@@ -602,9 +633,10 @@ mod test {
     fn random_realistic_snowflakes() -> &'static [Id] {
         lazy_static! {
             static ref RANDOM_SNOWFLAKES: Vec<Id> = {
-                let rng = rand_pcg::Pcg64Mcg::seed_from_u64(129388342034342);
-
-                rng.sample_iter(Uniform::new_inclusive(MIN_ID_NUMBER, REALISTIC_MAX_ID)).take(1_000_000).collect::<Vec<_>>()
+                rand_pcg::Pcg64Mcg::seed_from_u64(129388342034342)
+                    .sample_iter(Uniform::new_inclusive(MIN_ID_NUMBER, REALISTIC_MAX_ID).unwrap())
+                    .take(1_000_000)
+                    .collect::<Vec<_>>()
             };
         }
 
@@ -622,7 +654,7 @@ mod test {
             for _ in 0..100_000 {
                 // Test with randomized float [0.1, 1) multiplied by 10^(desired length) casted to integers.
                 // We use floats to ensure an even distribution across orders.
-                let random_float: f64 = rand.gen_range(0.1..1.0);
+                let random_float: f64 = rand.random_range(0.1..1.0);
                 let random_id = random_float * 10u64.pow(len) as f64;
 
                 assert_eq!(
@@ -639,10 +671,15 @@ mod test {
 
     #[test]
     fn snowflake_fuzzy_match_test() {
-        for id in
-            rand_pcg::Pcg64Mcg::seed_from_u64(432563546374).sample_iter(Uniform::new_inclusive(10_000_000_000, MIN_ID_NUMBER / 100)).take(10_000)
+        for id in rand_pcg::Pcg64Mcg::seed_from_u64(432563546374)
+            .sample_iter(Uniform::new_inclusive(10_000_000_000, MIN_ID_NUMBER / 100).unwrap())
+            .take(10_000)
         {
-            let mut fuzzy_1 = SnowflakeFuzzyMatch { fuzzy_id: id.try_into().unwrap(), left_wildcards: 2, right_wildcards: 2 };
+            let mut fuzzy_1 = SnowflakeFuzzyMatch {
+                fuzzy_id: id.try_into().unwrap(),
+                left_wildcards: 2,
+                right_wildcards: 2,
+            };
             let mut id_string = id.to_string();
             id_string.insert_str(0, "72");
             id_string.push_str("19");
@@ -725,7 +762,11 @@ mod test {
 
     #[test]
     fn realistic_snowflake_fuzzy_match_false_cases_test() {
-        fn gen_number_length_not_num(num: Id, len: usize, rand: &mut impl Iterator<Item = char>) -> String {
+        fn gen_number_length_not_num(
+            num: Id,
+            len: usize,
+            rand: &mut impl Iterator<Item = char>,
+        ) -> String {
             let num_as_str = num.to_string();
             let mut number = String::with_capacity(len); // Generate number that's the same length, but not the snowflake
 
@@ -743,7 +784,7 @@ mod test {
         }
 
         let rand = rand_pcg::Pcg64Mcg::seed_from_u64(854342512);
-        let mut char_gen = rand.sample_iter(Uniform::new_inclusive('0', '9'));
+        let mut char_gen = rand.sample_iter(Uniform::new_inclusive('0', '9').unwrap());
         let snowflakes = random_realistic_snowflakes();
 
         for snowflake in snowflakes.iter().copied().take(10_000) {
@@ -751,8 +792,10 @@ mod test {
 
             for left in 0..4 {
                 for right in 0..4 {
-                    let mut same_len_non_snowflake_1 = gen_number_length_not_num(snowflake, str.len(), &mut char_gen);
-                    let subtracted_fuzzy_match = gen_fuzzy_match(same_len_non_snowflake_1.as_str(), left, right);
+                    let mut same_len_non_snowflake_1 =
+                        gen_number_length_not_num(snowflake, str.len(), &mut char_gen);
+                    let subtracted_fuzzy_match =
+                        gen_fuzzy_match(same_len_non_snowflake_1.as_str(), left, right);
 
                     assert_ne!(subtracted_fuzzy_match, snowflake);
 
@@ -764,7 +807,10 @@ mod test {
                         same_len_non_snowflake_1.push(char_gen.next().unwrap());
                     }
 
-                    assert_ne!(gen_fuzzy_match(same_len_non_snowflake_1.as_str(), left, right), snowflake);
+                    assert_ne!(
+                        gen_fuzzy_match(same_len_non_snowflake_1.as_str(), left, right),
+                        snowflake
+                    );
                 }
             }
         }
@@ -772,7 +818,12 @@ mod test {
 
     #[test]
     fn snowflake_leading_zero_test() {
-        fn create_fuzzy_snowflake(left: u32, right: u32, leading_zeros: u8, id: Id) -> SnowflakeFuzzyMatch {
+        fn create_fuzzy_snowflake(
+            left: u32,
+            right: u32,
+            leading_zeros: u8,
+            id: Id,
+        ) -> SnowflakeFuzzyMatch {
             let fuzzy_id = FuzzyMatchedId { leading_zeros, no_leading_zeros_id: id };
 
             SnowflakeFuzzyMatch::new(fuzzy_id, left, right)
@@ -863,7 +914,23 @@ mod test {
         assert_eq!(vec_3, vec![(0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (1, 2), (2, 1), (2, 2)]);
         assert_eq!(
             vec_4,
-            vec![(0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (0, 3), (1, 2), (2, 1), (3, 0), (1, 3), (2, 2), (3, 1), (2, 3), (3, 2), (3, 3)]
+            vec![
+                (0, 1),
+                (1, 0),
+                (0, 2),
+                (1, 1),
+                (2, 0),
+                (0, 3),
+                (1, 2),
+                (2, 1),
+                (3, 0),
+                (1, 3),
+                (2, 2),
+                (3, 1),
+                (2, 3),
+                (3, 2),
+                (3, 3)
+            ]
         );
     }
 
@@ -895,7 +962,23 @@ mod test {
         assert_eq!(search_engine.load_factor, DEFAULT_LOAD_FACTOR);
         assert_eq!(
             search_engine.wildcards,
-            vec![(0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (0, 3), (1, 2), (2, 1), (3, 0), (1, 3), (2, 2), (3, 1), (2, 3), (3, 2), (3, 3)]
+            vec![
+                (0, 1),
+                (1, 0),
+                (0, 2),
+                (1, 1),
+                (2, 0),
+                (0, 3),
+                (1, 2),
+                (2, 1),
+                (3, 0),
+                (1, 3),
+                (2, 2),
+                (3, 1),
+                (2, 3),
+                (3, 2),
+                (3, 3)
+            ]
         );
     }
 
@@ -916,7 +999,10 @@ mod test {
         assert!(search_engine.buckets.capacity() >= 512);
         assert_eq!(search_engine.len, 0);
         assert_eq!(search_engine.load_factor, DEFAULT_LOAD_FACTOR);
-        assert_eq!(search_engine.wildcards, vec![(0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (1, 2), (2, 1), (2, 2)]);
+        assert_eq!(
+            search_engine.wildcards,
+            vec![(0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (1, 2), (2, 1), (2, 2)]
+        );
     }
 
     #[test]
@@ -926,12 +1012,18 @@ mod test {
         assert!(search_engine.buckets.capacity() >= 8192);
         assert_eq!(search_engine.len, 0);
         assert_eq!(search_engine.load_factor, 10);
-        assert_eq!(search_engine.wildcards, vec![(0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (1, 2), (2, 1), (2, 2)]);
+        assert_eq!(
+            search_engine.wildcards,
+            vec![(0, 1), (1, 0), (0, 2), (1, 1), (2, 0), (1, 2), (2, 1), (2, 2)]
+        );
     }
 
     fn assert_sorted_without_duplicates(search_engine: &SnowflakeIdSearchEngine<2>) {
         for (idx, bucket) in search_engine.buckets.iter().enumerate() {
-            assert!(bucket.windows(2).all(|e| e[0] < e[1]), "Bucket {idx} wasn't sorted or had duplicates. Bucket state: {bucket:?}");
+            assert!(
+                bucket.windows(2).all(|e| e[0] < e[1]),
+                "Bucket {idx} wasn't sorted or had duplicates. Bucket state: {bucket:?}"
+            );
 
             for id in bucket.iter().copied() {
                 let idx_len = format!("{:b}", search_engine.buckets.len()).len() as u64 - 1; // It's a power of two so this gets a potential index's length.
@@ -950,7 +1042,8 @@ mod test {
         let capacity = 256 * DEFAULT_LOAD_FACTOR;
         let mut search_engine = SnowflakeIdSearchEngine::<2>::with_capacity(capacity);
         let num_buckets = search_engine.buckets.len();
-        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024).sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID));
+        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024)
+            .sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID).unwrap());
         let unique_ids = rng.by_ref().take(capacity).collect::<HashSet<_>>();
 
         for id in unique_ids.iter().copied() {
@@ -958,14 +1051,28 @@ mod test {
         }
 
         // Given the default laod factor, the number of buckets never should've changed
-        assert_eq!(num_buckets, search_engine.buckets.len(), "The search engine bucket array shouldn't have expanded yet.");
+        assert_eq!(
+            num_buckets,
+            search_engine.buckets.len(),
+            "The search engine bucket array shouldn't have expanded yet."
+        );
 
         // Adding one more element should cause the number of buckets to double though
-        assert!(search_engine.add_id(rng.filter(|id| (!unique_ids.contains(id))).next().unwrap()), "Unique ID caused add_id to return false.");
+        assert!(
+            search_engine.add_id(rng.filter(|id| (!unique_ids.contains(id))).next().unwrap()),
+            "Unique ID caused add_id to return false."
+        );
 
-        assert_eq!(num_buckets * 2, search_engine.buckets.len(), "The search engine bucket array never expanded.");
+        assert_eq!(
+            num_buckets * 2,
+            search_engine.buckets.len(),
+            "The search engine bucket array never expanded."
+        );
         assert_eq!(search_engine.len(), capacity + 1, "The length isn't correct.");
-        assert!(search_engine.buckets.len().is_power_of_two(), "Search engine bucket array length not a power of two.");
+        assert!(
+            search_engine.buckets.len().is_power_of_two(),
+            "Search engine bucket array length not a power of two."
+        );
 
         assert_sorted_without_duplicates(&search_engine);
     }
@@ -974,9 +1081,11 @@ mod test {
     fn add_duplicate_ids_test() {
         let capacity = 256 * DEFAULT_LOAD_FACTOR;
         let mut search_engine = SnowflakeIdSearchEngine::<2>::with_capacity(capacity);
-        let rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024).sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID));
+        let rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024)
+            .sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID).unwrap());
         let unique_ids = rng.take(capacity).collect::<HashSet<_>>().into_iter().collect::<Vec<_>>();
-        let rand_idxs = rand_pcg::Pcg64Mcg::seed_from_u64(634241).sample_iter(Uniform::new(0, unique_ids.len()));
+        let rand_idxs = rand_pcg::Pcg64Mcg::seed_from_u64(634241)
+            .sample_iter(Uniform::new(0, unique_ids.len()).unwrap());
         let duplicates = rand_idxs.take(capacity / 5).map(|idx| unique_ids[idx]);
 
         for id in unique_ids.iter().copied() {
@@ -988,7 +1097,11 @@ mod test {
             assert!(!search_engine.add_id(duplicate), "Duplicate ID caused add_id to return true.");
         }
 
-        assert_eq!(search_engine.len(), capacity, "The length isn't correct. Duplicates shouldn't increase the search engine's length");
+        assert_eq!(
+            search_engine.len(),
+            capacity,
+            "The length isn't correct. Duplicates shouldn't increase the search engine's length"
+        );
 
         assert_sorted_without_duplicates(&search_engine);
     }
@@ -998,8 +1111,11 @@ mod test {
         let mut search_engine = SnowflakeIdSearchEngine::<2>::new();
         let mut search_engine_2 = SnowflakeIdSearchEngine::<2>::with_capacity(78645);
         let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(234);
-        let rand_to_insert = rng.gen_range(MIN_ID_NUMBER..REALISTIC_MAX_ID);
-        let rand_vec = rng.sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID)).take(4096).collect::<Vec<_>>();
+        let rand_to_insert = rng.random_range(MIN_ID_NUMBER..REALISTIC_MAX_ID);
+        let rand_vec = rng
+            .sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID).unwrap())
+            .take(4096)
+            .collect::<Vec<_>>();
 
         for rand in rand_vec.iter().copied() {
             if rand_to_insert == rand {
@@ -1030,7 +1146,8 @@ mod test {
     fn contains_test() {
         let mut search_engine = SnowflakeIdSearchEngine::<2>::new();
         let rng = rand_pcg::Pcg64Mcg::seed_from_u64(242395723);
-        let mut id_gen = rng.sample_iter(Uniform::new_inclusive(MIN_ID_NUMBER, REALISTIC_MAX_ID));
+        let mut id_gen =
+            rng.sample_iter(Uniform::new_inclusive(MIN_ID_NUMBER, REALISTIC_MAX_ID).unwrap());
         let id_set = id_gen.by_ref().take(100_000).collect::<HashSet<_>>();
         let id_vec = id_gen.take(100_000).filter(|id| !id_set.contains(id)).collect::<Vec<_>>();
 
@@ -1039,11 +1156,17 @@ mod test {
         }
 
         for id in id_vec {
-            assert!(search_engine.contains(id), "Search engine doesn't contain value that it should: {id}.");
+            assert!(
+                search_engine.contains(id),
+                "Search engine doesn't contain value that it should: {id}."
+            );
         }
 
         for id in id_set {
-            assert!(!search_engine.contains(id), "Search engine contains value that it shouldn't: {id}.");
+            assert!(
+                !search_engine.contains(id),
+                "Search engine contains value that it shouldn't: {id}."
+            );
         }
     }
 
@@ -1055,7 +1178,8 @@ mod test {
         let bucket_count = 256;
         let capacity = bucket_count * DEFAULT_LOAD_FACTOR;
         let mut search_engine = SnowflakeIdSearchEngine::<2>::with_capacity(capacity);
-        let rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024).sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID));
+        let rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024)
+            .sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID).unwrap());
         let unique_ids_set = rng.take(capacity).collect::<HashSet<_>>();
         let unique_ids = unique_ids_set.iter().copied().collect::<Vec<_>>();
 
@@ -1067,7 +1191,7 @@ mod test {
         let elements_to_take = capacity as f64 * (LOAD_FACTOR_SHRINK_LIMIT * 1.5);
 
         let random_unique_idxs = rand_pcg::Pcg64Mcg::seed_from_u64(6452312)
-            .sample_iter(Uniform::new(0, unique_ids.len()))
+            .sample_iter(Uniform::new(0, unique_ids.len()).unwrap())
             .map(|idx| unique_ids[idx])
             .take(elements_to_take as usize)
             .collect::<HashSet<_>>()
@@ -1081,14 +1205,21 @@ mod test {
             );
         }
 
-        assert_eq!(unique_ids.len() - random_unique_idxs.len(), search_engine.len, "Length of the search engine wasn't correct after removals.");
+        assert_eq!(
+            unique_ids.len() - random_unique_idxs.len(),
+            search_engine.len,
+            "Length of the search engine wasn't correct after removals."
+        );
 
         for id in random_unique_idxs.iter().copied() {
-            assert!(!search_engine.contains(id), "Search engine still contains element that was removed. ID that caused this: {id}.");
+            assert!(
+                !search_engine.contains(id),
+                "Search engine still contains element that was removed. ID that caused this: {id}."
+            );
         }
 
         let rand_id_gen = rand_pcg::Pcg64Mcg::seed_from_u64(21831)
-            .sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID))
+            .sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID).unwrap())
             .take(10_000)
             .filter(|id| !unique_ids_set.contains(id));
 
@@ -1113,7 +1244,8 @@ mod test {
         let bucket_count = 256;
         let capacity = bucket_count * DEFAULT_LOAD_FACTOR;
         let mut search_engine = SnowflakeIdSearchEngine::<2>::with_capacity(capacity);
-        let rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024).sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID));
+        let rng = rand_pcg::Pcg64Mcg::seed_from_u64(5834024)
+            .sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID).unwrap());
         let unique_ids_set = rng.take(capacity).collect::<HashSet<_>>();
         let unique_ids = unique_ids_set.iter().copied().collect::<Vec<_>>();
 
@@ -1121,7 +1253,10 @@ mod test {
             search_engine.add_id(id);
         }
 
-        for id in unique_ids.into_iter().take(((capacity as f64 * (1. - LOAD_FACTOR_SHRINK_LIMIT)) as usize) + 1) {
+        for id in unique_ids
+            .into_iter()
+            .take(((capacity as f64 * (1. - LOAD_FACTOR_SHRINK_LIMIT)) as usize) + 1)
+        {
             search_engine.remove_id(id);
         }
 
@@ -1139,7 +1274,7 @@ mod test {
         let mut search_engine = SnowflakeIdSearchEngine::<2>::new();
         let unique_ids_len = 100_000;
         let unique_ids = rand_pcg::Pcg64Mcg::seed_from_u64(47203572)
-            .sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID))
+            .sample_iter(Uniform::new(MIN_ID_NUMBER, REALISTIC_MAX_ID).unwrap())
             .take(unique_ids_len)
             .collect::<HashSet<_>>();
 
@@ -1192,7 +1327,10 @@ mod test {
         // do we base bucket indices off of base 10 digits instead? what're the consequences of this?
         // can we still use base 2 bits somehow? because our bucket count depends on that
 
-        assert_eq!(engine.find_fuzzy_matches(675385905209671), vec![36753859052096718, 67538590520967181, 367538590520967181]);
+        assert_eq!(
+            engine.find_fuzzy_matches(675385905209671),
+            vec![36753859052096718, 67538590520967181, 367538590520967181]
+        );
         assert_eq!(engine.find_fuzzy_matches(538590520967181), vec![67538590520967181]);
         assert_eq!(engine.find_fuzzy_matches(155422817540767745), vec![155422817540767745]);
 

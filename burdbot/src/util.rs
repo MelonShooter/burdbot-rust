@@ -18,23 +18,29 @@ pub fn check_message_sending(res: serenity::Result<Message>, function_name: &str
     }
 }
 
-pub async fn send_message(ctx: impl AsRef<Http>, ch: ChannelId, msg: impl Display, function_name: &str) {
+pub async fn send_message(
+    ctx: impl AsRef<Http>,
+    ch: ChannelId,
+    msg: impl Display,
+    function_name: &str,
+) {
     let ctx = ctx.as_ref();
 
-    check_message_sending(ch.say(ctx, msg).await, function_name);
+    check_message_sending(ch.say(ctx, msg.to_string()).await, function_name);
 }
 
-pub async fn get_member_permissions<T: AsRef<Cache>>(cache: T, guild_id: GuildId, user_id: impl Into<UserId>) -> Option<Permissions> {
-    cache
-        .as_ref()
-        .guild_field(guild_id, |guild| {
-            guild.members.get(&user_id.into()).map(|member| {
-                member
-                    .roles
-                    .iter()
-                    .flat_map(|id| guild.roles.get(id).map(|role| role.permissions)) // Map role ID to Permissions
-                    .fold(Permissions::empty(), |acc, permissions| acc | permissions)
-            })
-        })
-        .flatten()
+pub async fn get_member_permissions<T: AsRef<Cache>>(
+    cache: T,
+    guild_id: GuildId,
+    user_id: impl Into<UserId>,
+) -> Option<Permissions> {
+    let guild = cache.as_ref().guild(guild_id)?;
+
+    guild.members.get(&user_id.into()).map(|member| {
+        member
+            .roles
+            .iter()
+            .flat_map(|id| guild.roles.get(id).map(|role| role.permissions)) // Map role ID to Permissions
+            .fold(Permissions::empty(), |acc, permissions| acc | permissions)
+    })
 }

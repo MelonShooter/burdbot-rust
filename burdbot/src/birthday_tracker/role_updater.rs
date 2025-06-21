@@ -20,7 +20,15 @@ pub async fn update_birthday_roles<T: AsRef<Http>>(http: T) -> SerenitySQLiteRes
     let http = http.as_ref();
 
     for (user_id, guild_id, role_id) in user_role_info.removal_list {
-        if let Err(error) = http.remove_member_role(guild_id, user_id, role_id, RM_BDAY_ROLE_REASON).await {
+        if let Err(error) = http
+            .remove_member_role(
+                guild_id.into(),
+                user_id.into(),
+                role_id.into(),
+                RM_BDAY_ROLE_REASON,
+            )
+            .await
+        {
             let removal_errors = error_vector_option.get_or_insert(Vec::new());
 
             removal_errors.push(error);
@@ -28,7 +36,10 @@ pub async fn update_birthday_roles<T: AsRef<Http>>(http: T) -> SerenitySQLiteRes
     }
 
     for (user_id, guild_id, role_id) in user_role_info.addition_list {
-        if let Err(error) = http.add_member_role(guild_id, user_id, role_id, ADD_BDAY_ROLE_REASON).await {
+        if let Err(error) = http
+            .add_member_role(guild_id.into(), user_id.into(), role_id.into(), ADD_BDAY_ROLE_REASON)
+            .await
+        {
             let addition_errors = error_vector_option.get_or_insert(Vec::new());
 
             addition_errors.push(error);
@@ -57,7 +68,10 @@ fn get_date_time_to_use() -> DateTime<Utc> {
     Utc::now() + Duration::hours(1)
 }
 
-fn get_and_delete_old_bdays(transaction: &Transaction, date_time: DateTime<Utc>) -> rusqlite::Result<Vec<(u64, u64, u64)>> {
+fn get_and_delete_old_bdays(
+    transaction: &Transaction,
+    date_time: DateTime<Utc>,
+) -> rusqlite::Result<Vec<(u64, u64, u64)>> {
     // get bdays from bday table that are 24 hrs in the past and set the end date to be 24 hrs from the start date.
     let mut query_info = Vec::new();
 
@@ -76,8 +90,9 @@ fn get_and_delete_old_bdays(transaction: &Transaction, date_time: DateTime<Utc>)
 
     let date_time_fmt = BirthdayDateTime::from(date_time);
 
-    let rows =
-        user_selection_statement.query_map([date_time_fmt], |row| Ok((row.get::<_, u64>(0)?, row.get::<_, u64>(1)?, row.get::<_, u64>(2)?)))?;
+    let rows = user_selection_statement.query_map([date_time_fmt], |row| {
+        Ok((row.get::<_, u64>(0)?, row.get::<_, u64>(1)?, row.get::<_, u64>(2)?))
+    })?;
 
     for row in rows {
         query_info.push(row.unwrap());
@@ -93,7 +108,10 @@ fn get_and_delete_old_bdays(transaction: &Transaction, date_time: DateTime<Utc>)
     Ok(query_info)
 }
 
-fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> rusqlite::Result<Vec<(u64, u64, u64)>> {
+fn add_new_bdays(
+    transaction: &Transaction,
+    curr_date_time: DateTime<Utc>,
+) -> rusqlite::Result<Vec<(u64, u64, u64)>> {
     let mut query_info = Vec::new();
     let mut user_selection_statement = if curr_date_time.month() != 1 || curr_date_time.day() != 1 {
         // If not Jan. 1
@@ -129,9 +147,17 @@ fn add_new_bdays(transaction: &Transaction, curr_date_time: DateTime<Utc>) -> ru
     let curr_date_time_fmt = BirthdayDateTime::from(curr_date_time);
     let earliest_date_time_fmt = BirthdayDateTime::from(earliest_date_time);
 
-    let rows = user_selection_statement.query_map([curr_date_time_fmt, earliest_date_time_fmt], |row| {
-        Ok((row.get::<_, u64>(0)?, row.get::<_, u64>(1)?, row.get::<_, u64>(2)?, row.get::<_, BirthdayDateTime>(3)?))
-    })?;
+    let rows = user_selection_statement.query_map(
+        [curr_date_time_fmt, earliest_date_time_fmt],
+        |row| {
+            Ok((
+                row.get::<_, u64>(0)?,
+                row.get::<_, u64>(1)?,
+                row.get::<_, u64>(2)?,
+                row.get::<_, BirthdayDateTime>(3)?,
+            ))
+        },
+    )?;
 
     let mut insertion_statement = transaction.prepare(
         "

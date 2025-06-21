@@ -21,7 +21,8 @@ const TARGET_GUILD_ID: u64 = 720900352018219039;
 const TARGET_VOICE_CHANNEL_ID: u64 = 720900352597033053;
 
 async fn join_target_voice_channel_with_context(context: &Context) {
-    let manager = songbird::get(context).await.expect("Songbird Voice client placed in at initialisation.");
+    let manager =
+        songbird::get(context).await.expect("Songbird Voice client placed in at initialisation.");
 
     join_target_voice_channel(&manager).await;
 }
@@ -29,7 +30,8 @@ async fn join_target_voice_channel_with_context(context: &Context) {
 async fn join_target_voice_channel<T: AsRef<Songbird>>(manager: T) {
     let target_guild: GuildId = GuildId::from(TARGET_GUILD_ID);
     let target_voice_channel: ChannelId = ChannelId::from(TARGET_VOICE_CHANNEL_ID);
-    let (handler_lock, conn_result) = manager.as_ref().join(target_guild, target_voice_channel).await;
+    let (handler_lock, conn_result) =
+        manager.as_ref().join(target_guild, target_voice_channel).await;
 
     match conn_result {
         Ok(()) => {
@@ -44,10 +46,15 @@ async fn join_target_voice_channel<T: AsRef<Songbird>>(manager: T) {
                 BurdBotVoiceEventHandler::new(ssrc_user_to_id.clone(), user_id_to_start.clone()),
             );
 
-            handler
-                .add_global_event(CoreEvent::SpeakingUpdate.into(), BurdBotVoiceEventHandler::new(ssrc_user_to_id.clone(), user_id_to_start.clone()));
+            handler.add_global_event(
+                CoreEvent::SpeakingUpdate.into(),
+                BurdBotVoiceEventHandler::new(ssrc_user_to_id.clone(), user_id_to_start.clone()),
+            );
 
-            handler.add_global_event(CoreEvent::ClientDisconnect.into(), BurdBotVoiceEventHandler::new(ssrc_user_to_id, user_id_to_start));
+            handler.add_global_event(
+                CoreEvent::ClientDisconnect.into(),
+                BurdBotVoiceEventHandler::new(ssrc_user_to_id, user_id_to_start),
+            );
         },
         Err(err) => match err {
             JoinError::Driver(_) => (),
@@ -103,7 +110,11 @@ fn write_duration_with_error(start_time: &Instant, id: u64) {
     }
 }
 
-pub fn on_speaking_state_update(event_handler: &BurdBotVoiceEventHandler, user_id: &Option<UserId>, ssrc: u32) {
+pub fn on_speaking_state_update(
+    event_handler: &BurdBotVoiceEventHandler,
+    user_id: &Option<UserId>,
+    ssrc: u32,
+) {
     if let Some(id) = user_id {
         let mut ssrc_to_user_id = event_handler.ssrc_to_user_id.write().unwrap();
         let mut user_id_to_start = event_handler.user_id_to_start.write().unwrap();

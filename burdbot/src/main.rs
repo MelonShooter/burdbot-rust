@@ -1,3 +1,6 @@
+// Temporary until all of this is moved to poise
+#![allow(deprecated)]
+
 pub mod argument_parser;
 pub mod forvo;
 pub mod id_search_engine;
@@ -20,7 +23,8 @@ use event_handler::BurdBotEventHandler;
 use log::{debug, info, warn, LevelFilter};
 use logger::{DiscordLogger, LogSender};
 use rusqlite::Connection;
-use serenity::client::bridge::gateway::ShardManager;
+use serenity::all::standard::{BucketBuilder, Configuration};
+use serenity::all::ShardManager;
 use serenity::client::Context;
 use serenity::framework::standard::macros::hook;
 use serenity::framework::standard::CommandResult;
@@ -28,7 +32,7 @@ use serenity::framework::StandardFramework;
 use serenity::http::Http;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
-use serenity::prelude::{GatewayIntents, Mutex};
+use serenity::prelude::GatewayIntents;
 use serenity::Client;
 use simplelog::{CombinedLogger, ConfigBuilder, WriteLogger};
 use std::collections::HashSet;
@@ -139,7 +143,10 @@ async fn on_post_command(_: &Context, _: &Message, cmd: &str, result: CommandRes
     debug!("Result of {}{}: {:?}", PREFIX, cmd, result);
 }
 
-async fn on_terminate(shard_manager: Arc<Mutex<ShardManager>>, mut log_sender_mpsc_recv: UnboundedReceiver<LogSender>) {
+async fn on_terminate(
+    shard_manager: Arc<ShardManager>,
+    mut log_sender_mpsc_recv: UnboundedReceiver<LogSender>,
+) {
     // Flush the logger so that all logs are sent.
     info!("Flushed logger. Terminating bot...");
 
@@ -149,10 +156,12 @@ async fn on_terminate(shard_manager: Arc<Mutex<ShardManager>>, mut log_sender_mp
 
     match log_sender_mpsc_recv.recv().await {
         Some(sender) => sender.send().await,
-        None => eprintln!("Failed to flush the logger. No log sender was sent.\nContinuing termination..."),
+        None => eprintln!(
+            "Failed to flush the logger. No log sender was sent.\nContinuing termination..."
+        ),
     };
 
-    shard_manager.lock().await.shutdown_all().await;
+    shard_manager.shutdown_all().await;
 }
 
 #[tokio::main]
@@ -161,14 +170,13 @@ async fn main() {
     owners_set.insert(UserId::from(367538590520967181));
 
     let framework = StandardFramework::new()
-        .configure(|c| c.prefix(PREFIX).with_whitespace(true).case_insensitivity(true).owners(owners_set))
-        .bucket("default", |bucket| bucket.delay(1).limit(5).time_span(10))
+        .bucket("default", BucketBuilder::new_user().delay(1).limit(5).time_span(10))
         .await
-        .bucket("intense", |bucket| bucket.delay(2).limit(2).time_span(10))
+        .bucket("intense", BucketBuilder::new_user().delay(2).limit(2).time_span(10))
         .await
-        .bucket("db_operations", |bucket| bucket.delay(3).limit(3).time_span(10))
+        .bucket("db_operations", BucketBuilder::new_user().delay(3).limit(3).time_span(10))
         .await
-        .bucket("very_intense", |bucket| bucket.delay(10).limit(4).time_span(600))
+        .bucket("very_intense", BucketBuilder::new_user().delay(10).limit(4).time_span(600))
         .await
         //.unrecognised_command(on_unrecognized_command)
         .after(on_post_command)
@@ -179,6 +187,14 @@ async fn main() {
         .group(&commands::CUSTOM_GROUP)
         .group(&commands::ADMINISTRATIVE_GROUP)
         .group(&commands::LANGUAGE_GROUP);
+
+    framework.configure(
+        Configuration::new()
+            .prefix(PREFIX)
+            .with_whitespace(true)
+            .case_insensitivity(true)
+            .owners(owners_set),
+    );
 
     #[cfg(feature = "songbird")]
     let songbird_config = Config::default().decode_mode(DecodeMode::Decode);
@@ -196,10 +212,14 @@ async fn main() {
         .expect("Couldn't build client.");
 
     #[cfg(not(feature = "songbird"))]
-    let mut client =
-        Client::builder(token, GatewayIntents::all()).framework(framework).event_handler(BurdBotEventHandler).await.expect("Couldn't build client.");
+    let mut client = Client::builder(token, GatewayIntents::all())
+        .framework(framework)
+        .event_handler(BurdBotEventHandler)
+        .await
+        .expect("Couldn't build client.");
 
-    let cache_and_http = &client.cache_and_http;
+    let cache = &client.cache;
+    let http = &client.http;
     let shard_manager = client.shard_manager.clone();
     let (log_sender_mpsc_send, log_sender_mpsc_recv) = mpsc::unbounded_channel();
     let burdbot_log_config = ConfigBuilder::new()
@@ -224,7 +244,8 @@ async fn main() {
             LevelFilter::Info,
             burdbot_log_config,
             DiscordLogger::new(
-                cache_and_http.clone(),
+                cache.clone(),
+                http.clone(),
                 BURDBOT_LOGGER_BUFFER_SIZE,
                 LOGGER_FAILED_FILE,
                 LOGGER_FILE_NAME,
@@ -236,7 +257,8 @@ async fn main() {
             LevelFilter::Warn,
             default_log_config,
             DiscordLogger::new(
-                cache_and_http.clone(),
+                cache.clone(),
+                http.clone(),
                 DEFAULT_LOGGER_BUFFER_SIZE,
                 LOGGER_FAILED_FILE,
                 LOGGER_FILE_NAME,

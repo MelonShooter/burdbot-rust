@@ -4,7 +4,13 @@ use serenity::model::id::ChannelId;
 use crate::util;
 
 pub async fn generic_fail(ctx: &Context, ch: ChannelId) {
-    util::send_message(&ctx.http, ch, "Something went wrong. The owner of the bot has been notified of this.", "generic_fail").await;
+    util::send_message(
+        &ctx.http,
+        ch,
+        "Something went wrong. The owner of the bot has been notified of this.",
+        "generic_fail",
+    )
+    .await;
 }
 
 /*pub async fn unknown_command_message(ctx: impl AsRef<Http>, ch: ChannelId) {

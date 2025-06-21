@@ -1,3 +1,4 @@
+use serenity::all::{Cache, CreateAttachment, CreateMessage, Http};
 use std::fmt::Debug;
 use std::io::{Error, ErrorKind, Write};
 use std::sync::{Arc, Mutex as StdMutex};
@@ -13,14 +14,14 @@ use once_cell::sync::OnceCell;
 use serenity::client::Context;
 use serenity::http::CacheHttp;
 use serenity::model::id::{ChannelId, UserId};
-use serenity::CacheAndHttp;
 use std::str;
 use tokio::time;
 
 use crate::DELIBURD_ID;
 
 pub struct LogSender {
-    cache_and_http: Arc<CacheAndHttp>,
+    cache: Arc<Cache>,
+    http: Arc<Http>,
     failed_to_send_file: &'static str,
     send_file_name: &'static str,
     write_buffer: Arc<StdMutex<Vec<u8>>>,
@@ -30,7 +31,8 @@ pub struct LogSender {
 impl Debug for LogSender {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LogSender")
-            .field("cache_and_http", &"omitted")
+            .field("cache", &"omitted")
+            .field("http", &"omitted")
             .field("failed_to_send_file", &self.failed_to_send_file)
             .field("send_file_name", &self.send_file_name)
             .field("write_buffer", &self.write_buffer)
@@ -75,14 +77,17 @@ impl LogSender {
     pub async fn send(&self) {
         let channel_id_option = match DELIBURD_CHANNEL_ID.get() {
             Some(option) => option,
-            None => DELIBURD_CHANNEL_ID.try_insert(get_deliburd_channel_id(&self.cache_and_http).await).unwrap_or_else(|(option, _)| option),
+            None => DELIBURD_CHANNEL_ID
+                .try_insert(get_deliburd_channel_id((&self.cache, &*self.http)).await)
+                .unwrap_or_else(|(option, _)| option),
         };
 
         if let &Some(id) = channel_id_option {
             let mut message_buffer = self.message_buffer.lock().await;
 
             {
-                let mut write_buffer = self.write_buffer.lock().unwrap_or_else(|err| err.into_inner());
+                let mut write_buffer =
+                    self.write_buffer.lock().unwrap_or_else(|err| err.into_inner());
 
                 if write_buffer.is_empty() {
                     return;
@@ -92,9 +97,12 @@ impl LogSender {
                 message_buffer.append(&mut write_buffer);
             }
 
-            let files = iter::once((message_buffer.as_slice(), self.send_file_name));
+            let files =
+                iter::once(CreateAttachment::bytes(message_buffer.as_slice(), self.send_file_name));
 
-            if let Err(err) = id.send_files(&self.cache_and_http.http, files, |m| m).await {
+            if let Err(err) =
+                id.send_files((&self.cache, &*self.http), files, CreateMessage::new()).await
+            {
                 eprintln!(
                     "Failed to send log message. Encountered Serenity error: {err}\nSending logs to fallback file '{}' instead.",
                     self.failed_to_send_file
@@ -113,7 +121,8 @@ impl LogSender {
 impl From<&DiscordLogger> for LogSender {
     fn from(logger: &DiscordLogger) -> Self {
         LogSender {
-            cache_and_http: logger.cache_http.clone(),
+            cache: logger.cache.clone(),
+            http: logger.http.clone(),
             failed_to_send_file: logger.failed_to_send_file,
             send_file_name: logger.send_file_name,
             write_buffer: logger.write_buffer.clone(),
@@ -123,7 +132,8 @@ impl From<&DiscordLogger> for LogSender {
 }
 
 pub struct DiscordLogger {
-    cache_http: Arc<CacheAndHttp>,
+    cache: Arc<Cache>,
+    http: Arc<Http>,
     buffer_size: usize,
     failed_to_send_file: &'static str,
     send_file_name: &'static str,
@@ -134,7 +144,8 @@ pub struct DiscordLogger {
 
 impl DiscordLogger {
     pub fn new(
-        cache_and_http: Arc<CacheAndHttp>,
+        cache: Arc<Cache>,
+        http: Arc<Http>,
         buffer_size: usize,
         failed_to_send_file: &'static str,
         send_file_name: &'static str,
@@ -142,7 +153,8 @@ impl DiscordLogger {
         sender: UnboundedSender<LogSender>,
     ) -> Self {
         let logger = DiscordLogger {
-            cache_http: cache_and_http,
+            cache,
+            http,
             buffer_size,
             failed_to_send_file,
             send_file_name,
@@ -202,6 +214,6 @@ impl Write for DiscordLogger {
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.sender.send(LogSender::from(&*self)).map_err(|err| Error::new(ErrorKind::Other, err))
+        self.sender.send(LogSender::from(&*self)).map_err(Error::other)
     }
 }

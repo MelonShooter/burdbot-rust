@@ -3,6 +3,8 @@ use futures::stream;
 use futures::StreamExt;
 use log::debug;
 use log::error;
+use serenity::all::CreateAttachment;
+use serenity::all::CreateMessage;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
 use serenity::framework::standard::macros::group;
@@ -21,7 +23,11 @@ use crate::util;
 
 use super::error_util;
 
-async fn parse_term(ctx: &Context, msg: &Message, args: &mut Args) -> Result<String, NotEnoughArgumentsError> {
+async fn parse_term(
+    ctx: &Context,
+    msg: &Message,
+    args: &mut Args,
+) -> Result<String, NotEnoughArgumentsError> {
     match args.current() {
         Some(arg) => Ok(urlencoding::encode(arg).into_owned()),
         None => {
@@ -32,7 +38,11 @@ async fn parse_term(ctx: &Context, msg: &Message, args: &mut Args) -> Result<Str
     }
 }
 
-fn get_pronounce_message(term: &str, country: Country, requested_country: Option<Country>) -> String {
+fn get_pronounce_message(
+    term: &str,
+    country: Country,
+    requested_country: Option<Country>,
+) -> String {
     match requested_country.filter(|&c| c != country) {
         Some(_) => {
             format!(
@@ -43,13 +53,22 @@ fn get_pronounce_message(term: &str, country: Country, requested_country: Option
     }
 }
 
-async fn send_forvo_recording(ctx: &Context, msg: &Message, term: &str, country: Country, data: &[u8], requested_country: Option<Country>) {
+async fn send_forvo_recording(
+    ctx: &Context,
+    msg: &Message,
+    term: &str,
+    country: Country,
+    data: &[u8],
+    requested_country: Option<Country>,
+) {
     let result = msg
         .channel_id
-        .send_message(&ctx.http, |msg| {
-            msg.content(get_pronounce_message(term, country, requested_country));
-            msg.add_file((data, "forvo.mp3"))
-        })
+        .send_message(
+            &ctx.http,
+            CreateMessage::new()
+                .content(get_pronounce_message(term, country, requested_country))
+                .add_file(CreateAttachment::bytes(data, "forvo.mp3")),
+        )
         .await;
 
     if let Err(err) = result {
@@ -57,7 +76,13 @@ async fn send_forvo_recording(ctx: &Context, msg: &Message, term: &str, country:
     }
 }
 
-async fn handle_recording_error<T>(ctx: &Context, ch_id: ChannelId, term: &str, recording: &forvo::Result<T>, is_error: bool) {
+async fn handle_recording_error<T>(
+    ctx: &Context,
+    ch_id: ChannelId,
+    term: &str,
+    recording: &forvo::Result<T>,
+    is_error: bool,
+) {
     if let Err(err) = recording {
         if is_error {
             error!("{err} -- caused by term: {term}.");
@@ -69,7 +94,13 @@ async fn handle_recording_error<T>(ctx: &Context, ch_id: ChannelId, term: &str, 
     }
 }
 
-async fn handle_recording_error_res<T>(ctx: &Context, ch_id: ChannelId, term: &str, recording: forvo::Result<T>, is_error: bool) -> forvo::Result<T> {
+async fn handle_recording_error_res<T>(
+    ctx: &Context,
+    ch_id: ChannelId,
+    term: &str,
+    recording: forvo::Result<T>,
+    is_error: bool,
+) -> forvo::Result<T> {
     handle_recording_error(ctx, ch_id, term, &recording, is_error).await;
 
     recording
@@ -77,7 +108,9 @@ async fn handle_recording_error_res<T>(ctx: &Context, ch_id: ChannelId, term: &s
 
 #[command]
 #[bucket("intense")]
-#[description("Fetches the pronunciation of something given an optional country of origin as a flag.")]
+#[description(
+    "Fetches the pronunciation of something given an optional country of origin as a flag."
+)]
 #[usage("<TERM> [COUNTRY FLAG]")]
 #[example("pollo")]
 async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
@@ -88,33 +121,52 @@ async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
     args.advance();
 
     let requested_country = if args.remaining() >= 1 {
-        Some(argument_parser::parse_choices(ctx, msg, ArgumentInfo::new(&mut args, 1, 2), Country::iter()).await?)
+        Some(
+            argument_parser::parse_choices(
+                ctx,
+                msg,
+                ArgumentInfo::new(&mut args, 1, 2),
+                Country::iter(),
+            )
+            .await?,
+        )
     } else {
         None
     };
 
     let data_res = forvo::fetch_pronunciation(term.as_str(), requested_country).await;
-    let pronunciation_data = handle_recording_error_res(ctx, msg.channel_id, term.as_str(), data_res, true).await?;
+    let pronunciation_data =
+        handle_recording_error_res(ctx, msg.channel_id, term.as_str(), data_res, true).await?;
     let mut recording_futures = Vec::new();
 
     for recording_data_res in pronunciation_data {
         let res = recording_data_res;
 
         match res {
-            err @ Err(ForvoError::InvalidMatchedCountry(_)) => handle_recording_error(ctx, msg.channel_id, term.as_str(), &err, false).await,
+            err @ Err(ForvoError::InvalidMatchedCountry(_)) => {
+                handle_recording_error(ctx, msg.channel_id, term.as_str(), &err, false).await
+            },
             Err(_) => handle_recording_error(ctx, msg.channel_id, term.as_str(), &res, true).await,
             Ok(recording) => recording_futures.push(recording),
         }
     }
 
     if recording_futures.is_empty() {
-        util::send_message(ctx, msg.channel_id, "No pronunciation found for the given term.", "pronounce").await;
+        util::send_message(
+            ctx,
+            msg.channel_id,
+            "No pronunciation found for the given term.",
+            "pronounce",
+        )
+        .await;
 
         return Ok(());
     }
 
     stream::iter(join_all(recording_futures.iter_mut().map(|r| r.get_recording())).await)
-        .filter_map(|r| async { handle_recording_error_res(ctx, msg.channel_id, term.as_str(), r, true).await.ok() })
+        .filter_map(|r| async {
+            handle_recording_error_res(ctx, msg.channel_id, term.as_str(), r, true).await.ok()
+        })
         .for_each_concurrent(None, |(data, country, term)| async move {
             send_forvo_recording(ctx, msg, term, country, data, requested_country).await;
         })

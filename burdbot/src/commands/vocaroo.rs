@@ -4,13 +4,14 @@ use std::collections::HashSet;
 use bytes::Bytes;
 use log::{debug, error, warn};
 use rusqlite::Connection;
+use serenity::all::CreateAttachment;
 use serenity::builder::CreateMessage;
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::CommandResult;
-use serenity::model::channel::{AttachmentType, Message, MessageReference, ReactionType};
+use serenity::model::channel::{Message, MessageReference, ReactionType};
 use serenity::prelude::TypeMapKey;
-use serenity::{json, Error};
+use serenity::Error;
 
 use crate::commands::error_util;
 use crate::vocaroo::VocarooError;
@@ -28,7 +29,9 @@ impl TypeMapKey for VocarooEnabled {
 
 fn log_and_check_is_severe(error: &VocarooError) -> bool {
     match error {
-        VocarooError::InvalidUrls(_) => debug!("Encountered link that wasn't recognized as a vocaroo link: {error}"),
+        VocarooError::InvalidUrls(_) => {
+            debug!("Encountered link that wasn't recognized as a vocaroo link: {error}")
+        },
         VocarooError::FailedDownload(_, _) => warn!("{error}"),
         VocarooError::OverSizeLimit(_, _) | VocarooError::ContentTypeNotMp3(_) => debug!("{error}"),
         _ => {
@@ -58,12 +61,12 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
             None => return,
         };
 
-        if !servers.contains(&guild_id.0) {
+        if !servers.contains(&guild_id.get()) {
             return;
         }
 
         let msg_ref = MessageReference::from(msg);
-        let user_id = msg.author.id.0;
+        let user_id = msg.author.id.get();
 
         // This needs to be in its own function due to a bug in the compiler
         // causing a very weird error when a closure is directly used.
@@ -73,15 +76,20 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
 
         let mut recording_count = 0;
         let mut err_count = 0;
-        let mut recordings = vocaroo::download_vocaroos(&content[first_link_idx..], TOTAL_MAX_VOCAROO_SIZE, VOCAROO_ATTACHMENT_LIMIT)
-            .await
-            .filter(filter_severe)
-            .peekable();
+        let mut recordings = vocaroo::download_vocaroos(
+            &content[first_link_idx..],
+            TOTAL_MAX_VOCAROO_SIZE,
+            VOCAROO_ATTACHMENT_LIMIT,
+        )
+        .await
+        .filter(filter_severe)
+        .peekable();
 
-        let mut message = match recordings.peek() {
-            Some(_) => CreateMessage::default(),
-            None => return,
-        };
+        if recordings.peek().is_none() {
+            return;
+        }
+
+        let mut attachments = Vec::new();
 
         for recording in recordings {
             recording_count += 1;
@@ -89,9 +97,8 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
             match recording {
                 Ok(recording) => {
                     let recording = Cow::from(recording.to_vec());
-                    let attachment = AttachmentType::Bytes { data: recording, filename: "vocaroo.mp3".to_string() };
 
-                    message.add_file(attachment);
+                    attachments.push(CreateAttachment::bytes(recording, "vocaroo.mp3"));
                 },
                 Err(_) => err_count += 1,
             };
@@ -115,20 +122,17 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
             error_react(ctx, msg, ReactionType::Unicode("⚠️".to_string())).await;
         }
 
-        let id = msg.channel_id.0;
+        let id = msg.channel_id.get();
         let msg_str = format!(
             "Here is <@{user_id}>'s vocaroo link as an MP3 \
              file. This is limited to 1 per message."
         );
 
-        message.content(msg_str);
-        message.reference_message(msg_ref);
-
-        let map = json::hashmap_to_json_map(message.0);
+        let message = CreateMessage::new().content(msg_str).reference_message(msg_ref);
 
         // we need a length check here
 
-        match ctx.http.send_files(id, message.2, &map).await {
+        match msg.channel_id.send_files(&ctx.http, attachments, message).await {
             Ok(_) => (),
             Err(Error::Http(err)) => {
                 debug!(
@@ -182,7 +186,7 @@ async fn enablevocarootomp3(ctx: &Context, msg: &Message) -> CommandResult {
         None => return Ok(()),
     };
 
-    let guild_id = msg.guild_id.unwrap().0;
+    let guild_id = msg.guild_id.unwrap().get();
 
     if vocaroo_servers.insert(guild_id) {
         let connection = Connection::open(BURDBOT_DB)?;
@@ -215,7 +219,7 @@ async fn isvocarootomp3enabled(ctx: &Context, msg: &Message) -> CommandResult {
         None => return Ok(()),
     };
 
-    let response = if vocaroo_servers.contains(&msg.guild_id.unwrap().0) {
+    let response = if vocaroo_servers.contains(&msg.guild_id.unwrap().get()) {
         "Vocaroo to MP3 conversions are enabled in this server."
     } else {
         "Vocaroo to MP3 conversions are disabled in this server."
@@ -236,9 +240,9 @@ async fn disablevocarootomp3(ctx: &Context, msg: &Message) -> CommandResult {
     };
 
     let guild_id = msg.guild_id.unwrap();
-    let id = guild_id.as_u64();
+    let id = guild_id.get();
 
-    if vocaroo_servers.remove(id) {
+    if vocaroo_servers.remove(&id) {
         let connection = Connection::open(BURDBOT_DB)?;
         let stmt = "
                     DELETE FROM vocaroo_enabled

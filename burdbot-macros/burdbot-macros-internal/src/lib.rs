@@ -48,7 +48,8 @@ pub fn decode_aes_bytes(encoded_input: &[u8]) -> String {
         }
     }
 
-    let decoded_str = std::str::from_utf8(full_block.as_slice()).expect("One of the decoded blocks is not UTF-8.");
+    let decoded_str = std::str::from_utf8(full_block.as_slice())
+        .expect("One of the decoded blocks is not UTF-8.");
 
     decoded_string.push_str(decoded_str);
 
