@@ -2,9 +2,9 @@ mod secret;
 
 use std::fmt::Display;
 
+use aes::Aes256;
 use aes::cipher::generic_array::GenericArray;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
-use aes::Aes256;
 
 pub fn decode_aes(string: impl Display) -> String {
     let encoded_input = hex::decode(&string.to_string()[1..]).expect("Invalid string.");

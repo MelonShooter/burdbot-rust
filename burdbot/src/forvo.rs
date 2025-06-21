@@ -3,9 +3,9 @@ use std::fmt::Debug;
 use std::ops::DerefMut;
 use std::sync::Mutex;
 
-use base64::engine::general_purpose;
 use base64::DecodeError;
 use base64::Engine;
+use base64::engine::general_purpose;
 use lazy_static::lazy_static;
 use log::error;
 use petgraph::algo;
@@ -35,7 +35,9 @@ pub enum ForvoCaptureType {
 }
 
 #[derive(Error, Debug, Copy, Clone)]
-#[error("Couldn't match capture group {capture_group_idx} for {capture_type:?} from regex string: [ {regex_str} ].")]
+#[error(
+    "Couldn't match capture group {capture_group_idx} for {capture_type:?} from regex string: [ {regex_str} ]."
+)]
 pub struct ForvoRegexCaptureError {
     pub regex_str: &'static str,
     pub capture_group_idx: usize,
@@ -134,21 +136,13 @@ pub enum Country {
     )]
     #[default]
     Argentina,
-    #[strum(
-        serialize = "🇺🇾",
-        serialize = "Uruguay",
-        props(flag = "🇺🇾", index = 1, language = "s")
-    )]
+    #[strum(serialize = "🇺🇾", serialize = "Uruguay", props(flag = "🇺🇾", index = 1, language = "s"))]
     Uruguay,
     #[strum(serialize = "🇨🇱", serialize = "Chile", props(flag = "🇨🇱", index = 2, language = "s"))]
     Chile,
     #[strum(serialize = "🇵🇪", serialize = "Peru", props(flag = "🇵🇪", index = 3, language = "s"))]
     Peru,
-    #[strum(
-        serialize = "🇧🇴",
-        serialize = "Bolivia",
-        props(flag = "🇧🇴", index = 4, language = "s")
-    )]
+    #[strum(serialize = "🇧🇴", serialize = "Bolivia", props(flag = "🇧🇴", index = 4, language = "s"))]
     Bolivia,
     #[strum(
         serialize = "🇵🇾",
@@ -156,11 +150,7 @@ pub enum Country {
         props(flag = "🇵🇾", index = 5, language = "s")
     )]
     Paraguay,
-    #[strum(
-        serialize = "🇪🇨",
-        serialize = "Ecuador",
-        props(flag = "🇪🇨", index = 6, language = "s")
-    )]
+    #[strum(serialize = "🇪🇨", serialize = "Ecuador", props(flag = "🇪🇨", index = 6, language = "s"))]
     Ecuador,
     #[strum(
         serialize = "🇨🇴",
@@ -206,11 +196,7 @@ pub enum Country {
         props(flag = "🇭🇳", index = 14, language = "s")
     )]
     Honduras,
-    #[strum(
-        serialize = "🇲🇽",
-        serialize = "Mexico",
-        props(flag = "🇲🇽", index = 15, language = "s")
-    )]
+    #[strum(serialize = "🇲🇽", serialize = "Mexico", props(flag = "🇲🇽", index = 15, language = "s"))]
     Mexico,
     #[strum(serialize = "🇨🇺", serialize = "Cuba", props(flag = "🇨🇺", index = 16, language = "s"))]
     Cuba,
@@ -228,11 +214,7 @@ pub enum Country {
         props(flag = "🇺🇸", index = 19, language = "e")
     )]
     UnitedStates,
-    #[strum(
-        serialize = "🇨🇦",
-        serialize = "Canada",
-        props(flag = "🇨🇦", index = 20, language = "e")
-    )]
+    #[strum(serialize = "🇨🇦", serialize = "Canada", props(flag = "🇨🇦", index = 20, language = "e"))]
     Canada,
     #[strum(
         serialize = "🇬🇧",
@@ -266,7 +248,9 @@ impl Country {
             Some("s") => Language::Spanish,
             Some("e") => Language::English,
             _ => {
-                error!("Error encountered in the forvo module, get_language(): {self} has an invalid or inexistent language property value.");
+                error!(
+                    "Error encountered in the forvo module, get_language(): {self} has an invalid or inexistent language property value."
+                );
 
                 Language::Unknown
             },
@@ -279,8 +263,10 @@ impl Display for Country {
         match self.get_str("flag") {
             Some(flag) => write!(f, "{flag}"),
             None => {
-                error!("Error encountered in the forvo module, Display::fmt(): Couldn't find flag for country idx {:?}.",
-                       self.get_int("index"));
+                error!(
+                    "Error encountered in the forvo module, Display::fmt(): Couldn't find flag for country idx {:?}.",
+                    self.get_int("index")
+                );
 
                 write!(f, "UNDEFINED FLAG")
             },
@@ -416,14 +402,16 @@ where
         (None, Language::English) => Country::UnitedStates,
         (None, Language::Spanish) => Country::Argentina,
         (None, Language::Unknown) => {
-            error!("Unknown recording language encountered in forvo module recording_to_distance() while setting a fallback for the input country: {recording:?}.\
-                        This should never happen. Returning u32::MAX as the distance...");
+            error!(
+                "Unknown recording language encountered in forvo module recording_to_distance() while setting a fallback for the input country: {recording:?}.\
+                        This should never happen. Returning u32::MAX as the distance..."
+            );
 
             return u32::MAX;
         },
     };
 
-    let dist = match accent_differences.get(&(country, recording.country)) {
+    match accent_differences.get(&(country, recording.country)) {
         Some(&distance) => distance,
         None => {
             let distance_map =
@@ -454,9 +442,7 @@ where
                 u32::MAX
             })
         },
-    };
-
-    dist
+    }
 }
 
 #[derive(Debug, Clone)]

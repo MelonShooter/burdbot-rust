@@ -2,7 +2,7 @@
 name = "burdbot-macros-impl"
 version = "0.1.0"
 authors = ["DELIBURD"]
-edition = "2021"
+edition = "2024"
 license = "MIT"
 
 [lib]

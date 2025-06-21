@@ -100,15 +100,11 @@ impl LogSender {
             let files =
                 iter::once(CreateAttachment::bytes(message_buffer.as_slice(), self.send_file_name));
 
-            if let Err(err) =
-                id.send_files((&self.cache, &*self.http), files, CreateMessage::new()).await
-            {
-                eprintln!(
+            match id.send_files((&self.cache, &*self.http), files, CreateMessage::new()).await {
+                Err(err) => eprintln!(
                     "Failed to send log message. Encountered Serenity error: {err}\nSending logs to fallback file '{}' instead.",
-                    self.failed_to_send_file
-                )
-            } else {
-                return;
+                    self.failed_to_send_file),
+                _ => return,
             }
         }
 

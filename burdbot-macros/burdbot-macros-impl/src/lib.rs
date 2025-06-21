@@ -2,7 +2,9 @@ extern crate proc_macro;
 
 use std::str::FromStr;
 
-use syn::parse_quote;
+use syn::__private::Span;
+use syn::__private::TokenStream2;
+use syn::__private::quote::quote;
 use syn::Block;
 use syn::Expr;
 use syn::ExprCall;
@@ -14,13 +16,11 @@ use syn::Path;
 use syn::PathArguments;
 use syn::PathSegment;
 use syn::Stmt;
-use syn::__private::quote::quote;
-use syn::__private::Span;
-use syn::__private::TokenStream2;
 use syn::fold::Fold;
+use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::token::Paren;
-use syn::{parse_macro_input, Ident, ItemFn};
+use syn::{Ident, ItemFn, parse_macro_input};
 
 use proc_macro::TokenStream;
 

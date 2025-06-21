@@ -71,7 +71,7 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
         // This needs to be in its own function due to a bug in the compiler
         // causing a very weird error when a closure is directly used.
         fn filter_severe(recording: &vocaroo::Result<Bytes>) -> bool {
-            !matches!(recording, Err(ref err) if log_and_check_is_severe(err) )
+            !matches!(recording, Err(err) if log_and_check_is_severe(err) )
         }
 
         let mut recording_count = 0;
