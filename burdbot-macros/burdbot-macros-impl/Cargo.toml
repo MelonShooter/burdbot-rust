@@ -9,5 +9,5 @@ license = "MIT"
 proc-macro = true
 
 [dependencies]
-burdbot-macros-internal = { version = "^0.1", path = "../burdbot-macros-internal" }
-syn = {version="^1",features=["full","fold"]}
+burdbot-macros-internal = { version = "0.1", path = "../burdbot-macros-internal" }
+syn = { version = "2", features = ["full", "fold"] }

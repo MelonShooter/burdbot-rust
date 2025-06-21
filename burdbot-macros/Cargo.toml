@@ -6,5 +6,5 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-burdbot-macros-impl = { version = "^0.1", path = "burdbot-macros-impl" }
-burdbot-macros-internal = { version = "^0.1", path = "burdbot-macros-internal" }
+burdbot-macros-impl = { version = "0.1", path = "burdbot-macros-impl" }
+burdbot-macros-internal = { version = "0.1", path = "burdbot-macros-internal" }

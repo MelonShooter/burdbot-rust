@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use std::str::FromStr;
 
-use syn::AttrStyle;
+use syn::parse_quote;
 use syn::Block;
 use syn::Expr;
 use syn::ExprCall;
@@ -14,15 +14,13 @@ use syn::Path;
 use syn::PathArguments;
 use syn::PathSegment;
 use syn::Stmt;
-use syn::Token;
 use syn::__private::quote::quote;
 use syn::__private::Span;
 use syn::__private::TokenStream2;
 use syn::fold::Fold;
 use syn::punctuated::Punctuated;
-use syn::token::Bracket;
 use syn::token::Paren;
-use syn::{parse_macro_input, Attribute, Ident, ItemFn};
+use syn::{parse_macro_input, Ident, ItemFn};
 
 use proc_macro::TokenStream;
 
@@ -40,16 +38,9 @@ impl Fold for CommandModifier {
             block: item_fn.block,
         };
         let cmd_name = burdbot_macros_internal::decode_aes(item.sig.ident.to_string());
-        let cmd_attr = Attribute {
-            pound_token: Token!(#)(Span::call_site()),
-            style: AttrStyle::Outer,
-            bracket_token: Bracket(Span::call_site()),
-            path: Path::from(Ident::new("command", Span::call_site())),
-            tokens: quote!((#cmd_name)),
-        };
+        let cmd_attr = parse_quote!(#[command(#cmd_name)]);
 
         item.attrs.insert(0, cmd_attr);
-
         item.block = Box::new(self.fold_block(*item.block));
 
         item
@@ -69,7 +60,7 @@ impl Fold for CommandModifier {
 
     fn fold_stmt(&mut self, statement: Stmt) -> Stmt {
         match statement {
-            Stmt::Expr(expr) => Stmt::Expr(self.fold_expr(expr)),
+            Stmt::Expr(expr, None) => Stmt::Expr(self.fold_expr(expr), None),
             _ => panic!("{}", INCORRECT_EXPR),
         }
     }
@@ -108,7 +99,7 @@ pub fn obfuscated_command(_arguments: TokenStream, input_stream: TokenStream) ->
     let mut value = String::with_capacity(128);
     let mut code = "";
 
-    if let Stmt::Expr(Expr::Lit(expr_lit)) = statement {
+    if let Stmt::Expr(Expr::Lit(expr_lit), None) = statement {
         if let Lit::Str(lit) = expr_lit.lit {
             value.push('{');
             value.push_str(lit.value().as_str());

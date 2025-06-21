@@ -1,9 +1,6 @@
 [workspace]
-
-members = [
-  "burdbot",
-  "burdbot-macros"
-]
+members = ["burdbot", "burdbot-macros"]
+resolver = "3"
 
 [profile.release]
 lto = true

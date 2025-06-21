@@ -6,6 +6,5 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-aes = "^0.7"
-hex = "^0.4"
-
+aes = "0.8"
+hex = "0.4"
