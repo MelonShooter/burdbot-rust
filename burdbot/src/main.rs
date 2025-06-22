@@ -10,6 +10,7 @@ mod birthday_tracker;
 mod commands;
 mod error;
 mod event_handler;
+mod image_checker;
 mod logger;
 mod spanish_english;
 mod util;
@@ -20,20 +21,20 @@ mod session_tracker;
 use async_ctrlc::CtrlC;
 use chrono::{Timelike, Utc};
 use event_handler::BurdBotEventHandler;
-use log::{debug, info, warn, LevelFilter};
+use log::{LevelFilter, debug, info, warn};
 use logger::{DiscordLogger, LogSender};
 use rusqlite::Connection;
-use serenity::all::standard::{BucketBuilder, Configuration};
+use serenity::Client;
 use serenity::all::ShardManager;
+use serenity::all::standard::{BucketBuilder, Configuration};
 use serenity::client::Context;
-use serenity::framework::standard::macros::hook;
-use serenity::framework::standard::CommandResult;
 use serenity::framework::StandardFramework;
+use serenity::framework::standard::CommandResult;
+use serenity::framework::standard::macros::hook;
 use serenity::http::Http;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use serenity::prelude::GatewayIntents;
-use serenity::Client;
 use simplelog::{CombinedLogger, ConfigBuilder, WriteLogger};
 use std::collections::HashSet;
 use std::env;
@@ -99,6 +100,19 @@ fn create_sql_tables() {
         CREATE TABLE IF NOT EXISTS vocaroo_enabled (
             guild_id INTEGER PRIMARY KEY
         );
+
+        CREATE TABLE IF NOT EXISTS fxhash_image_checksums (
+            link_reference TEXT PRIMARY KEY,
+            width INTEGER NOT NULL,
+            height INTEGER NOT NULL,
+            description TEXT NOT NULL,
+            hash BLOB NOT NULL,
+            hash_type INTEGER NOT NULL,
+            guild_id INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS fxhash_checksum_index
+            on fxhash_image_checksums (guild_id, width, height);
 
         CREATE INDEX IF NOT EXISTS bday_date_index
             on bday (bday_date);
@@ -276,7 +290,9 @@ async fn main() {
     });
 
     while let Err(err) = client.start().await {
-        warn!("Error encountered starting Discord bot client: {err}\nRetrying in {RETRY_CONNECTION_INTERVAL} seconds.");
+        warn!(
+            "Error encountered starting Discord bot client: {err}\nRetrying in {RETRY_CONNECTION_INTERVAL} seconds."
+        );
 
         time::sleep(Duration::from_secs(RETRY_CONNECTION_INTERVAL)).await;
     }

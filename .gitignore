@@ -6,3 +6,4 @@ TODO.txt
 secret.rs
 *.secret_rs
 .cargo/
+*.env
