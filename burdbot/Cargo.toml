@@ -14,7 +14,7 @@ songbird = []
 [dependencies]
 burdbot-macros = { version = "0.1.0", path = "../burdbot-macros" }
 serenity = { version = "0.12", features = ["unstable_discord_api"] }
-tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "time", "process"] }
 simplelog = "0.12"
 log = "0.4"
 once_cell = "1"

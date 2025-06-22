@@ -21,7 +21,7 @@ mod session_tracker;
 use async_ctrlc::CtrlC;
 use chrono::{Timelike, Utc};
 use event_handler::BurdBotEventHandler;
-use log::{LevelFilter, debug, info, warn};
+use log::{LevelFilter, info, warn};
 use logger::{DiscordLogger, LogSender};
 use rusqlite::Connection;
 use serenity::Client;
@@ -154,7 +154,7 @@ async fn on_unrecognized_command(ctx: &Context, msg: &Message, _: &str) {
 
 #[hook]
 async fn on_post_command(_: &Context, _: &Message, cmd: &str, result: CommandResult) {
-    debug!("Result of {}{}: {:?}", PREFIX, cmd, result);
+    info!("Result of {}{}: {:?}", PREFIX, cmd, result);
 }
 
 async fn on_terminate(
@@ -252,9 +252,15 @@ async fn main() {
         .add_filter_ignore_str("burdbot")
         .build();
 
+    // In debug mode, the debug logs will appear
+    #[cfg(debug_assertions)]
+    let log_level = LevelFilter::Debug;
+    #[cfg(not(debug_assertions))]
+    let log_level = LevelFilter::Info;
+
     CombinedLogger::init(vec![
         WriteLogger::new(
-            LevelFilter::Debug,
+            log_level,
             burdbot_log_config,
             DiscordLogger::new(
                 cache.clone(),

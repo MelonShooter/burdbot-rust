@@ -141,11 +141,9 @@ async fn unbanfrommemes(ctx: &Context, msg: &Message, args: Args) -> CommandResu
     Ok(())
 }
 
-// TODO: write message event thingy here
-
-// Validates an image link by parsing and checking that:
-// - The linked message isn't from the provided guild ID
-// - The message link wasn't valid
+/// Validates an image link by parsing and checking that:
+/// - The linked message isn't from the provided guild ID
+/// - The message link wasn't valid
 async fn validate_image_link(
     ctx: &Context, curr_channel: ChannelId, link: &str, from_guild: GuildId,
 ) -> Option<Message> {

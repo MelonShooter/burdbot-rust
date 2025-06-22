@@ -1,7 +1,26 @@
+//! DESIGN:
+//! To add an image:
+//!      - User can provide a description of the images and a message link that contains images to add to filter
+//!      - Then, the ImageChecker generates a hash for each image and puts all the info into the DB
+//!      - Throw error if linked message has more than 1 image
+//! To get a list of banned images:
+//!      - Users can run a command to query all banned images
+//!      - This can be expanded later to filter by dimensions or hash (index is already in place for this)
+//! To remove an image:
+//!      - User removes based on original message link given for the image
+//!
+//! Internally:
+//! - Checking for an image:
+//!     - First we get the width and height. If there's a match, then we download the image and check
+//!       its hash to see if it matches against the images retrieved.
+//!
+//! Represents all the images in a message, including
+//! attachments, image embeds, and thumbnail embeds
+
 use std::marker::PhantomData;
 
 use digest::{Digest, Output};
-use log::info;
+use log::debug;
 use reqwest::Client;
 use rusqlite::{Connection, Row, params};
 use serenity::all::{GuildId, Message};
@@ -9,24 +28,6 @@ use strum_macros::Display;
 
 use crate::{BURDBOT_DB, error::SerenitySQLiteResult};
 
-// DESIGN:
-// To add an image:
-//      - User can provide a description of the images and a message link that contains images to add to filter
-//      - Then, the ImageChecker generates a hash for each image and puts all the info into the DB
-//      - Throw error if linked message has more than 1 image
-// To get a list of banned images:
-//      - Users can run a command to query all banned images
-//      - This can be expanded later to filter by dimensions or hash (index is already in place for this)
-// To remove an image:
-//      - User removes based on original message link given for the image
-//
-// Internally:
-// - Checking for an image:
-//     - First we get the width and height. If there's a match, then we download the image and check
-//       its hash to see if it matches against the images retrieved.
-
-// Represents all the images in a message, including
-// attachments, image embeds, and thumbnail embeds
 pub struct MessageImages<'a>(pub &'a Message);
 
 impl<'a> MessageImages<'a> {
@@ -56,14 +57,6 @@ impl<'a> MessageImages<'a> {
 
 #[derive(Debug, Copy, Clone)]
 pub struct ImageChecker<T: Digest>(PhantomData<T>);
-
-// link_reference TEXT PRIMARY KEY,
-// width INTEGER NOT NULL,
-// height INTEGER NOT NULL,
-// description TEXT NOT NULL,
-// hash BLOB NOT NULL,
-// hash_type INTEGER NOT NULL,
-// guild_id INTEGER NOT NULL
 
 #[derive(Debug, Clone)]
 pub struct ImageResult {
@@ -172,9 +165,10 @@ impl<T: Digest> ImageChecker<T> {
     pub async fn check_image(
         &self, guild_id: GuildId, image: (&str, u32, u32),
     ) -> SerenitySQLiteResult<bool> {
-        info!("Got attachments {image:?}");
         let (url, width, height) = image;
         let rows;
+
+        debug!("Got attachments {image:?}");
 
         {
             let connection = Connection::open(BURDBOT_DB)?;

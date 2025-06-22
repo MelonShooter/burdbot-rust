@@ -7,6 +7,7 @@ use base64::DecodeError;
 use base64::Engine;
 use base64::engine::general_purpose;
 use lazy_static::lazy_static;
+use log::debug;
 use log::error;
 use petgraph::algo;
 use petgraph::graph::DefaultIx;
@@ -14,7 +15,6 @@ use petgraph::graph::NodeIndex;
 use petgraph::graph::UnGraph;
 use regex::Captures;
 use regex::Regex;
-use reqwest::Client;
 use scraper::ElementRef;
 use scraper::Html;
 use scraper::Selector;
@@ -27,6 +27,9 @@ use strum_macros::EnumIter;
 use strum_macros::EnumProperty;
 use strum_macros::EnumString;
 use thiserror::Error;
+
+use crate::util::anti_scraper_download_file;
+use crate::util::anti_scraper_get_html;
 
 #[derive(Debug, Copy, Clone)]
 pub enum ForvoCaptureType {
@@ -65,8 +68,8 @@ pub enum ForvoError {
     BadCountryRegexMatching(#[source] ForvoRegexCaptureError),
     #[error("Error encountered while fetching forvo recordings. InvalidMatchedCountry: {0}")]
     InvalidMatchedCountry(#[from] ParseError),
-    #[error("Error encountered while fetching forvo recordings. ReqwestError: {0}")]
-    ReqwestError(#[from] reqwest::Error),
+    #[error("Error encountered while fetching forvo recordings. IoError: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 impl From<ForvoRegexCaptureError> for ForvoError {
@@ -79,7 +82,6 @@ impl From<ForvoRegexCaptureError> for ForvoError {
 }
 
 lazy_static! {
-    static ref FORVO_CLIENT: Client = Client::new();
     static ref COUNTRY_GRAPH: UnGraph<Country, u32> = UnGraph::from_edges([
         (Country::Argentina, Country::Uruguay, 1),
         (Country::Argentina, Country::Chile, 3),
@@ -333,16 +335,21 @@ fn get_language_recording(
 }
 
 /// Gets language recordings for a given language
+/// The ElementRef provided should be contain all the play
+/// buttons. This function will match all the play buttons and feed them into
+/// [`get_language_recording`]
 fn get_language_recordings(
     entries: &ElementRef, language: Language,
 ) -> Vec<PossibleForvoRecording> {
     lazy_static! {
+        // The (?s) means to enable the s flag which allows '.' to match newlines
         static ref FORVO_HTML_MATCHER: Regex =
-            Regex::new(r"(?s)Play\(\d+,'(\w+=*).*?'h'\);return.*? from ([a-zA-Z ]+)").unwrap();
+            Regex::new(r"(?s)Play\(\d+,'(\w+=*).*?'h'.*?\);return.*? [fF]rom ([a-zA-Z ]+)").unwrap();
     }
 
     FORVO_HTML_MATCHER
         .captures_iter(entries.inner_html().as_str())
+        .inspect(|c| debug!("Got captures {:.100}..", c.get(0).unwrap().as_str()))
         .map(|captures| get_language_recording(captures, FORVO_HTML_MATCHER.as_str(), language))
         .collect()
 }
@@ -356,8 +363,10 @@ async fn get_all_recordings(
             Selector::parse("div.language-container").expect("Bad CSS selector.");
     }
 
-    let url = format!("https://forvo.com/word/{}/", term);
-    let data = FORVO_CLIENT.get(url).send().await?.text().await?;
+    const FORVO_HOST: &str = "forvo.com";
+
+    let url = format!("https://{FORVO_HOST}/word/{term}/");
+    let data = anti_scraper_get_html(url).await?;
     let document = Html::parse_document(data.as_str());
     let (do_english, do_spanish) = match requested_country.map(|c| c.get_language()) {
         Some(Language::English) => (true, false),
@@ -365,8 +374,13 @@ async fn get_all_recordings(
         _ => (true, true),
     };
 
+    // LANGUAGE_CONTAINER_SELECTOR selects the language container (a div element
+    // containing the pronunciations for a particular language)
+    // Then this div is further filtered based on its ID, b/c these divs have IDs based
+    // on their language, like `language-container-es` for Spanish
     Ok(document
         .select(&LANGUAGE_CONTAINER_SELECTOR)
+        .inspect(|e| debug!("Found elem with tag {:?}; {e:?}", e.value().id()))
         .filter_map(|e| match (e.value().id(), do_spanish, do_english) {
             (Some("language-container-es"), true, _) => {
                 Some(get_language_recordings(&e, Language::Spanish))
@@ -379,8 +393,8 @@ async fn get_all_recordings(
         .collect())
 }
 
-async fn get_pronunciation_from_link(forvo_recording: &str) -> reqwest::Result<Vec<u8>> {
-    Ok(FORVO_CLIENT.get(forvo_recording).send().await?.bytes().await?.to_vec())
+async fn get_pronunciation_from_link(forvo_recording: &str) -> Result<Vec<u8>> {
+    Ok(anti_scraper_download_file(forvo_recording).await?)
 }
 
 fn recording_to_distance<T>(
@@ -526,4 +540,55 @@ pub async fn fetch_pronunciation(
             possible_recordings_to_data(term, requested_country, possible_recordings)
         })
         .collect())
+}
+
+#[tokio::test]
+async fn test_lynx() {
+    let forvo = anti_scraper_get_html("https://forvo.com/word/boludo/")
+        .await
+        .expect("Expected output from lynx");
+
+    assert!(forvo.contains("language-container"));
+    assert!(forvo.contains("language-container-es"));
+
+    let sel = Selector::parse("div.language-container").expect("Bad CSS selector.");
+    let document = Html::parse_document(forvo.as_str());
+    let elements = document.select(&sel).collect::<Vec<_>>();
+
+    assert!(!elements.is_empty());
+    assert!(elements.iter().any(|e| e.value().id() == Some("language-container-es")));
+
+    for e in elements {
+        let recordings = get_language_recordings(&e, Language::Spanish);
+
+        assert!(!recordings.is_empty());
+
+        let mut last_rec =
+            ForvoRecording::new(Country::Argentina, "".to_string(), Language::Spanish);
+
+        for recording in recordings {
+            let rec = match recording {
+                Ok(r) => r,
+                Err(ForvoError::InvalidMatchedCountry(_)) => continue,
+                Err(e) => panic!("Got error {e}"),
+            };
+
+            assert!(rec.recording_link.starts_with("https://forvo.com/mp3"));
+            assert!(rec.recording_link.ends_with(".mp3"));
+
+            println!("rec: {}", rec.recording_link);
+
+            last_rec = rec;
+        }
+
+        assert!(!last_rec.recording_link.is_empty());
+
+        let file = match anti_scraper_download_file(last_rec.recording_link).await {
+            Ok(f) => f,
+            Err(e) => panic!("failed to download file: {e:?}"),
+        };
+
+        assert!(file.len() > 3);
+        assert!(&file[0..3] == b"ID3"); // Asserts mp3 file has an ID3 header
+    }
 }

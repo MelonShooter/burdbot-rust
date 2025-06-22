@@ -77,7 +77,7 @@ async fn handle_recording_error<T>(
 
             error_util::generic_fail(ctx, ch_id).await;
         } else {
-            debug!("{err} -- caused by term: {term}.");
+            debug!("Got likely harmless error - {err} -- caused by term: {term}.");
         }
     }
 }

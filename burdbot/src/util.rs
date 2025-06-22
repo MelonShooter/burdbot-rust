@@ -1,6 +1,9 @@
 use lazy_static::lazy_static;
 use regex::Regex;
+use reqwest::IntoUrl;
 use std::fmt::Display;
+use std::io;
+use tokio::process::Command;
 
 use serenity::Error;
 use serenity::all::MessageId;
@@ -56,4 +59,15 @@ pub async fn get_member_permissions<T: AsRef<Cache>>(
             .flat_map(|id| guild.roles.get(id).map(|role| role.permissions)) // Map role ID to Permissions
             .fold(Permissions::empty(), |acc, permissions| acc | permissions)
     })
+}
+
+/// Fetches HTML from a site bypassing anti-scrapers
+pub async fn anti_scraper_get_html(url: impl IntoUrl) -> std::io::Result<String> {
+    let out = Command::new("lynx").arg("-source").arg(url.as_str()).output().await?.stdout;
+    String::from_utf8(out).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+}
+
+/// Fetches file from site
+pub async fn anti_scraper_download_file(url: impl IntoUrl) -> std::io::Result<Vec<u8>> {
+    Ok(Command::new("wget").arg("-qO").arg("-").arg(url.as_str()).output().await?.stdout)
 }
