@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use digest::{Digest, Output};
 use rusqlite::{Connection, Row, params};
 use serenity::all::{Attachment, GuildId, Message};
+use strum_macros::Display;
 
 use crate::{BURDBOT_DB, error::SerenitySQLiteResult};
 
@@ -35,12 +36,12 @@ pub struct ImageChecker<T: Digest>(PhantomData<T>);
 
 #[derive(Debug, Clone)]
 pub struct ImageResult {
-    link_ref: String,
-    width: u32,
-    height: u32,
-    description: String,
-    hash_hex: String,
-    hash_type: u32,
+    pub link_ref: String,
+    pub width: u32,
+    pub height: u32,
+    pub description: String,
+    pub hash_hex: String,
+    pub hash_type: u32,
 }
 
 impl TryFrom<&Row<'_>> for ImageResult {
@@ -58,17 +59,28 @@ impl TryFrom<&Row<'_>> for ImageResult {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Display)]
 #[non_exhaustive]
 pub enum ImageOpOutcome {
+    #[strum(to_string = "Operation succeeded")]
     Success,
+    #[strum(to_string = "Must provide message with exactly one image attachment")]
     NotOneAttachment,
+    #[strum(to_string = "Attachment on message provided wasn't an image")]
     NotImage,
+    #[strum(to_string = "Message provided wasn't from this server")]
     NotFromGuild,
+    #[strum(to_string = "Message provided has no banned image")]
+    NotFound,
+    #[strum(to_string = "Image from message provided is already banned")]
     Duplicate,
 }
 
 impl<T: Digest> ImageChecker<T> {
+    pub const fn new() -> Self {
+        Self(PhantomData)
+    }
+
     // Calculates the hash of the given attachment
     async fn calc_attachment_hash(
         &self,
@@ -121,8 +133,12 @@ impl<T: Digest> ImageChecker<T> {
     }
 
     // Removes an image from the image checker for the guild.
-    // Returns NotImage if not found in guild, otherwise Success, unless an internal error occurs
-    pub fn remove_image(guild_id: GuildId, msg_link: &str) -> SerenitySQLiteResult<ImageOpOutcome> {
+    // Returns NotFound if not found in guild, otherwise Success, unless an internal error occurs
+    pub fn remove_image(
+        &self,
+        guild_id: GuildId,
+        msg_link: &str,
+    ) -> SerenitySQLiteResult<ImageOpOutcome> {
         let connection = Connection::open(BURDBOT_DB)?;
         let deletion_statement = "
                 DELETE FROM fxhash_image_checksums
@@ -133,37 +149,43 @@ impl<T: Digest> ImageChecker<T> {
             connection.execute(deletion_statement, params!(msg_link, guild_id.get()))?;
 
         // If no rows updated, then it wasn't in the checker
-        Ok(if rows_updated == 0 { ImageOpOutcome::NotImage } else { ImageOpOutcome::Success })
+        Ok(if rows_updated == 0 { ImageOpOutcome::NotFound } else { ImageOpOutcome::Success })
     }
 
     // Checks if an image passes the filters for the guild.
     // Returns true if no image was found in the checker. Err if there was an internal error
     pub async fn check_image(
+        &self,
         guild_id: GuildId,
-        attachment: Attachment,
+        attachment: &Attachment,
     ) -> SerenitySQLiteResult<bool> {
         let Some((width, height)) = attachment.dimensions() else {
-            return Ok(false);
+            return Ok(true);
         };
 
-        let connection = Connection::open(BURDBOT_DB)?;
-        let mut checksum_query = connection.prepare_cached(
-            "
+        let rows;
+
+        {
+            let connection = Connection::open(BURDBOT_DB)?;
+            let mut checksum_query = connection.prepare(
+                "
                 SELECT checksum FROM bday_role_list
                 WHERE guild_id = ?1 AND width = ?2 AND height = ?3;
-        ",
-        )?;
+                ",
+            )?;
 
-        let rows = checksum_query
-            .query_and_then(params![guild_id.get(), width, height], |row| {
-                row.get::<_, Vec<u8>>(0)
-            })?;
+            rows = checksum_query
+                .query_and_then(params![guild_id.get(), width, height], |row| {
+                    row.get::<_, Vec<u8>>(0)
+                })?
+                .collect::<rusqlite::Result<Vec<Vec<u8>>>>()?;
+        }
 
         let mut download = Vec::new();
 
         // Lazily download attachment if a row has been found
         for row in rows {
-            let row = row?;
+            let row = row;
 
             if download.is_empty() {
                 download = attachment.download().await?;
@@ -178,7 +200,7 @@ impl<T: Digest> ImageChecker<T> {
     }
 
     // Gets the images stored for a guild
-    pub fn get_images(guild_id: GuildId) -> SerenitySQLiteResult<Vec<ImageResult>> {
+    pub fn get_images(&self, guild_id: GuildId) -> SerenitySQLiteResult<Vec<ImageResult>> {
         // TODO: expand later to filter by width and height, or by link
 
         let connection = Connection::open(BURDBOT_DB)?;

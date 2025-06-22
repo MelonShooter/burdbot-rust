@@ -1,16 +1,33 @@
+use lazy_static::lazy_static;
+use regex::Regex;
 use std::fmt::Display;
 
+use serenity::Error;
+use serenity::all::MessageId;
 use serenity::client::Cache;
 use serenity::http::Http;
+use serenity::model::Permissions;
 use serenity::model::channel::Message;
 use serenity::model::id::ChannelId;
 use serenity::model::id::GuildId;
 use serenity::model::id::UserId;
-use serenity::model::Permissions;
 use serenity::prelude::ModelError;
-use serenity::Error;
 
 use log::error;
+
+// Gets the IDs from a message link
+pub fn get_ids_from_msg_link(link: impl AsRef<str>) -> Option<(GuildId, ChannelId, MessageId)> {
+    lazy_static! {
+        static ref ID_MATCHER: Regex = Regex::new(r"(\d{8,})/(\d{8,})/(\d{8,})").unwrap();
+    }
+
+    let c = ID_MATCHER.captures(link.as_ref())?;
+    let guild_id = c.get(1)?.as_str().parse::<GuildId>().ok()?;
+    let channel_id = c.get(2)?.as_str().parse::<ChannelId>().ok()?;
+    let message_id = c.get(3)?.as_str().parse::<MessageId>().ok()?;
+
+    Some((guild_id, channel_id, message_id))
+}
 
 pub fn check_message_sending(res: serenity::Result<Message>, function_name: &str) {
     if let Err(Error::Model(ModelError::MessageTooLong(_))) = res {

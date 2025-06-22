@@ -43,6 +43,7 @@ thiserror = "2"
 rand_09 = { package = "rand", version = "0.9" }
 digest = "0.10.7"
 hex = "0.4.3"
+blake3 = { version = "1.8.2", features = ["traits-preview"] }
 
 [dev-dependencies]
 rand_pcg = "0.9"

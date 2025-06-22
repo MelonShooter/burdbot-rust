@@ -1,15 +1,15 @@
 mod administrative;
 mod birthday;
-mod custom;
 mod easter_egg;
 mod error_util;
 mod language;
 
+pub mod custom;
 pub mod vocaroo;
 
 pub use administrative::ADMINISTRATIVE_GROUP;
-pub use birthday::BirthdayInfoConfirmation;
 pub use birthday::BIRTHDAY_GROUP;
+pub use birthday::BirthdayInfoConfirmation;
 pub use birthday::MONTH_TO_DAYS;
 // pub use birthday::MONTH_TO_NAME;
 pub use custom::CUSTOM_GROUP;
@@ -20,12 +20,12 @@ pub use vocaroo::VOCAROO_GROUP;
 use std::collections::HashSet;
 
 use serenity::client::Context;
-use serenity::framework::standard::help_commands;
-use serenity::framework::standard::macros::help;
 use serenity::framework::standard::Args;
 use serenity::framework::standard::CommandGroup;
 use serenity::framework::standard::CommandResult;
 use serenity::framework::standard::HelpOptions;
+use serenity::framework::standard::help_commands;
+use serenity::framework::standard::macros::help;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 

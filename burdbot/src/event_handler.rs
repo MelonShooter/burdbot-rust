@@ -12,9 +12,8 @@ use serenity::model::prelude::Ready;
 // use serenity::model::prelude::VoiceState;
 use tokio::time;
 
-use crate::commands::vocaroo;
-use crate::logger;
-use crate::spanish_english;
+use crate::commands::{custom, vocaroo};
+use crate::{logger, spanish_english};
 
 #[cfg(feature = "songbird")]
 use {
@@ -62,7 +61,8 @@ impl EventHandler for BurdBotEventHandler {
     async fn message(&self, ctx: Context, new_message: Message) {
         join!(
             spanish_english::on_message_receive(&ctx, &new_message),
-            vocaroo::on_message_received(&ctx, &new_message)
+            vocaroo::on_message_received(&ctx, &new_message),
+            custom::on_message_receive(&ctx, &new_message)
         );
     }
 
@@ -71,7 +71,9 @@ impl EventHandler for BurdBotEventHandler {
 
         crate::on_cache_ready(&context);
 
-        join!(/* spanish_english::on_cache_ready(&context), */ logger::on_cache_ready(&context));
+        join!(
+            /* spanish_english::on_cache_ready(&context), */ logger::on_cache_ready(&context)
+        );
     }
 
     // async fn voice_state_update(
