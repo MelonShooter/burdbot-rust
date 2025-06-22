@@ -5,10 +5,10 @@ use chrono::TimeZone;
 use chrono::Timelike;
 use chrono::Utc;
 use log::warn;
-use rusqlite::params;
 use rusqlite::Connection;
 use rusqlite::OptionalExtension;
 use rusqlite::Transaction;
+use rusqlite::params;
 use serenity::all::CreateEmbed;
 use serenity::all::CreateEmbedFooter;
 use serenity::all::CreateMessage;
@@ -18,14 +18,14 @@ use serenity::all::UserId;
 use serenity::client::Context;
 use serenity::model::id::ChannelId;
 
+use crate::BURDBOT_DB;
 use crate::commands::BirthdayInfoConfirmation;
 use crate::error::SerenitySQLiteError;
 use crate::error::SerenitySQLiteResult;
 use crate::util;
-use crate::BURDBOT_DB;
 
-use super::BirthdayDateTime;
 use super::ADD_BDAY_ROLE_REASON;
+use super::BirthdayDateTime;
 use super::RM_BDAY_ROLE_REASON;
 
 fn get_server_role(transaction: &Transaction, guild_id: u64) -> rusqlite::Result<Option<u64>> {
@@ -37,10 +37,7 @@ fn get_server_role(transaction: &Transaction, guild_id: u64) -> rusqlite::Result
 }
 
 pub async fn add_birthday_to_db(
-    ctx: &Context,
-    guild_id: GuildId,
-    channel_id: ChannelId,
-    bday_info: &BirthdayInfoConfirmation,
+    ctx: &Context, guild_id: GuildId, channel_id: ChannelId, bday_info: &BirthdayInfoConfirmation,
 ) -> SerenitySQLiteResult<()> {
     let connection = Connection::open(BURDBOT_DB)?;
     let ins_stmt_str = if bday_info.is_privileged {
@@ -151,9 +148,7 @@ pub async fn add_birthday_to_db(
 }
 
 pub async fn get_birthday(
-    ctx: &Context,
-    channel_id: ChannelId,
-    user_id: u64,
+    ctx: &Context, channel_id: ChannelId, user_id: u64,
 ) -> SerenitySQLiteResult<()> {
     let connection = Connection::open(BURDBOT_DB)?;
     let bday_select_str = "
@@ -188,10 +183,7 @@ pub async fn get_birthday(
 }
 
 pub async fn remove_birthday(
-    ctx: &Context,
-    channel_id: ChannelId,
-    guild_id: GuildId,
-    user_id: UserId,
+    ctx: &Context, channel_id: ChannelId, guild_id: GuildId, user_id: UserId,
 ) -> Result<(), SerenitySQLiteError> {
     let mut role_id = None;
     let rows_changed;

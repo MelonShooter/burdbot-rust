@@ -25,18 +25,8 @@ use crate::util;
 
 pub const MONTH_TO_DAYS: [i64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 pub const MONTH_TO_NAME: [&str; 12] = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
+    "January", "February", "March", "April", "May", "June", "July", "August", "September",
+    "October", "November", "December",
 ];
 
 pub struct BirthdayInfoConfirmation {
@@ -50,11 +40,7 @@ pub struct BirthdayInfoConfirmation {
 
 impl BirthdayInfoConfirmation {
     pub fn new(
-        user_id: u64,
-        month: u32,
-        day: u32,
-        time_zone: i64,
-        handle: JoinHandle<()>,
+        user_id: u64, month: u32, day: u32, time_zone: i64, handle: JoinHandle<()>,
         is_privileged: bool,
     ) -> BirthdayInfoConfirmation {
         BirthdayInfoConfirmation { user_id, month, day, time_zone, is_privileged, handle }
@@ -116,11 +102,7 @@ async fn setuserbirthday(context: &Context, message: &Message, mut args: Args) -
 }
 
 async fn set_birthday(
-    context: &Context,
-    message: &Message,
-    mut args: Args,
-    target_id: u64,
-    is_privileged: bool,
+    context: &Context, message: &Message, mut args: Args, target_id: u64, is_privileged: bool,
 ) -> CommandResult {
     args.quoted();
 
@@ -320,9 +302,7 @@ async fn getuserbirthday(context: &Context, message: &Message, mut args: Args) -
 #[aliases("setserverbdayrole", "setsvbdayrole")]
 #[bucket("very_intense")]
 async fn setserverbirthdayrole(
-    context: &Context,
-    message: &Message,
-    mut args: Args,
+    context: &Context, message: &Message, mut args: Args,
 ) -> CommandResult {
     let arg_info = ArgumentInfo::new(&mut args, 1, 1);
     let role_id = argument_parser::parse_role(context, message, arg_info).await?.get();
@@ -362,14 +342,7 @@ async fn removeserverbirthdayrole(context: &Context, message: &Message) -> Comma
 
 #[group]
 #[commands(
-    setmybirthday,
-    birthdayconfirm,
-    setuserbirthday,
-    removeuserbirthday,
-    getuserbirthday,
-    getmybirthday,
-    setserverbirthdayrole,
-    getserverbirthdayrole,
-    removeserverbirthdayrole
+    setmybirthday, birthdayconfirm, setuserbirthday, removeuserbirthday, getuserbirthday,
+    getmybirthday, setserverbirthdayrole, getserverbirthdayrole, removeserverbirthdayrole
 )]
 struct Birthday;

@@ -6,8 +6,8 @@ use regex::Regex;
 use reqwest::Client;
 use std::iter;
 use std::num::ParseIntError;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use thiserror::Error;
 
 pub type Result<'a, T> = std::result::Result<T, VocarooError<'a>>;
@@ -17,9 +17,13 @@ pub type Result<'a, T> = std::result::Result<T, VocarooError<'a>>;
 pub enum VocarooError<'a> {
     #[error("No vocaroo URLs were found from the link: {0}.")]
     InvalidUrls(&'a str),
-    #[error("Failed Vocaroo HEAD request from the link: {0}. This could mean they stopped accepting these requests. Encountered reqwest error: {1}")]
+    #[error(
+        "Failed Vocaroo HEAD request from the link: {0}. This could mean they stopped accepting these requests. Encountered reqwest error: {1}"
+    )]
     FailedHead(String, #[source] reqwest::Error),
-    #[error("Failed Vocaroo GET request from the link: {0}. This could mean this isn't the right URL anymore. Encountered reqwest error: {1}")]
+    #[error(
+        "Failed Vocaroo GET request from the link: {0}. This could mean this isn't the right URL anymore. Encountered reqwest error: {1}"
+    )]
     FailedGet(String, #[source] reqwest::Error),
     #[error("Failed to get an MP3 from the link: {0}. No content type was provided.")]
     NoContentType(String),
@@ -27,21 +31,33 @@ pub enum VocarooError<'a> {
         "Failed to get an MP3 from the link: {0}. The content type header wasn't visible ASCII."
     )]
     ContentTypeNotVisibleASCII(String),
-    #[error("Failed to get an MP3 from the link: {0}. The content type wasn't that of an MP3, probably because the vocaroo ID was incorrect.")]
+    #[error(
+        "Failed to get an MP3 from the link: {0}. The content type wasn't that of an MP3, probably because the vocaroo ID was incorrect."
+    )]
     ContentTypeNotMp3(String),
-    #[error("Failed to download vocaroo recording from https://media.vocaroo.com for link: {0}. Status {1} given. If status 404 was given, this probably just means the vocaroo recording expired. If the recording hasn't expired, check they're not using https://media1.vocaroo.com to host it. The JS code currently doesn't actually match which CDN server to use but it appears all new recordings are at https://media.vocaroo.com, not https://media1.vocaroo.com when this code was last touched. Check the current code by looking up usages of 'mediaMP3FileURL' on the site's JS code in the script at the bottom of the body.")]
+    #[error(
+        "Failed to download vocaroo recording from https://media.vocaroo.com for link: {0}. Status {1} given. If status 404 was given, this probably just means the vocaroo recording expired. If the recording hasn't expired, check they're not using https://media1.vocaroo.com to host it. The JS code currently doesn't actually match which CDN server to use but it appears all new recordings are at https://media.vocaroo.com, not https://media1.vocaroo.com when this code was last touched. Check the current code by looking up usages of 'mediaMP3FileURL' on the site's JS code in the script at the bottom of the body."
+    )]
     FailedDownload(String, u16),
     #[error(
         "Vocaroo didn't send the content length header in the HEAD request from the link: {0}."
     )]
     NoContentLength(String),
-    #[error("Failed to convert the provided content length header in the HEAD request from the link: {0} because it contained non-visible ASCII.")]
+    #[error(
+        "Failed to convert the provided content length header in the HEAD request from the link: {0} because it contained non-visible ASCII."
+    )]
     ContentLengthNotVisibleASCII(String),
-    #[error("Failed to convert the provided visible ASCII content length header in the HEAD request from the link: {0} because it wasn't a number. Error encountered: {1}")]
+    #[error(
+        "Failed to convert the provided visible ASCII content length header in the HEAD request from the link: {0} because it wasn't a number. Error encountered: {1}"
+    )]
     ContentLengthNotNumber(String, #[source] ParseIntError),
-    #[error("Could not convert response body to bytes from the link: {0}. Encountered reqwest error: {1}")]
+    #[error(
+        "Could not convert response body to bytes from the link: {0}. Encountered reqwest error: {1}"
+    )]
     BodyToBytesFailure(String, #[source] reqwest::Error),
-    #[error("Vocaroo file at link '{0}' couldn't be converted to an MP3 because it would go over the total size limit: {1}.")]
+    #[error(
+        "Vocaroo file at link '{0}' couldn't be converted to an MP3 because it would go over the total size limit: {1}."
+    )]
     OverSizeLimit(String, usize),
 }
 
@@ -84,9 +100,7 @@ pub async fn get_content_length(url: &str, client: Client) -> Result<'static, us
 }
 
 pub async fn download_vocaroos(
-    urls: &str,
-    max_size: usize,
-    attachment_count_limit: usize,
+    urls: &str, max_size: usize, attachment_count_limit: usize,
 ) -> impl Iterator<Item = Result<'_, Bytes>> {
     lazy_static! {
         static ref VOCAROO_CLIENT: Client = Client::new();

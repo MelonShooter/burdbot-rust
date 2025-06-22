@@ -37,7 +37,9 @@ pub enum ArgumentParseError {
 }
 
 #[derive(Error, Debug, Clone)]
-#[error("Invalid choice in argument #{arg_pos}. Choices are {choices}. The argument provided was {provided_choice}")]
+#[error(
+    "Invalid choice in argument #{arg_pos}. Choices are {choices}. The argument provided was {provided_choice}"
+)]
 pub struct BadOptionError {
     pub arg_pos: usize,
     pub provided_choice: String,
@@ -51,7 +53,9 @@ impl BadOptionError {
 }
 
 #[derive(Error, Debug, Copy, Clone)]
-#[error("Not enough arguments provided. At least {min_args} arg(s) is/are needed. {args_provided} was/were provided.")]
+#[error(
+    "Not enough arguments provided. At least {min_args} arg(s) is/are needed. {args_provided} was/were provided."
+)]
 pub struct NotEnoughArgumentsError {
     pub min_args: usize,
     pub args_provided: usize,
@@ -64,7 +68,9 @@ impl NotEnoughArgumentsError {
 }
 
 #[derive(Error, Debug, Copy, Clone)]
-#[error("Argument #{arg_pos} is out of bounds. The range (inclusive) for this argument is {lower} to {upper}. The number provided was {arg}.")]
+#[error(
+    "Argument #{arg_pos} is out of bounds. The range (inclusive) for this argument is {lower} to {upper}. The number provided was {arg}."
+)]
 pub struct ArgumentOutOfBoundsError {
     pub lower: i64,
     pub upper: i64,
@@ -126,20 +132,14 @@ pub struct BoundedArgumentInfo<'a> {
 
 impl BoundedArgumentInfo<'_> {
     pub fn new(
-        args: &mut Args,
-        arg_pos: usize,
-        args_needed: usize,
-        start: i64,
-        end: i64,
+        args: &mut Args, arg_pos: usize, args_needed: usize, start: i64, end: i64,
     ) -> BoundedArgumentInfo<'_> {
         BoundedArgumentInfo { args, arg_pos, args_needed, start, end }
     }
 }
 
 pub async fn parse_bounded_arg(
-    ctx: impl AsRef<Http>,
-    msg: &Message,
-    arg_info: BoundedArgumentInfo<'_>,
+    ctx: impl AsRef<Http>, msg: &Message, arg_info: BoundedArgumentInfo<'_>,
 ) -> Result<i64> {
     let BoundedArgumentInfo { start, end, args, arg_pos, args_needed } = arg_info;
 
@@ -149,10 +149,7 @@ pub async fn parse_bounded_arg(
                 check_within_range(ctx, msg.channel_id, month_number, arg_pos, start, end).await;
 
                 Err(ArgumentParseError::OutOfBounds(ArgumentOutOfBoundsError::new(
-                    start,
-                    end,
-                    month_number,
-                    arg_pos,
+                    start, end, month_number, arg_pos,
                 )))
             } else {
                 args.advance(); // Get past the number argument.
@@ -215,11 +212,7 @@ fn parse_user_mention(arg: &str) -> Option<u64> {
 }
 
 async fn id_argument_to_member<T: AsRef<Cache>>(
-    cache: T,
-    arg_pos: usize,
-    arg: &str,
-    guild_id: impl Into<GuildId>,
-    user_id: impl Into<UserId>,
+    cache: T, arg_pos: usize, arg: &str, guild_id: impl Into<GuildId>, user_id: impl Into<UserId>,
 ) -> Result<Member> {
     let member = cache.as_ref().guild(guild_id).map(|g| g.members.get(&user_id.into()).cloned());
 
@@ -229,9 +222,7 @@ async fn id_argument_to_member<T: AsRef<Cache>>(
 }
 
 pub async fn parse_member(
-    ctx: &Context,
-    msg: &Message,
-    arg_info: ArgumentInfo<'_>,
+    ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>,
 ) -> Result<Member> {
     let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();
@@ -293,10 +284,7 @@ fn parse_role_mention(arg: &str) -> Option<u64> {
 }
 
 async fn bad_option_message<T: Iterator>(
-    ctx: &Context,
-    msg: &Message,
-    arg_pos: usize,
-    choices: T,
+    ctx: &Context, msg: &Message, arg_pos: usize, choices: T,
 ) -> String
 where
     T::Item: Display,
@@ -318,10 +306,7 @@ where
 }
 
 pub async fn parse_choices<T: IntoIterator>(
-    ctx: &Context,
-    msg: &Message,
-    arg_info: ArgumentInfo<'_>,
-    choices: T,
+    ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>, choices: T,
 ) -> Result<T::Item>
 where
     T::Item: Display + Hash + Eq + FromStr,
@@ -350,9 +335,7 @@ where
                     .to_owned();
 
                 Err(ArgumentParseError::BadOption(BadOptionError::new(
-                    arg_pos,
-                    current_arg,
-                    options,
+                    arg_pos, current_arg, options,
                 )))
             }
         },
@@ -360,11 +343,7 @@ where
 }
 
 async fn id_argument_to_role<T: AsRef<Cache>>(
-    cache: T,
-    arg_pos: usize,
-    arg: &str,
-    guild_id: impl Into<GuildId>,
-    role_id: impl Into<RoleId>,
+    cache: T, arg_pos: usize, arg: &str, guild_id: impl Into<GuildId>, role_id: impl Into<RoleId>,
 ) -> Result<RoleId> {
     let guild =
         cache.as_ref().guild(guild_id).map(|g| g.roles.get(&role_id.into()).map(|role| role.id));
@@ -379,9 +358,7 @@ async fn id_argument_to_role<T: AsRef<Cache>>(
 }
 
 pub async fn parse_role(
-    ctx: &Context,
-    msg: &Message,
-    arg_info: ArgumentInfo<'_>,
+    ctx: &Context, msg: &Message, arg_info: ArgumentInfo<'_>,
 ) -> Result<RoleId> {
     let cache = &ctx.cache;
     let guild_id = msg.guild_id.unwrap();

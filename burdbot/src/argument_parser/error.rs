@@ -6,10 +6,7 @@ use serenity::model::id::ChannelId;
 use crate::util;
 
 pub async fn not_enough_arguments(
-    ctx: impl AsRef<Http>,
-    ch: ChannelId,
-    arg_count: usize,
-    args_needed: usize,
+    ctx: impl AsRef<Http>, ch: ChannelId, arg_count: usize, args_needed: usize,
 ) {
     let args_needed_message = if args_needed == 1 { " is" } else { "s are" };
     let arg_count_message = if arg_count == 1 { " was" } else { "s were" };
@@ -24,12 +21,7 @@ pub async fn not_enough_arguments(
 }
 
 pub async fn check_within_range<T: Display, U: Display>(
-    ctx: impl AsRef<Http>,
-    ch: ChannelId,
-    arg: T,
-    arg_pos: usize,
-    start: U,
-    end: U,
+    ctx: impl AsRef<Http>, ch: ChannelId, arg: T, arg_pos: usize, start: U, end: U,
 ) {
     let invalid_range_message = format!(
         "Invalid argument #{} provided. \

@@ -1,6 +1,6 @@
+use futures::StreamExt;
 use futures::future::join_all;
 use futures::stream;
-use futures::StreamExt;
 use log::debug;
 use log::error;
 use serenity::all::CreateAttachment;
@@ -24,9 +24,7 @@ use crate::util;
 use super::error_util;
 
 async fn parse_term(
-    ctx: &Context,
-    msg: &Message,
-    args: &mut Args,
+    ctx: &Context, msg: &Message, args: &mut Args,
 ) -> Result<String, NotEnoughArgumentsError> {
     match args.current() {
         Some(arg) => Ok(urlencoding::encode(arg).into_owned()),
@@ -39,26 +37,20 @@ async fn parse_term(
 }
 
 fn get_pronounce_message(
-    term: &str,
-    country: Country,
-    requested_country: Option<Country>,
+    term: &str, country: Country, requested_country: Option<Country>,
 ) -> String {
     match requested_country.filter(|&c| c != country) {
         Some(_) => {
             format!(
-            "Here is the pronunciation of ``{term}``. The pronunciation from the country closest in terms of accent to the requested country is {country}."
-        )
+                "Here is the pronunciation of ``{term}``. The pronunciation from the country closest in terms of accent to the requested country is {country}."
+            )
         },
         _ => format!("Here is the pronunciation of ``{term}``. Country: {country}."),
     }
 }
 
 async fn send_forvo_recording(
-    ctx: &Context,
-    msg: &Message,
-    term: &str,
-    country: Country,
-    data: &[u8],
+    ctx: &Context, msg: &Message, term: &str, country: Country, data: &[u8],
     requested_country: Option<Country>,
 ) {
     let result = msg
@@ -77,11 +69,7 @@ async fn send_forvo_recording(
 }
 
 async fn handle_recording_error<T>(
-    ctx: &Context,
-    ch_id: ChannelId,
-    term: &str,
-    recording: &forvo::Result<T>,
-    is_error: bool,
+    ctx: &Context, ch_id: ChannelId, term: &str, recording: &forvo::Result<T>, is_error: bool,
 ) {
     if let Err(err) = recording {
         if is_error {
@@ -95,11 +83,7 @@ async fn handle_recording_error<T>(
 }
 
 async fn handle_recording_error_res<T>(
-    ctx: &Context,
-    ch_id: ChannelId,
-    term: &str,
-    recording: forvo::Result<T>,
-    is_error: bool,
+    ctx: &Context, ch_id: ChannelId, term: &str, recording: forvo::Result<T>, is_error: bool,
 ) -> forvo::Result<T> {
     handle_recording_error(ctx, ch_id, term, &recording, is_error).await;
 

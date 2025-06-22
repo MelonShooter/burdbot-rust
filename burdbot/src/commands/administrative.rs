@@ -1,19 +1,19 @@
 use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use serenity::all::{CreateEmbedAuthor, CreateEmbedFooter};
 use serenity::builder::{CreateEmbed, CreateMessage};
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::{Args, CommandResult};
+use serenity::model::Color;
 use serenity::model::channel::Message;
 use serenity::model::guild::Member;
 use serenity::model::id::MessageId;
 use serenity::model::prelude::User;
-use serenity::model::Color;
 
-use crate::{argument_parser, BURDBOT_DB};
+use crate::{BURDBOT_DB, argument_parser};
 
 use crate::argument_parser::{
     ArgumentConversionError, ArgumentInfo, ArgumentParseError, BoundedArgumentInfo, ConversionType,
@@ -49,10 +49,7 @@ struct Log {
 
 impl Log {
     fn new(
-        entry_id: i64,
-        original_link: String,
-        last_edited_link: Option<String>,
-        reason: String,
+        entry_id: i64, original_link: String, last_edited_link: Option<String>, reason: String,
     ) -> Log {
         Log { entry_id, original_link, last_edited_link, reason }
     }
@@ -73,11 +70,7 @@ impl Log {
 }
 
 async fn parse_staff_log_member(
-    ctx: &Context,
-    msg: &Message,
-    args: &mut Args,
-    arg_pos: usize,
-    args_needed: usize,
+    ctx: &Context, msg: &Message, args: &mut Args, arg_pos: usize, args_needed: usize,
 ) -> CommandResult<Member> {
     let member =
         argument_parser::parse_member(ctx, msg, ArgumentInfo::new(args, arg_pos, args_needed))

@@ -6,8 +6,8 @@ use std::time::Duration;
 use std::{cmp, iter};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Mutex as TokioMutex;
+use tokio::sync::mpsc::UnboundedSender;
 
 use log::{info, warn};
 use once_cell::sync::OnceCell;
@@ -49,7 +49,9 @@ async fn get_deliburd_channel_id(cache_and_http: impl CacheHttp) -> Option<Chann
     match channel {
         Ok(channel) => Some(channel.id),
         Err(err) => {
-            eprintln!("Couldn't create DM channel with {DELIBURD_ID} to send logs to. Error: {err}\nSending logs to fallback file instead.");
+            eprintln!(
+                "Couldn't create DM channel with {DELIBURD_ID} to send logs to. Error: {err}\nSending logs to fallback file instead."
+            );
 
             None
         },
@@ -60,7 +62,9 @@ pub(crate) async fn on_cache_ready(ctx: &Context) {
     let set_result = DELIBURD_CHANNEL_ID.set(get_deliburd_channel_id(ctx).await);
 
     if set_result.is_err() {
-        info!("The DM channel ID OnceCell already had a value in it. This can only happen if the cache wasn't ready fast enough.");
+        info!(
+            "The DM channel ID OnceCell already had a value in it. This can only happen if the cache wasn't ready fast enough."
+        );
     }
 }
 
@@ -103,7 +107,8 @@ impl LogSender {
             match id.send_files((&self.cache, &*self.http), files, CreateMessage::new()).await {
                 Err(err) => eprintln!(
                     "Failed to send log message. Encountered Serenity error: {err}\nSending logs to fallback file '{}' instead.",
-                    self.failed_to_send_file),
+                    self.failed_to_send_file
+                ),
                 _ => return,
             }
         }
@@ -140,13 +145,8 @@ pub struct DiscordLogger {
 
 impl DiscordLogger {
     pub fn new(
-        cache: Arc<Cache>,
-        http: Arc<Http>,
-        buffer_size: usize,
-        failed_to_send_file: &'static str,
-        send_file_name: &'static str,
-        write_cooldown: Duration,
-        sender: UnboundedSender<LogSender>,
+        cache: Arc<Cache>, http: Arc<Http>, buffer_size: usize, failed_to_send_file: &'static str,
+        send_file_name: &'static str, write_cooldown: Duration, sender: UnboundedSender<LogSender>,
     ) -> Self {
         let logger = DiscordLogger {
             cache,
@@ -177,7 +177,9 @@ impl DiscordLogger {
 }
 
 fn malformed_string_err(buf: &[u8]) -> std::io::Error {
-    let msg = format!("Non-UTF-8 bytes were passed into DiscordLogger's write(). Investigate this. Bytes: {buf:?}.");
+    let msg = format!(
+        "Non-UTF-8 bytes were passed into DiscordLogger's write(). Investigate this. Bytes: {buf:?}."
+    );
 
     warn!("{msg}");
 
@@ -197,10 +199,10 @@ impl Write for DiscordLogger {
         let space_left = self.buffer_size - write_buffer.len();
 
         assert!(
-                space_left <= self.buffer_size,
-                "space_left variable overflowed in DiscordLogger's write(), almost certainly because the buffer exceeded the allowed size: {}, which should never happen.",
-                self.buffer_size
-            );
+            space_left <= self.buffer_size,
+            "space_left variable overflowed in DiscordLogger's write(), almost certainly because the buffer exceeded the allowed size: {}, which should never happen.",
+            self.buffer_size
+        );
 
         let bytes_to_write = cmp::min(space_left, buf.len());
 

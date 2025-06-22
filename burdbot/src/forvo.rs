@@ -46,9 +46,7 @@ pub struct ForvoRegexCaptureError {
 
 impl ForvoRegexCaptureError {
     pub fn new(
-        regex_str: &'static str,
-        capture_group_idx: usize,
-        capture_type: ForvoCaptureType,
+        regex_str: &'static str, capture_group_idx: usize, capture_type: ForvoCaptureType,
     ) -> Self {
         Self { regex_str, capture_group_idx, capture_type }
     }
@@ -306,9 +304,7 @@ impl ForvoRecording {
 }
 
 fn get_language_recording(
-    captures: Captures,
-    regex: &'static str,
-    language: Language,
+    captures: Captures, regex: &'static str, language: Language,
 ) -> PossibleForvoRecording {
     let url_base64_data = captures.get(1).ok_or_else(|| {
         ForvoError::BadBase64RegexMatching(ForvoRegexCaptureError::new(
@@ -338,8 +334,7 @@ fn get_language_recording(
 
 /// Gets language recordings for a given language
 fn get_language_recordings(
-    entries: &ElementRef,
-    language: Language,
+    entries: &ElementRef, language: Language,
 ) -> Vec<PossibleForvoRecording> {
     lazy_static! {
         static ref FORVO_HTML_MATCHER: Regex =
@@ -354,8 +349,7 @@ fn get_language_recordings(
 
 /// Possible for outer vec to be empty, techinically not possible for inner vec to be empty, but take it into account anyways
 async fn get_all_recordings(
-    term: &str,
-    requested_country: Option<Country>,
+    term: &str, requested_country: Option<Country>,
 ) -> Result<Vec<Vec<PossibleForvoRecording>>> {
     lazy_static! {
         static ref LANGUAGE_CONTAINER_SELECTOR: Selector =
@@ -390,9 +384,7 @@ async fn get_pronunciation_from_link(forvo_recording: &str) -> reqwest::Result<V
 }
 
 fn recording_to_distance<T>(
-    recording: &ForvoRecording,
-    input_country: Option<Country>,
-    accent_differences: &mut T,
+    recording: &ForvoRecording, input_country: Option<Country>, accent_differences: &mut T,
 ) -> u32
 where
     T: DerefMut<Target = HashMap<(Country, Country), u32>>,
@@ -473,10 +465,7 @@ impl<'a> RecordingData<'a> {
 }
 
 fn is_closer<T>(
-    first: &ForvoRecording,
-    second: &ForvoRecording,
-    country: Option<Country>,
-    accent_map: &mut T,
+    first: &ForvoRecording, second: &ForvoRecording, country: Option<Country>, accent_map: &mut T,
 ) -> bool
 where
     T: DerefMut<Target = HashMap<(Country, Country), u32>>,
@@ -491,9 +480,7 @@ where
 }
 
 fn possible_recordings_to_data(
-    term: &str,
-    country: Option<Country>,
-    possible_recordings: Vec<PossibleForvoRecording>,
+    term: &str, country: Option<Country>, possible_recordings: Vec<PossibleForvoRecording>,
 ) -> impl Iterator<Item = Result<RecordingData<'_>>> {
     let mut possible_data = Vec::new();
     let mut closest_recording = None;
@@ -530,8 +517,7 @@ fn possible_recordings_to_data(
 
 /// Document so closest recordings for english and spanish depending on circumstances are provided, but so are failed recordings
 pub async fn fetch_pronunciation(
-    term: &str,
-    requested_country: Option<Country>,
+    term: &str, requested_country: Option<Country>,
 ) -> Result<Vec<Result<RecordingData<'_>>>> {
     Ok(get_all_recordings(term, requested_country)
         .await?

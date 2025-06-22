@@ -122,11 +122,7 @@ impl<T: Digest> ImageChecker<T> {
     // - the entry already exists in the checker (Duplicate)
     // An Err indicates some internal error occurred.
     pub async fn add_image(
-        &self,
-        desc: &str,
-        guild_id: GuildId,
-        message: &Message,
-        hash_type: impl Into<u16>,
+        &self, desc: &str, guild_id: GuildId, message: &Message, hash_type: impl Into<u16>,
     ) -> SerenitySQLiteResult<ImageOpOutcome> {
         let message_images = MessageImages(message);
         let images = message_images.to_vec();
@@ -156,9 +152,7 @@ impl<T: Digest> ImageChecker<T> {
     // Removes an image from the image checker for the guild.
     // Returns NotFound if not found in guild, otherwise Success, unless an internal error occurs
     pub fn remove_image(
-        &self,
-        guild_id: GuildId,
-        msg_link: &str,
+        &self, guild_id: GuildId, msg_link: &str,
     ) -> SerenitySQLiteResult<ImageOpOutcome> {
         let connection = Connection::open(BURDBOT_DB)?;
         let deletion_statement = "
@@ -176,9 +170,7 @@ impl<T: Digest> ImageChecker<T> {
     // Checks if an image passes the filters for the guild.
     // Returns true if no image was found in the checker. Err if there was an internal error
     pub async fn check_image(
-        &self,
-        guild_id: GuildId,
-        image: (&str, u32, u32),
+        &self, guild_id: GuildId, image: (&str, u32, u32),
     ) -> SerenitySQLiteResult<bool> {
         info!("Got attachments {image:?}");
         let (url, width, height) = image;

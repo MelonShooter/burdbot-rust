@@ -14,8 +14,8 @@ use songbird::error::JoinError;
 use songbird::model::id::UserId;
 use songbird::{CoreEvent, Songbird};
 
-use crate::event_handler::BurdBotVoiceEventHandler;
 use crate::IS_SESSION_TRACKER_ENABLED;
+use crate::event_handler::BurdBotVoiceEventHandler;
 
 const TARGET_GUILD_ID: u64 = 720900352018219039;
 const TARGET_VOICE_CHANNEL_ID: u64 = 720900352597033053;
@@ -111,9 +111,7 @@ fn write_duration_with_error(start_time: &Instant, id: u64) {
 }
 
 pub fn on_speaking_state_update(
-    event_handler: &BurdBotVoiceEventHandler,
-    user_id: &Option<UserId>,
-    ssrc: u32,
+    event_handler: &BurdBotVoiceEventHandler, user_id: &Option<UserId>, ssrc: u32,
 ) {
     if let Some(id) = user_id {
         let mut ssrc_to_user_id = event_handler.ssrc_to_user_id.write().unwrap();

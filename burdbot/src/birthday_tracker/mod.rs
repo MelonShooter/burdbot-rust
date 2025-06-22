@@ -11,8 +11,8 @@ use crate::commands;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use lazy_static::lazy_static;
 use regex::Regex;
-use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef};
 use rusqlite::ToSql;
+use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef};
 
 #[derive(Clone, Copy)]
 struct BirthdayDateTime {

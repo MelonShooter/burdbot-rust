@@ -158,8 +158,7 @@ async fn on_post_command(_: &Context, _: &Message, cmd: &str, result: CommandRes
 }
 
 async fn on_terminate(
-    shard_manager: Arc<ShardManager>,
-    mut log_sender_mpsc_recv: UnboundedReceiver<LogSender>,
+    shard_manager: Arc<ShardManager>, mut log_sender_mpsc_recv: UnboundedReceiver<LogSender>,
 ) {
     // Flush the logger so that all logs are sent.
     info!("Flushed logger. Terminating bot...");
@@ -255,7 +254,7 @@ async fn main() {
 
     CombinedLogger::init(vec![
         WriteLogger::new(
-            LevelFilter::Info,
+            LevelFilter::Debug,
             burdbot_log_config,
             DiscordLogger::new(
                 cache.clone(),

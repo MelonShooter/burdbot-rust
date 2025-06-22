@@ -1,10 +1,10 @@
 use chrono::{DateTime, Datelike, Duration, Utc};
-use rusqlite::{params, Connection, Transaction};
+use rusqlite::{Connection, Transaction, params};
 use serenity::http::Http;
 
 use super::BirthdayDateTime;
-use crate::error::{SerenitySQLiteError, SerenitySQLiteResult};
 use crate::BURDBOT_DB;
+use crate::error::{SerenitySQLiteError, SerenitySQLiteResult};
 
 pub(crate) const RM_BDAY_ROLE_REASON: Option<&str> = Some("It's no longer their birthday");
 pub(crate) const ADD_BDAY_ROLE_REASON: Option<&str> = Some("It's their birthday");
@@ -69,8 +69,7 @@ fn get_date_time_to_use() -> DateTime<Utc> {
 }
 
 fn get_and_delete_old_bdays(
-    transaction: &Transaction,
-    date_time: DateTime<Utc>,
+    transaction: &Transaction, date_time: DateTime<Utc>,
 ) -> rusqlite::Result<Vec<(u64, u64, u64)>> {
     // get bdays from bday table that are 24 hrs in the past and set the end date to be 24 hrs from the start date.
     let mut query_info = Vec::new();
@@ -109,8 +108,7 @@ fn get_and_delete_old_bdays(
 }
 
 fn add_new_bdays(
-    transaction: &Transaction,
-    curr_date_time: DateTime<Utc>,
+    transaction: &Transaction, curr_date_time: DateTime<Utc>,
 ) -> rusqlite::Result<Vec<(u64, u64, u64)>> {
     let mut query_info = Vec::new();
     let mut user_selection_statement = if curr_date_time.month() != 1 || curr_date_time.day() != 1 {

@@ -18,11 +18,7 @@ use serenity::model::id::{ChannelId, RoleId};
 use strum_macros::{Display, FromRepr};
 
 async fn banfromchannel(
-    ctx: &Context,
-    msg: &Message,
-    mut args: Args,
-    role_id: RoleId,
-    ch_name: &str,
+    ctx: &Context, msg: &Message, mut args: Args, role_id: RoleId, ch_name: &str,
 ) -> CommandResult<String> {
     let target =
         argument_parser::parse_member(ctx, msg, ArgumentInfo::new(&mut args, 1, 1)).await?;
@@ -68,11 +64,7 @@ async fn banfromchannel(
 }
 
 async fn unbanfromchannel(
-    ctx: &Context,
-    msg: &Message,
-    mut args: Args,
-    role_id: RoleId,
-    ch_name: &str,
+    ctx: &Context, msg: &Message, mut args: Args, role_id: RoleId, ch_name: &str,
 ) -> CommandResult<String> {
     let target =
         argument_parser::parse_member(ctx, msg, ArgumentInfo::new(&mut args, 1, 1)).await?;
@@ -155,10 +147,7 @@ async fn unbanfrommemes(ctx: &Context, msg: &Message, args: Args) -> CommandResu
 // - The linked message isn't from the provided guild ID
 // - The message link wasn't valid
 async fn validate_image_link(
-    ctx: &Context,
-    curr_channel: ChannelId,
-    link: &str,
-    from_guild: GuildId,
+    ctx: &Context, curr_channel: ChannelId, link: &str, from_guild: GuildId,
 ) -> Option<Message> {
     // Parse link
     let Some((guild_id, channel_id, msg_id)) = get_ids_from_msg_link(link) else {
@@ -168,10 +157,7 @@ async fn validate_image_link(
 
     if from_guild != guild_id {
         util::send_message(
-            ctx,
-            curr_channel,
-            "Message link must be from this server",
-            "validate_image_link",
+            ctx, curr_channel, "Message link must be from this server", "validate_image_link",
         )
         .await;
         return None;
@@ -180,8 +166,14 @@ async fn validate_image_link(
     let msg = channel_id.message(ctx, msg_id).await.ok();
 
     if let None = msg {
-        util::send_message(ctx, curr_channel, "Message link not valid", "validate_image_link")
-            .await;
+        util::send_message(
+            ctx,
+            curr_channel,
+            "Couldn't fetch message. Check message link is valid and I have \
+             permission to access it",
+            "validate_image_link",
+        )
+        .await;
     }
 
     msg
@@ -275,15 +267,13 @@ pub async fn on_message_receive(ctx: &Context, msg: &Message) {
 )]
 #[description(
     "Bans an image given a link to the message with the image and a description. The link should lead to a \
-     message in this server. It would be preferable to just choose an image already in the logs."
+     message in this server. It would be preferable to just choose an image already in the logs. \
+     You're exempted if you have permission to time out or manage messages."
 )]
 async fn banimage(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     if args.len() < 2 {
         util::send_message(
-            ctx,
-            msg.channel_id,
-            "Provide a message link and description",
-            "banimage",
+            ctx, msg.channel_id, "Provide a message link and description", "banimage",
         )
         .await;
         return Ok(());

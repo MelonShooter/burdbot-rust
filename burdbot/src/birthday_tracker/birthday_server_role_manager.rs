@@ -5,9 +5,9 @@ use serenity::client::Context;
 use serenity::model::id::{ChannelId, RoleId};
 
 use crate::error::{SerenitySQLiteError, SerenitySQLiteResult};
-use crate::{util, BURDBOT_DB};
+use crate::{BURDBOT_DB, util};
 
-use super::{role_updater, RM_BDAY_ROLE_REASON};
+use super::{RM_BDAY_ROLE_REASON, role_updater};
 
 const NO_BIRTHDAY_SERVER_ROLE: &str = "This server has no birthday role currently.";
 
@@ -27,10 +27,7 @@ pub fn handle_update_birthday_roles_error(error: &SerenitySQLiteError) {
 }
 
 pub async fn set_birthday_role(
-    ctx: &Context,
-    channel_id: ChannelId,
-    guild_id: u64,
-    role_id: u64,
+    ctx: &Context, channel_id: ChannelId, guild_id: u64, role_id: u64,
 ) -> rusqlite::Result<()> {
     let connection = Connection::open(BURDBOT_DB)?;
     let insert_string = "
@@ -64,8 +61,7 @@ async fn is_actual_role(ctx: &Context, guild_id: u64, role_id: u64) -> bool {
 }
 
 fn get_birthday_role_id_conn(
-    connection: &Connection,
-    guild_id: u64,
+    connection: &Connection, guild_id: u64,
 ) -> rusqlite::Result<Option<u64>> {
     let select_string = "
         SELECT role_id
@@ -77,8 +73,7 @@ fn get_birthday_role_id_conn(
 }
 
 fn get_birthday_role_id_trans(
-    connection: &Transaction,
-    guild_id: u64,
+    connection: &Transaction, guild_id: u64,
 ) -> rusqlite::Result<Option<u64>> {
     let select_string = "
         SELECT role_id
@@ -90,9 +85,7 @@ fn get_birthday_role_id_trans(
 }
 
 pub async fn get_birthday_role(
-    ctx: &Context,
-    channel_id: ChannelId,
-    guild_id: u64,
+    ctx: &Context, channel_id: ChannelId, guild_id: u64,
 ) -> SerenitySQLiteResult<()> {
     let connection = Connection::open(BURDBOT_DB)?;
     let role_id_option = get_birthday_role_id_conn(&connection, guild_id)?;
@@ -169,9 +162,7 @@ fn handle_db_birthday_removal(guild_id: u64) -> rusqlite::Result<Option<(Vec<u64
 }
 
 pub async fn remove_birthday_role(
-    ctx: &Context,
-    channel_id: ChannelId,
-    guild_id: GuildId,
+    ctx: &Context, channel_id: ChannelId, guild_id: GuildId,
 ) -> SerenitySQLiteResult<()> {
     let db_removal_result = handle_db_birthday_removal(guild_id.get())?;
 

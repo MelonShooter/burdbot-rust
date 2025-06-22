@@ -37,10 +37,7 @@ pub fn check_message_sending(res: serenity::Result<Message>, function_name: &str
 }
 
 pub async fn send_message(
-    ctx: impl AsRef<Http>,
-    ch: ChannelId,
-    msg: impl Display,
-    function_name: &str,
+    ctx: impl AsRef<Http>, ch: ChannelId, msg: impl Display, function_name: &str,
 ) {
     let ctx = ctx.as_ref();
 
@@ -48,9 +45,7 @@ pub async fn send_message(
 }
 
 pub async fn get_member_permissions<T: AsRef<Cache>>(
-    cache: T,
-    guild_id: GuildId,
-    user_id: impl Into<UserId>,
+    cache: T, guild_id: GuildId, user_id: impl Into<UserId>,
 ) -> Option<Permissions> {
     let guild = cache.as_ref().guild(guild_id)?;
 

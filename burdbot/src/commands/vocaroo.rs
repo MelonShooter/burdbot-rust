@@ -4,18 +4,18 @@ use std::collections::HashSet;
 use bytes::Bytes;
 use log::{debug, error, warn};
 use rusqlite::Connection;
+use serenity::Error;
 use serenity::all::CreateAttachment;
 use serenity::builder::CreateMessage;
 use serenity::client::Context;
-use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::CommandResult;
+use serenity::framework::standard::macros::{command, group};
 use serenity::model::channel::{Message, MessageReference, ReactionType};
 use serenity::prelude::TypeMapKey;
-use serenity::Error;
 
+use crate::BURDBOT_DB;
 use crate::commands::error_util;
 use crate::vocaroo::VocarooError;
-use crate::BURDBOT_DB;
 use crate::{util, vocaroo};
 
 const TOTAL_MAX_VOCAROO_SIZE: usize = (1 << 20) * 6; // 6MiB
@@ -110,7 +110,9 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
             if let Err(err) = msg.react(&ctx.http, reaction).await {
                 let link = msg.link();
 
-                debug!("Failed to react to a vocaroo recording that errored. Error: {err}. Message link: {link}.");
+                debug!(
+                    "Failed to react to a vocaroo recording that errored. Error: {err}. Message link: {link}."
+                );
             }
         }
 
@@ -140,7 +142,9 @@ pub async fn on_message_received(ctx: &Context, msg: &Message) {
                      This is generally due to a lack of permissions or the message was too large."
                 )
             },
-            Err(err) => warn!("Couldn't send vocaroo message in channel {id} in server {guild_id} because of error: {err}"),
+            Err(err) => warn!(
+                "Couldn't send vocaroo message in channel {id} in server {guild_id} because of error: {err}"
+            ),
         };
     }
 }

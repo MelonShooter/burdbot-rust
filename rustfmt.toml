@@ -1,5 +1,7 @@
-max_width = 100
 use_small_heuristics = "Max"
 match_block_trailing_comma = true
 newline_style = "Unix"
 use_field_init_shorthand = true
+fn_params_layout = "Compressed"
+use_try_shorthand = true
+short_array_element_width_threshold = 40

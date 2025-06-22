@@ -218,11 +218,7 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
         pub const fn div_ceil(lhs: usize, rhs: usize) -> usize {
             let d = lhs / rhs;
             let r = lhs % rhs;
-            if r > 0 && rhs > 0 {
-                d + 1
-            } else {
-                d
-            }
+            if r > 0 && rhs > 0 { d + 1 } else { d }
         }
 
         let min_bucket_count = div_ceil(capacity, load_factor);
@@ -249,8 +245,7 @@ impl<const T: u32> SnowflakeIdSearchEngine<T> {
     }
 
     pub fn with_capacity_and_load_factor(
-        capacity: usize,
-        load_factor: usize,
+        capacity: usize, load_factor: usize,
     ) -> SnowflakeIdSearchEngine<T> {
         Self::assert_chopped_lower_bit_limit();
 
@@ -598,7 +593,7 @@ mod test {
 
     use crate::id_search_engine::*;
 
-    use super::{FuzzyMatchedId, Id, SnowflakeFuzzyMatch, MIN_ID_NUMBER};
+    use super::{FuzzyMatchedId, Id, MIN_ID_NUMBER, SnowflakeFuzzyMatch};
 
     const REALISTIC_MAX_ID: Id = 999_999_999_999_999_999; // This is a possible 18 digit timestamp for 2022-07-22T11:22:59.101Z.
 
@@ -763,9 +758,7 @@ mod test {
     #[test]
     fn realistic_snowflake_fuzzy_match_false_cases_test() {
         fn gen_number_length_not_num(
-            num: Id,
-            len: usize,
-            rand: &mut impl Iterator<Item = char>,
+            num: Id, len: usize, rand: &mut impl Iterator<Item = char>,
         ) -> String {
             let num_as_str = num.to_string();
             let mut number = String::with_capacity(len); // Generate number that's the same length, but not the snowflake
@@ -819,10 +812,7 @@ mod test {
     #[test]
     fn snowflake_leading_zero_test() {
         fn create_fuzzy_snowflake(
-            left: u32,
-            right: u32,
-            leading_zeros: u8,
-            id: Id,
+            left: u32, right: u32, leading_zeros: u8, id: Id,
         ) -> SnowflakeFuzzyMatch {
             let fuzzy_id = FuzzyMatchedId { leading_zeros, no_leading_zeros_id: id };
 
