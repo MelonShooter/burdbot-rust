@@ -237,21 +237,8 @@ pub async fn on_message_receive(ctx: &Context, msg: &Message) {
     }
 
     let images = MessageImages(msg);
-    let member = match msg.member(ctx).await {
-        Ok(m) => m,
-        Err(e) => {
-            error!("Couldn't get member while checking if they sent banned image: {e:?}");
-            return;
-        },
-    };
 
-    if let Some(guild) = msg.guild(&ctx.cache) {
-        let perms = guild.partial_member_permissions_in(
-            guild.channels.get(&msg.channel_id).unwrap(),
-            msg.author.id,
-            &member.into(),
-        );
-
+    if let Some(perms) = msg.author_permissions(ctx) {
         // Means this user has at least one permission from PERM_EXEMPTION, so return
         // and don't run anything
         if !perms.intersection(PERM_EXEMPTION).is_empty() {
