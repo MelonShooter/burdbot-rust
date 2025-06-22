@@ -18,7 +18,8 @@ use log::error;
 // Gets the IDs from a message link
 pub fn get_ids_from_msg_link(link: impl AsRef<str>) -> Option<(GuildId, ChannelId, MessageId)> {
     lazy_static! {
-        static ref ID_MATCHER: Regex = Regex::new(r"(\d{8,})/(\d{8,})/(\d{8,})").unwrap();
+        static ref ID_MATCHER: Regex =
+            Regex::new(r"https://discord\.com/channels/(\d{8,})/(\d{8,})/(\d{8,})").unwrap();
     }
 
     let c = ID_MATCHER.captures(link.as_ref())?;

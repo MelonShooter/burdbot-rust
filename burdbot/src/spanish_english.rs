@@ -14,8 +14,8 @@
 // use tokio::task::JoinHandle;
 // use tokio::time;
 use serenity::client::Context;
-use serenity::framework::standard::macros::check;
 use serenity::framework::standard::Reason;
+use serenity::framework::standard::macros::check;
 use serenity::model::channel::Message;
 
 use crate::util;
@@ -273,8 +273,7 @@ async fn do_music_check(ctx: &Context, message: &Message) {
 
     for prefix in BOT_PREFIXES {
         if content.starts_with(prefix) {
-            let msg_str =
-                "Please put music bot commands in <#247135634265735168> as they do not work here. \
+            let msg_str = "Please put music bot commands in <#247135634265735168> as they do not work here. \
             Por favor, poné los comandos de música en <#247135634265735168>. No funcionan por acá.";
 
             util::send_message(ctx, message.channel_id, msg_str, "on_message_receive").await;
@@ -286,6 +285,11 @@ async fn do_music_check(ctx: &Context, message: &Message) {
 
 #[check]
 pub async fn is_server_helper_or_above(ctx: &Context, msg: &Message) -> Result<(), Reason> {
+    if let Some(720900352018219039) = msg.guild_id.map(|i| i.get()) {
+        // If the message comes from the test server, then automatically make an exemption for it
+        return Ok(());
+    }
+
     let author = match msg.member(&ctx).await {
         Ok(member) => member,
         Err(_) => return Err(Reason::Unknown),

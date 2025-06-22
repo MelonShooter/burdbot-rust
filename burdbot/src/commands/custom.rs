@@ -1,12 +1,14 @@
 use crate::argument_parser::{self, ArgumentInfo};
 use crate::commands::error_util;
-use crate::image_checker::ImageChecker;
+use crate::image_checker::{ImageChecker, MessageImages};
 use crate::spanish_english::IS_SERVER_HELPER_OR_ABOVE_CHECK;
 use crate::util::{self, get_ids_from_msg_link};
 
 use chrono::Days;
 use log::{error, info};
-use serenity::all::{CreateEmbed, CreateMessage, GuildId, Member, Timestamp};
+use serenity::all::{
+    CreateEmbed, CreateMessage, EMBED_MAX_COUNT, GuildId, Member, Permissions, Timestamp,
+};
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::{Args, CommandResult};
@@ -149,11 +151,14 @@ async fn unbanfrommemes(ctx: &Context, msg: &Message, args: Args) -> CommandResu
 
 // TODO: write message event thingy here
 
-// Validates an image link by parsing and checking it
+// Validates an image link by parsing and checking that:
+// - The linked message isn't from the provided guild ID
+// - The message link wasn't valid
 async fn validate_image_link(
     ctx: &Context,
     curr_channel: ChannelId,
     link: &str,
+    from_guild: GuildId,
 ) -> Option<Message> {
     // Parse link
     let Some((guild_id, channel_id, msg_id)) = get_ids_from_msg_link(link) else {
@@ -161,9 +166,7 @@ async fn validate_image_link(
         return None;
     };
 
-    let target_msg = channel_id.message(ctx, msg_id).await.ok()?;
-
-    if !target_msg.guild_id.is_some_and(|v| v == guild_id) {
+    if from_guild != guild_id {
         util::send_message(
             ctx,
             curr_channel,
@@ -174,7 +177,14 @@ async fn validate_image_link(
         return None;
     }
 
-    Some(target_msg)
+    let msg = channel_id.message(ctx, msg_id).await.ok();
+
+    if let None = msg {
+        util::send_message(ctx, curr_channel, "Message link not valid", "validate_image_link")
+            .await;
+    }
+
+    msg
 }
 
 static TIMEOUT_DURATION: Days = Days::new(7);
@@ -213,36 +223,55 @@ async fn time_out_and_delete(ctx: &Context, member: &mut Member, msg: &Message, 
     info!("Deleted banned image in server: {} from {}", guild_id, member.user.id);
 }
 
+/* If user has any of these permission, they are exempted from banned images */
+const PERM_EXEMPTION: Permissions =
+    Permissions::MANAGE_MESSAGES.union(Permissions::MODERATE_MEMBERS);
+
 pub async fn on_message_receive(ctx: &Context, msg: &Message) {
     let Some(guild_id) = msg.guild_id else {
         return;
     };
 
-    let member = if msg.attachments.len() != 0 {
-        match msg.member(ctx).await {
-            Ok(m) => m,
-            Err(e) => {
-                error!("Couldn't get member while checking if they sent banned image: {e:?}");
-                return;
-            },
-        }
-    } else {
+    if msg.author.bot {
         return;
+    }
+
+    let images = MessageImages(msg);
+    let member = match msg.member(ctx).await {
+        Ok(m) => m,
+        Err(e) => {
+            error!("Couldn't get member while checking if they sent banned image: {e:?}");
+            return;
+        },
     };
 
-    for attachment in &msg.attachments {
-        match IMAGE_HASHER.check_image(guild_id, attachment).await {
+    if let Some(guild) = msg.guild(&ctx.cache) {
+        let perms = guild.partial_member_permissions_in(
+            guild.channels.get(&msg.channel_id).unwrap(),
+            msg.author.id,
+            &member.into(),
+        );
+
+        // Means this user has at least one permission from PERM_EXEMPTION, so return
+        // and don't run anything
+        if !perms.intersection(PERM_EXEMPTION).is_empty() {
+            return;
+        }
+    }
+
+    for image in images.to_vec() {
+        match IMAGE_HASHER.check_image(guild_id, image).await {
             Ok(false) => {
                 // time_out_and_delete(ctx, &mut member, msg, guild_id).await;
 
                 // Do a dry-run first
-                util::send_message(
-                    ctx,
-                    msg.channel_id,
-                    format!("Banned image detected. <&@642782671109488641>"),
-                    "on_message_receive",
-                )
-                .await;
+                if let Err(e) =
+                    msg.reply(ctx, format!("Banned image detected. <@&642782671109488641>")).await
+                {
+                    error!("Failed to send msg for a banned image; error: {e}");
+                }
+
+                break;
             },
             Err(e) => error!("Internal error checking for banned image: {e:?}"),
             _ => (),
@@ -253,7 +282,7 @@ pub async fn on_message_receive(ctx: &Context, msg: &Message) {
 #[command]
 #[checks(is_server_helper_or_above)]
 #[only_in("guilds")]
-#[usage("<link to message with one image attachment> <description>")]
+#[usage("<link to message with one image> <description>")]
 #[example(
     "https://discord.com/channels/243838819743432704/1386127080827392155/1386127084732289075 This is my description"
 )]
@@ -273,15 +302,20 @@ async fn banimage(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
         return Ok(());
     }
 
-    let Some(target_msg) = validate_image_link(ctx, msg.channel_id, args.current().unwrap()).await
-    else {
+    let validated =
+        validate_image_link(ctx, msg.channel_id, args.current().unwrap(), msg.guild_id.unwrap())
+            .await;
+    let Some(target_msg) = validated else {
         return Ok(());
     };
 
     args.advance();
     let desc = args.remains().unwrap();
 
-    match IMAGE_HASHER.add_image(desc, &target_msg, IMAGE_HASHER_TYPE as u16).await {
+    match IMAGE_HASHER
+        .add_image(desc, msg.guild_id.unwrap(), &target_msg, IMAGE_HASHER_TYPE as u16)
+        .await
+    {
         Ok(image_outcome) => {
             util::send_message(ctx, msg.channel_id, image_outcome.to_string(), "banimage").await;
         },
@@ -331,22 +365,55 @@ async fn unbanimage(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[description("Lists info on all banned images for the server.")]
 async fn bannedimages(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     let banned = IMAGE_HASHER.get_images(msg.guild_id.unwrap());
-    let mut reply = CreateMessage::new();
 
     if let Ok(images) = banned {
-        for (i, image) in images.into_iter().enumerate() {
-            let hash_type = HashType::from_repr(image.hash_type as usize).unwrap().to_string();
-            let embed = CreateEmbed::new()
-                .color(Color::DARK_GREEN)
-                .title(format!("Banned image #{i}"))
-                .field("Description", image.description, false)
-                .field("Width", image.width.to_string(), false)
-                .field("Height", image.height.to_string(), true)
-                .field("Hash", image.hash_hex, false)
-                .field("Hash Type", hash_type, true)
-                .field("Link", image.link_ref, false);
+        if images.is_empty() {
+            let reply = CreateMessage::new()
+                .add_embed(CreateEmbed::new().color(Color::RED).title("No banned images found"));
 
-            reply = reply.add_embed(embed);
+            if let Err(e) = msg.channel_id.send_message(ctx, reply).await {
+                info!(
+                    "Couldn't send message to {}. Likely have read perms but not write. error: {e:?}",
+                    msg.channel_id
+                );
+            }
+
+            return Ok(());
+        }
+
+        for image_chunk in images.chunks(EMBED_MAX_COUNT) {
+            let mut reply = CreateMessage::new();
+
+            for image in image_chunk {
+                let msg_link_parts = get_ids_from_msg_link(&image.link_ref);
+                let hash_type = HashType::from_repr(image.hash_type as usize).unwrap().to_string();
+                let mut embed = CreateEmbed::new()
+                    .color(Color::DARK_GREEN)
+                    .title(format!("{}", image.description))
+                    .field("Link", image.link_ref.clone(), true)
+                    .field("Dimensions", format!("{}x{}", image.width, image.height), true)
+                    .field(format!("{hash_type} hash"), &image.hash_hex, false);
+
+                // Set thumbnail for the embed if available. If not, it may have been deleted
+                if let Some((_, ch_id, msg_id)) = msg_link_parts {
+                    if let Ok(msg) = ch_id.message(ctx, msg_id).await {
+                        if let Some(&(url, ..)) = MessageImages(&msg).to_vec().first() {
+                            embed = embed.thumbnail(url)
+                        }
+                    }
+                }
+
+                reply = reply.add_embed(embed);
+            }
+
+            if let Err(e) = msg.channel_id.send_message(ctx, reply).await {
+                info!(
+                    "Couldn't send message to {}. Likely have read perms but not write. error: {e:?}",
+                    msg.channel_id
+                );
+
+                return Ok(());
+            }
         }
     } else if let Err(e) = banned {
         error_util::generic_fail(ctx, msg.channel_id).await;
