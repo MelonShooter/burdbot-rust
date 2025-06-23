@@ -483,18 +483,20 @@ impl<'a> RecordingData<'a> {
 }
 
 fn is_closer<T>(
-    first: &ForvoRecording, second: &ForvoRecording, country: Option<Country>, accent_map: &mut T,
+    new: &ForvoRecording, curr: &ForvoRecording, target_country: Option<Country>,
+    accent_map: &mut T,
 ) -> bool
 where
     T: DerefMut<Target = HashMap<(Country, Country), u32>>,
 {
-    // Exit early because if the inputed country matches the second country, nothing can get closer than that.
-    if country == Some(second.country) {
-        return true;
+    // Exit early if new country is same as current, because it will never be closer
+    // Same thing if the target country has already been satisfied
+    if curr.country == new.country || target_country == Some(curr.country) {
+        return false;
     }
 
-    recording_to_distance(first, country, accent_map)
-        < recording_to_distance(second, country, accent_map)
+    recording_to_distance(new, target_country, accent_map)
+        < recording_to_distance(curr, target_country, accent_map)
 }
 
 fn possible_recordings_to_data(
@@ -515,6 +517,8 @@ fn possible_recordings_to_data(
     };
 
     for possible_recording in possible_recordings {
+        debug!("Comparing curr closest: {closest_recording:?} with curr {possible_recording:?}");
+
         match (possible_recording, &mut closest_recording) {
             (Ok(curr), Some(min)) => {
                 if is_closer(&curr, min, country, &mut accent_differences) {
