@@ -1,3 +1,4 @@
+#![cfg(feature = "easter-egg")]
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::{Args, CommandResult};

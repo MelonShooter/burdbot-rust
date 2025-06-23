@@ -33,13 +33,13 @@ jobs:
       - name: verify formatting of the workspace
         run: cargo fmt --all --check
 
-      - name: build workspace
-        run: cargo build --workspace --verbose
+      - name: build workspace (without burdbot easter egg macros)
+        run: cargo build --no-default-features --workspace --verbose
 
-      - name: lint repo with clippy
-        run: cargo clippy --workspace -- -D clippy::all -D warnings
+      - name: lint repo with clippy (without burdbot easter egg macros)
+        run: cargo clippy --no-default-features --workspace -- -D clippy::all -D warnings
 
-      - name: build tests
-        run: cargo test --workspace --no-run --verbose
-      - name: run tests
-        run: cargo test --workspace --verbose
+      - name: build tests (without burdbot easter egg macros)
+        run: cargo test --no-default-features --workspace --no-run --verbose
+      - name: run tests (without burdbot easter egg macros)
+        run: cargo test --no-default-features --workspace --verbose

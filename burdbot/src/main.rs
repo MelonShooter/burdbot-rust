@@ -182,7 +182,7 @@ async fn main() {
     let mut owners_set = HashSet::with_capacity(1);
     owners_set.insert(UserId::from(367538590520967181));
 
-    let framework = StandardFramework::new()
+    let mut framework = StandardFramework::new()
         .bucket("default", BucketBuilder::new_user().delay(1).limit(5).time_span(10))
         .await
         .bucket("intense", BucketBuilder::new_user().delay(2).limit(2).time_span(10))
@@ -195,11 +195,15 @@ async fn main() {
         .after(on_post_command)
         .help(&commands::HELP)
         .group(&commands::BIRTHDAY_GROUP)
-        .group(&commands::EASTEREGG_GROUP)
         .group(&commands::VOCAROO_GROUP)
         .group(&commands::CUSTOM_GROUP)
         .group(&commands::ADMINISTRATIVE_GROUP)
         .group(&commands::LANGUAGE_GROUP);
+
+    #[cfg(feature = "easter-egg")]
+    {
+        framework = framework.group(&commands::EASTEREGG_GROUP);
+    }
 
     framework.configure(
         Configuration::new()
