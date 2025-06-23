@@ -1,10 +1,8 @@
 mod administrative;
 mod birthday;
+mod easter_egg;
 mod error_util;
 mod language;
-
-#[cfg(feature = "easter-egg")]
-mod easter_egg;
 
 pub mod custom;
 pub mod vocaroo;
@@ -15,11 +13,9 @@ pub use birthday::BirthdayInfoConfirmation;
 pub use birthday::MONTH_TO_DAYS;
 // pub use birthday::MONTH_TO_NAME;
 pub use custom::CUSTOM_GROUP;
+pub use easter_egg::EASTEREGG_GROUP;
 pub use language::LANGUAGE_GROUP;
 pub use vocaroo::VOCAROO_GROUP;
-
-#[cfg(feature = "easter-egg")]
-pub use easter_egg::EASTEREGG_GROUP;
 
 use std::collections::HashSet;
 
