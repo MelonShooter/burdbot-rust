@@ -21,8 +21,8 @@ jobs:
           name: LOC
           path: sloc.txt
 
-  build-lint-and-test:
-    name: builds lints and tests the project
+  format-build-project:
+    name: formats and builds the project
     runs-on: ubuntu-latest
     steps:
       - name: check out repo
@@ -36,10 +36,28 @@ jobs:
       - name: build workspace
         run: cargo build --workspace --verbose
 
-      - name: lint repo with clippy
-        run: cargo clippy --workspace -- -D clippy::all -D warnings
+  test-project:
+    name: tests the project
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out repo
+        uses: actions/checkout@v4
+      - name: install toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - name: build tests
         run: cargo test --workspace --no-run --verbose
       - name: run tests
         run: cargo test --workspace --verbose
+
+  lint-project:
+    name: builds lints and tests the project
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out repo
+        uses: actions/checkout@v4
+      - name: install toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: lint repo with clippy
+        run: cargo clippy --workspace -- -D clippy::all -D warnings
