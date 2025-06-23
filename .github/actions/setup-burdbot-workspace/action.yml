@@ -1,0 +1,21 @@
+name: Setup burdbot workspace
+description: Sets up burdbot's workspace, injecting a test key
+
+inputs: {}
+outputs: {}
+
+runs:
+  using: composite
+  steps:
+    - name: install toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+
+    - name: inject test key
+      run: |
+        echo "pub const AES_KEY: &str = \"\"" > $SECRET_FILE
+        realpath $SECRET_FILE
+        cat $SECRET_FILE
+      shell: bash
+      env:
+        SECRET_FILE: $GITHUB_WORKSPACE/burdbot-macros-internal/src/secret.rs
+        

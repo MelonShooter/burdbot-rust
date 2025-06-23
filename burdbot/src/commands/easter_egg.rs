@@ -7,6 +7,9 @@ use serenity::model::channel::Message;
 // NOTE: DO NOT INTRODUCE IMPORTS USED WITHIN THE OBFUSCATED COMMANDS HERE
 // FULLY QUALIFY THEM OR IMPORT THEM INSIDE THE COMMAND IMPLS
 
+// NOTE 2: Github CI will inject a test key that will render all of these functions blank
+//         but also allows for proper builds and testing to go through
+
 #[obfuscated_command]
 #[only_in("guilds")]
 #[bucket("default")]
