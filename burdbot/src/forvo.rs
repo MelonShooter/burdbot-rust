@@ -335,8 +335,7 @@ fn get_language_recording(
 }
 
 // TODO: sanitize get_language_recordings to provide a link that has to be from forvo
-// TODO: sanitize the download to ensure that it is an audio file
-// TODO: sanitize the word provided by the user to ensure it is just a word (a-zA-Z)
+// TODO: sanitize the download itself to ensure that it is an audio file
 
 /// Gets language recordings for a given language
 /// The ElementRef provided should be contain all the play

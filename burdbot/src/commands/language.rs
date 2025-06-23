@@ -23,7 +23,8 @@ use crate::util;
 
 use super::error_util;
 
-async fn parse_term(
+// Sanitizes a parsed word, percent-encoding it
+async fn sanitize_parsed_word(
     ctx: &Context, msg: &Message, args: &mut Args,
 ) -> Result<String, NotEnoughArgumentsError> {
     match args.current() {
@@ -100,7 +101,7 @@ async fn handle_recording_error_res<T>(
 async fn pronounce(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     args.quoted();
 
-    let term = parse_term(ctx, msg, &mut args).await?; // Word to pronounce
+    let term = sanitize_parsed_word(ctx, msg, &mut args).await?; // Word to pronounce
 
     args.advance();
 
