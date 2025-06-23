@@ -17,16 +17,21 @@
 //! Represents all the images in a message, including
 //! attachments, image embeds, and thumbnail embeds
 
-use std::marker::PhantomData;
+use std::{io, marker::PhantomData};
 
+use chrono::Utc;
 use digest::{Digest, Output};
-use log::debug;
+use log::info;
 use reqwest::Client;
 use rusqlite::{Connection, Row, params};
 use serenity::all::{GuildId, Message};
 use strum_macros::Display;
 
 use crate::{BURDBOT_DB, error::SerenitySQLiteResult};
+
+/// Sets the byte limit until the image hash becomes a blocking task.
+/// Currently 9MB
+const LIMIT_FOR_BLOCKING_TASK: usize = 9_000_000;
 
 pub struct MessageImages<'a>(pub &'a Message);
 
@@ -105,8 +110,25 @@ impl<T: Digest> ImageChecker<T> {
     async fn calc_image_hash(&self, url: &str) -> serenity::Result<Output<T>> {
         let reqwest = Client::new();
         let bytes = reqwest.get(url).send().await?.bytes().await?;
+        let len = bytes.len();
+        let task = move || T::new().chain_update(bytes).finalize();
 
-        Ok(T::new().chain_update(bytes).finalize())
+        if len >= LIMIT_FOR_BLOCKING_TASK {
+            let now = Utc::now();
+
+            let task_result = tokio::task::spawn_blocking(task)
+                .await
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e));
+
+            info!(
+                "Large file received. {len} bytes of data. Hash in blocking thread took {}ms...",
+                (Utc::now() - now).num_microseconds().unwrap_or(-1)
+            );
+
+            Ok(task_result?)
+        } else {
+            Ok(task())
+        }
     }
 
     // Adds an image to the image checker for the guild
@@ -168,7 +190,7 @@ impl<T: Digest> ImageChecker<T> {
         let (url, width, height) = image;
         let rows;
 
-        debug!("Got attachments {image:?}");
+        info!("Got attachments {image:?}");
 
         {
             let connection = Connection::open(BURDBOT_DB)?;
