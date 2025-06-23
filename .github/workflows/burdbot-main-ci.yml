@@ -8,10 +8,10 @@ on:
 
 jobs:
   get-repo-loc:
-    name: gets the loc for the repo
+    name: Get the LOC for the repo
     runs-on: ubuntu-latest
     steps:
-      - name: check out repo
+      - name: Check out repo
         uses: actions/checkout@v4
       - name: Get SLOC
         run: sudo npm install -g sloc
@@ -23,42 +23,57 @@ jobs:
           path: sloc.txt
 
   format-build-project:
-    name: checks format and builds the project
+    name: Check format and build the project
     runs-on: ubuntu-latest
     steps:
-      - name: check out repo
+      - name: Check out repo
         uses: actions/checkout@v4
-      - name: setup-rust-workspace
+      - name: Set up Burdbot workspace
         uses: ./.github/actions/setup-burdbot-workspace
 
-      - name: verify formatting of the workspace
+      - name: Check formatting with cargo fmt
         run: cargo fmt --all --check
 
-      - name: build workspace
+      - name: Build
         run: cargo build --workspace --verbose
 
   test-project:
-    name: tests the project
+    name: Run cargo tests on the project
     runs-on: ubuntu-latest
     steps:
-      - name: check out repo
+      - name: Check out repo
         uses: actions/checkout@v4
-      - name: setup-rust-workspace
+      - name: Set up Burdbot workspace
         uses: ./.github/actions/setup-burdbot-workspace
 
-      - name: build tests
+      - name: Build test code
         run: cargo test --workspace --no-run --verbose
-      - name: run tests
+      - name: Execute tests
         run: cargo test --workspace --verbose
 
   lint-project:
-    name: builds lints and tests the project
+    name: Run clippy lints on the project
     runs-on: ubuntu-latest
     steps:
-      - name: check out repo
+      - name: Check out repo
         uses: actions/checkout@v4
-      - name: setup-rust-workspace
+      - name: Set up Burdbot workspace
         uses: ./.github/actions/setup-burdbot-workspace
 
-      - name: lint repo with clippy
+      - name: Lint repo with cargo clippy
         run: cargo clippy --workspace -- -D clippy::all -D warnings
+
+  llvm-lines:
+    name: Get LLVM line info on largest functions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+      - name: Set up Burdbot workspace
+        uses: ./.github/actions/setup-burdbot-workspace
+
+      - name: Install cargo llvm-lines
+        run: cargo install cargo-llvm-lines
+
+      - name: Get LLVM line count info on top 100 functions
+        run: cargo llvm-lines --release -p burdbot | head -104
