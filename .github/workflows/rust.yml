@@ -7,10 +7,9 @@ on:
     branches: [ master ]
 
 jobs:
-  loc:
-
+  get-repo-loc:
+    name: gets the loc for the repo
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
       - name: Get SLOC
@@ -21,3 +20,25 @@ jobs:
         with:
           name: LOC
           path: sloc.txt
+  build-lint-and-test:
+    name: builds lints and tests the project
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out repo
+        uses: actions/checkout@v4
+      - name: install toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: verify formatting of the workspace
+        run: cargo fmt --all --check
+
+      - name: build workspace
+        run: cargo build --workspace --verbose
+
+      - name: lint repo with clippy
+        run: cargo clippy --workspace -- -D clippy::all -D warnings
+
+      - name: build tests
+        run: cargo test --workspace --no-run --verbose
+      - name: run tests
+        run: cargo test --workspace --verbose
