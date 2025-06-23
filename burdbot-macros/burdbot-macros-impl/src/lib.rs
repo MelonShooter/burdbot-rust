@@ -38,17 +38,15 @@ impl Fold for CommandModifier {
             block: item_fn.block,
         };
 
-        let cmd_attr;
-
-        if !burdbot_macros_internal::is_test_key() {
+        let cmd_attr = if !burdbot_macros_internal::is_test_key() {
             let cmd_name = burdbot_macros_internal::decode_aes(item.sig.ident.to_string());
-            cmd_attr = parse_quote!(#[command(#cmd_name)]);
+            parse_quote!(#[command(#cmd_name)])
         } else {
             // If test, then just emit attribute without changing command name
             // But must emit #[allow(unused)] for the parameters
             item.attrs.push(parse_quote!(#[allow(unused)]));
-            cmd_attr = parse_quote!(#[command])
-        }
+            parse_quote!(#[command])
+        };
 
         item.attrs.insert(0, cmd_attr);
         item.block = Box::new(self.fold_block(*item.block));

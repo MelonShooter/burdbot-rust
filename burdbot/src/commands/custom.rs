@@ -160,7 +160,7 @@ async fn validate_image_link(
 
     let msg = channel_id.message(ctx, msg_id).await.ok();
 
-    if let None = msg {
+    if msg.is_none() {
         util::send_message(
             ctx,
             curr_channel,
@@ -240,7 +240,7 @@ pub async fn on_message_receive(ctx: &Context, msg: &Message) {
 
                 // Do a dry-run first
                 if let Err(e) =
-                    msg.reply(ctx, format!("Banned image detected. <@&642782671109488641>")).await
+                    msg.reply(ctx, "Banned image detected. <@&642782671109488641>").await
                 {
                     error!("Failed to send msg for a banned image; error: {e}");
                 }
@@ -361,7 +361,7 @@ async fn bannedimages(ctx: &Context, msg: &Message, _args: Args) -> CommandResul
                 let hash_type = HashType::from_repr(image.hash_type as usize).unwrap().to_string();
                 let mut embed = CreateEmbed::new()
                     .color(Color::DARK_GREEN)
-                    .title(format!("{}", image.description))
+                    .title(image.description.to_string())
                     .field("Link", image.link_ref.clone(), true)
                     .field("Dimensions", format!("{}x{}", image.width, image.height), true)
                     .field(format!("{hash_type} hash"), &image.hash_hex, false);

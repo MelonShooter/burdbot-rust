@@ -116,9 +116,7 @@ impl<T: Digest> ImageChecker<T> {
         if len >= LIMIT_FOR_BLOCKING_TASK {
             let now = Utc::now();
 
-            let task_result = tokio::task::spawn_blocking(task)
-                .await
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e));
+            let task_result = tokio::task::spawn_blocking(task).await.map_err(io::Error::other);
 
             info!(
                 "Large file received. {len} bytes of data. Hash in blocking thread took {}ms...",
@@ -217,7 +215,7 @@ impl<T: Digest> ImageChecker<T> {
         let attachment_hash = self.calc_image_hash(url).await?;
 
         for hash in rows {
-            if &hash[..] == &attachment_hash[..] {
+            if hash[..] == attachment_hash[..] {
                 return Ok(false);
             }
         }
