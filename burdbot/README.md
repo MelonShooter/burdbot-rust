@@ -1,0 +1,3 @@
+# Dependencies
+lynx
+wget

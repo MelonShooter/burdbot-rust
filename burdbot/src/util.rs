@@ -63,9 +63,6 @@ pub async fn get_member_permissions<T: AsRef<Cache>>(
 
 /// Fetches HTML from a site bypassing anti-scrapers
 pub async fn anti_scraper_get_html(url: impl IntoUrl) -> std::io::Result<String> {
-    let lynx_location = Command::new("which").arg("lynx").output().await?.stdout;
-    println!("{:?}", String::from_utf8(lynx_location));
-
     let out = Command::new("lynx").arg("-source").arg(url.as_str()).output().await?.stdout;
     String::from_utf8(out).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }

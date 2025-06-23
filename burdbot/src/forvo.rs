@@ -331,8 +331,12 @@ fn get_language_recording(
     let decoded_bytes = general_purpose::STANDARD.decode(url_base64_data.as_str())?;
     let decoded_link = String::from_utf8(decoded_bytes)?;
 
-    Ok(ForvoRecording::new(country, format!("https://forvo.com/mp3/{}", decoded_link), language))
+    Ok(ForvoRecording::new(country, format!("https://forvo.com/mp3/{}/", decoded_link), language))
 }
+
+// TODO: sanitize get_language_recordings to provide a link that has to be from forvo
+// TODO: sanitize the download to ensure that it is an audio file
+// TODO: sanitize the word provided by the user to ensure it is just a word (a-zA-Z)
 
 /// Gets language recordings for a given language
 /// The ElementRef provided should be contain all the play
