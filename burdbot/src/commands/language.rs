@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use futures::StreamExt;
 use futures::future::join_all;
 use futures::stream;
@@ -40,13 +42,23 @@ async fn sanitize_parsed_word(
 fn get_pronounce_message(
     term: &str, country: Country, requested_country: Option<Country>,
 ) -> String {
+    let decoded_res = urlencoding::decode(term);
+    let decoded_term = match decoded_res {
+        Ok(ref t) => t.borrow(),
+        Err(e) => {
+            error!("Got error {e:?}... Defaulting to using raw term: {term}.");
+            term
+        },
+    };
+
     match requested_country.filter(|&c| c != country) {
         Some(_) => {
             format!(
-                "Here is the pronunciation of ``{term}``. The pronunciation from the country closest in terms of accent to the requested country is {country}."
+                "Here is the pronunciation of ``{decoded_term}``. The pronunciation \
+                 from the country closest in terms of accent to the requested country is {country}."
             )
         },
-        _ => format!("Here is the pronunciation of ``{term}``. Country: {country}."),
+        _ => format!("Here is the pronunciation of ``{decoded_term}``. Country: {country}."),
     }
 }
 
