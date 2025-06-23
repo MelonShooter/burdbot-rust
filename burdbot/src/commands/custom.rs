@@ -4,11 +4,8 @@ use crate::image_checker::{ImageChecker, MessageImages};
 use crate::spanish_english::IS_SERVER_HELPER_OR_ABOVE_CHECK;
 use crate::util::{self, get_ids_from_msg_link};
 
-use chrono::Days;
 use log::{error, info};
-use serenity::all::{
-    CreateEmbed, CreateMessage, EMBED_MAX_COUNT, GuildId, Member, Permissions, Timestamp,
-};
+use serenity::all::{CreateEmbed, CreateMessage, EMBED_MAX_COUNT, GuildId, Permissions};
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::{Args, CommandResult};
@@ -177,7 +174,7 @@ async fn validate_image_link(
     msg
 }
 
-static TIMEOUT_DURATION: Days = Days::new(7);
+// static TIMEOUT_DURATION: Days = Days::new(7);
 static IMAGE_HASHER: ImageChecker<blake3::Hasher> = ImageChecker::new();
 static IMAGE_HASHER_TYPE: HashType = HashType::Blake3;
 
@@ -187,31 +184,31 @@ pub enum HashType {
     Blake3 = 0,
 }
 
-async fn time_out_and_delete(ctx: &Context, member: &mut Member, msg: &Message, guild_id: GuildId) {
-    // Only delete msg if we have permission to timeout the member
-    // Because it could be staff who's trying to paste the image
-    let timeout_res = member
-        .disable_communication_until_datetime(
-            ctx,
-            Timestamp::now().checked_add_days(TIMEOUT_DURATION).unwrap().into(),
-        )
-        .await;
+// async fn time_out_and_delete(ctx: &Context, member: &mut Member, msg: &Message, guild_id: GuildId) {
+//     // Only delete msg if we have permission to timeout the member
+//     // Because it could be staff who's trying to paste the image
+//     let timeout_res = member
+//         .disable_communication_until_datetime(
+//             ctx,
+//             Timestamp::now().checked_add_days(TIMEOUT_DURATION).unwrap().into(),
+//         )
+//         .await;
 
-    if let Err(e) = timeout_res {
-        info!("Tried to time out {} and failed. Likely permission issue: {e:?}", member.user.id);
-        return;
-    }
+//     if let Err(e) = timeout_res {
+//         info!("Tried to time out {} and failed. Likely permission issue: {e:?}", member.user.id);
+//         return;
+//     }
 
-    // At this point, the timeout must've succeeded, so going to try deleting now and then sending out message
-    if let Err(e) = msg.delete(ctx).await {
-        error!("Failed to delete banned image. error: {e:?}");
-        return;
-    }
+//     // At this point, the timeout must've succeeded, so going to try deleting now and then sending out message
+//     if let Err(e) = msg.delete(ctx).await {
+//         error!("Failed to delete banned image. error: {e:?}");
+//         return;
+//     }
 
-    // TODO: send message out and log somewhere
+//     // TODO: send message out and log somewhere
 
-    info!("Deleted banned image in server: {} from {}", guild_id, member.user.id);
-}
+//     info!("Deleted banned image in server: {} from {}", guild_id, member.user.id);
+// }
 
 /* If user has any of these permission, they are exempted from banned images */
 const PERM_EXEMPTION: Permissions =

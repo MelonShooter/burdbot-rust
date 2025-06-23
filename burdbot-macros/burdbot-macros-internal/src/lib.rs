@@ -6,6 +6,11 @@ use aes::Aes256;
 use aes::cipher::generic_array::GenericArray;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 
+pub const fn is_test_key() -> bool {
+    #[allow(clippy::const_is_empty)]
+    crate::secret::AES_KEY.is_empty()
+}
+
 pub fn decode_aes(string: impl Display) -> String {
     let encoded_input = hex::decode(&string.to_string()[1..]).expect("Invalid string.");
 

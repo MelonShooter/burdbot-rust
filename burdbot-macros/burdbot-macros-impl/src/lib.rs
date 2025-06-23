@@ -37,8 +37,18 @@ impl Fold for CommandModifier {
             sig: item_fn.sig,
             block: item_fn.block,
         };
-        let cmd_name = burdbot_macros_internal::decode_aes(item.sig.ident.to_string());
-        let cmd_attr = parse_quote!(#[command(#cmd_name)]);
+
+        let cmd_attr;
+
+        if !burdbot_macros_internal::is_test_key() {
+            let cmd_name = burdbot_macros_internal::decode_aes(item.sig.ident.to_string());
+            cmd_attr = parse_quote!(#[command(#cmd_name)]);
+        } else {
+            // If test, then just emit attribute without changing command name
+            // But must emit #[allow(unused)] for the parameters
+            item.attrs.push(parse_quote!(#[allow(unused)]));
+            cmd_attr = parse_quote!(#[command])
+        }
 
         item.attrs.insert(0, cmd_attr);
         item.block = Box::new(self.fold_block(*item.block));
@@ -84,10 +94,16 @@ impl Fold for CommandModifier {
     }
 
     fn fold_lit_str(&mut self, str: LitStr) -> LitStr {
-        LitStr::new(
-            burdbot_macros_internal::decode_aes(str.value().as_str()).as_str(),
-            Span::call_site(),
-        )
+        let decoded_bytes;
+        let decoded = if !burdbot_macros_internal::is_test_key() {
+            decoded_bytes = burdbot_macros_internal::decode_aes(str.value().as_str());
+            decoded_bytes.as_str()
+        } else {
+            // If test key then just make the body a no-op
+            "Ok(())"
+        };
+
+        LitStr::new(decoded, Span::call_site())
     }
 }
 
@@ -96,7 +112,7 @@ pub fn obfuscated_command(_arguments: TokenStream, input_stream: TokenStream) ->
     let input_fn = parse_macro_input!(input_stream as ItemFn);
     let mut output_fn = CommandModifier.fold_item_fn(input_fn);
     let statement = output_fn.block.stmts.first().unwrap().clone();
-    let mut value = String::with_capacity(128);
+    let mut value = String::new();
     let mut code = "";
 
     if let Stmt::Expr(Expr::Lit(expr_lit), None) = statement {
@@ -110,9 +126,10 @@ pub fn obfuscated_command(_arguments: TokenStream, input_stream: TokenStream) ->
     }
 
     if code.is_empty() {
-        panic!("Code was never set. This should never ever happen.");
+        panic!("Code wasn't set. This shouldn't happen b/c it's validated by CommandModifier.");
     }
 
+    // Turns code written into String as Rust code
     let body = TokenStream::from(TokenStream2::from_str(code).unwrap());
     output_fn.block = Box::new(parse_macro_input!(body as Block));
 
