@@ -7,15 +7,19 @@ outputs: {}
 runs:
   using: composite
   steps:
-    - name: install toolchain
+    - name: install toolchain after checkout
       uses: actions-rust-lang/setup-rust-toolchain@v1
 
     - name: inject test key
       run: |
-        echo "pub const AES_KEY: &str = \"\"" > $SECRET_FILE
-        realpath $SECRET_FILE
-        cat $SECRET_FILE
+        echo "pub const AES_KEY: &str = \"\";" > $SECRET_FILE
       shell: bash
       env:
-        SECRET_FILE: $GITHUB_WORKSPACE/burdbot-macros-internal/src/secret.rs
+        SECRET_FILE: ./burdbot-macros/burdbot-macros-internal/src/secret.rs
+
+    - name: install burdbot dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install lynx
+      shell: bash
         

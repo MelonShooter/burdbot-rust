@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: check out repo
-      - uses: actions/checkout@v4
+        uses: actions/checkout@v4
       - name: Get SLOC
         run: sudo npm install -g sloc
       - name: Run SLOC
@@ -23,13 +23,13 @@ jobs:
           path: sloc.txt
 
   format-build-project:
-    name: formats and builds the project
+    name: checks format and builds the project
     runs-on: ubuntu-latest
     steps:
       - name: check out repo
         uses: actions/checkout@v4
       - name: setup-rust-workspace
-        uses: $GITHUB_WORKSPACE/.github/actions/setup-burdbot-workspace
+        uses: ./.github/actions/setup-burdbot-workspace
 
       - name: verify formatting of the workspace
         run: cargo fmt --all --check
@@ -44,7 +44,7 @@ jobs:
       - name: check out repo
         uses: actions/checkout@v4
       - name: setup-rust-workspace
-        uses: $GITHUB_WORKSPACE/.github/actions/setup-burdbot-workspace
+        uses: ./.github/actions/setup-burdbot-workspace
 
       - name: build tests
         run: cargo test --workspace --no-run --verbose
@@ -58,7 +58,7 @@ jobs:
       - name: check out repo
         uses: actions/checkout@v4
       - name: setup-rust-workspace
-        uses: $GITHUB_WORKSPACE/.github/actions/setup-burdbot-workspace
+        uses: ./.github/actions/setup-burdbot-workspace
 
       - name: lint repo with clippy
         run: cargo clippy --workspace -- -D clippy::all -D warnings
