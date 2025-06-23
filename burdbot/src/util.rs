@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use log::info;
 use regex::Regex;
 use reqwest::IntoUrl;
 use std::fmt::Display;
@@ -69,5 +70,7 @@ pub async fn anti_scraper_get_html(url: impl IntoUrl) -> std::io::Result<String>
 
 /// Fetches file from site
 pub async fn anti_scraper_download_file(url: impl IntoUrl) -> std::io::Result<Vec<u8>> {
+    info!("Downloading file from {}", url.as_str());
+
     Ok(Command::new("wget").arg("-qO").arg("-").arg(url.as_str()).output().await?.stdout)
 }
