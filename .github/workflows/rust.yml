@@ -20,6 +20,7 @@ jobs:
         with:
           name: LOC
           path: sloc.txt
+
   build-lint-and-test:
     name: builds lints and tests the project
     runs-on: ubuntu-latest
