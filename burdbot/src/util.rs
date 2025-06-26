@@ -2,6 +2,9 @@ use lazy_static::lazy_static;
 use log::info;
 use regex::Regex;
 use reqwest::IntoUrl;
+use serenity::all::Color;
+use serenity::all::CreateEmbed;
+use serenity::all::CreateMessage;
 use std::fmt::Display;
 use std::io;
 use tokio::process::Command;
@@ -44,8 +47,10 @@ pub async fn send_message(
     ctx: impl AsRef<Http>, ch: ChannelId, msg: impl Display, function_name: &str,
 ) {
     let ctx = ctx.as_ref();
+    let embed = CreateEmbed::new().color(Color::GOLD).description(msg.to_string());
+    let builder = CreateMessage::new().embed(embed);
 
-    check_message_sending(ch.say(ctx, msg.to_string()).await, function_name);
+    check_message_sending(ch.send_message(ctx, builder).await, function_name);
 }
 
 pub async fn get_member_permissions<T: AsRef<Cache>>(

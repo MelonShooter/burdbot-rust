@@ -24,10 +24,9 @@ pub async fn check_within_range<T: Display, U: Display>(
     ctx: impl AsRef<Http>, ch: ChannelId, arg: T, arg_pos: usize, start: U, end: U,
 ) {
     let invalid_range_message = format!(
-        "Invalid argument #{} provided. \
-            The range should be within {} and {} (inclusive). \
-            The argument given was {}.",
-        arg_pos, start, end, arg
+        "Invalid argument #{arg_pos} provided. \
+            The range should be within {start} and {end} (inclusive). \
+            The argument given was {arg}.",
     );
 
     util::send_message(ctx, ch, invalid_range_message, "number_within_range").await;
