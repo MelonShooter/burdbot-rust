@@ -4,6 +4,8 @@ resolver = "3"
 
 [profile.release]
 lto = true
+strip = true
+codegen-units = 1
 
 [profile.dev.package."*"]
 opt-level = 3
