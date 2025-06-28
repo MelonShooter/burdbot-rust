@@ -13,8 +13,7 @@ pub async fn not_enough_arguments(
 
     let not_enough_arguments_message = format!(
         "Invalid number of arguments provided. \
-            {} argument{} needed. {} argument{} provided.",
-        args_needed, args_needed_message, arg_count, arg_count_message
+            {args_needed} argument{args_needed_message} needed. {arg_count} argument{arg_count_message} provided."
     );
 
     util::send_message(ctx, ch, not_enough_arguments_message, "not_enough_arguments").await;

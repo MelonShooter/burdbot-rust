@@ -191,7 +191,7 @@ impl Write for DiscordLogger {
         // does rejecting a write cause the thread to panic? like an Ok of size 0?
         // Sanitize writes and show in stderr.
         match str::from_utf8(buf) {
-            Ok(str) => eprint!("{}", str),
+            Ok(str) => eprint!("{str}"),
             Err(_) => return Err(malformed_string_err(buf)),
         };
 

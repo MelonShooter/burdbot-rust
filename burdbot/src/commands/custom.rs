@@ -52,8 +52,7 @@ async fn banfromchannel(
                     .await?;
 
                 format!(
-                    "Successfully banned {} ({}) from the {} channel(s).",
-                    target_name, target_id, ch_name
+                    "Successfully banned {target_name} ({target_id}) from the {ch_name} channel(s)."
                 )
             },
             Err(_) => format!(
@@ -91,8 +90,7 @@ async fn unbanfromchannel(
                     .await?;
 
                 format!(
-                    "Successfully unbanned {} ({}) from the {} channels.",
-                    target_name, target_id, ch_name
+                    "Successfully unbanned {target_name} ({target_id}) from the {ch_name} channels."
                 )
             },
             Err(_) => format!(

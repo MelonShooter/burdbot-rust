@@ -77,7 +77,7 @@ async fn send_forvo_recording(
         .await;
 
     if let Err(err) = result {
-        debug!("Couldn't send forvo message due to error: {:?}", err)
+        debug!("Couldn't send forvo message due to error: {err:?}")
     }
 }
 

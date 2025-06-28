@@ -138,12 +138,12 @@ fn id_to_color(id: u64) -> Color {
 fn format_field(log: &Log, is_first: bool) -> String {
     let edited_time = log.get_edited_time();
     let last_edited_text = match edited_time {
-        Some(last_edited_time) => format!("**Last edited on**: <t:{}:f>\n", last_edited_time),
+        Some(last_edited_time) => format!("**Last edited on**: <t:{last_edited_time}:f>\n"),
         None => String::new(),
     };
 
     let last_edited_link = match &log.last_edited_link {
-        Some(edit_link) => format!("\n[See last edit]({})", edit_link),
+        Some(edit_link) => format!("\n[See last edit]({edit_link})"),
         None => String::new(),
     };
 
@@ -183,8 +183,8 @@ where
             let nickname = member.display_name();
             let avatar =
                 member.user.avatar_url().unwrap_or_else(|| member.user.default_avatar_url());
-            let author = CreateEmbedAuthor::new(format!("{} ({})\n{}", username, nickname, id))
-                .icon_url(avatar);
+            let author =
+                CreateEmbedAuthor::new(format!("{username} ({nickname})\n{id}")).icon_url(avatar);
             let embed_footer = CreateEmbedFooter::new(format!("Requested by: {}", invoker.tag()))
                 .icon_url(invoker.avatar_url().unwrap_or_else(|| invoker.default_avatar_url()));
             let mut embed = CreateEmbed::new()
@@ -207,7 +207,7 @@ where
             (Some(log_count), message.embed(embed))
         },
         Err(error) => {
-            error!("Error while making staff log embed: {:?}", error);
+            error!("Error while making staff log embed: {error:?}");
 
             message =
                 message.content("Something's gone wrong. <@367538590520967181> has been notified.");
@@ -287,7 +287,7 @@ async fn addstafflog(ctx: &Context, msg: &Message, mut args: Args) -> CommandRes
         let entry_id = ct + 1;
 
         if let Err(err) = add_log(target_id, entry_id, msg_link.as_str(), reason) {
-            error!("Error while making staff log embed: {:?}", err);
+            error!("Error while making staff log embed: {err:?}");
 
             msg_content = msg_content.content(GONE_WRONG)
         }

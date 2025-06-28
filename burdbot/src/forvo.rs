@@ -332,7 +332,7 @@ fn get_language_recording(
     let decoded_link = String::from_utf8(decoded_bytes)?;
 
     // DO NOT ADD A SLASH AT THE END. THE LINK HAS TO BE WITHOUT ONE
-    Ok(ForvoRecording::new(country, format!("https://forvo.com/mp3/{}", decoded_link), language))
+    Ok(ForvoRecording::new(country, format!("https://forvo.com/mp3/{decoded_link}"), language))
 }
 
 // TODO: sanitize get_language_recordings to provide a link that has to be from forvo

@@ -264,7 +264,7 @@ pub async fn parse_member(
     }
 
     let msg_str =
-        format!("Invalid argument #{}. Could not find any user with that ID or tag.", arg_pos);
+        format!("Invalid argument #{arg_pos}. Could not find any user with that ID or tag.");
 
     util::send_message(ctx, msg.channel_id, msg_str, "parse_member").await;
 
@@ -290,8 +290,7 @@ where
     T::Item: Display,
 {
     let choices = choices.map(|choice| choice.to_string() + " ").collect::<String>();
-    let bad_option_title =
-        format!("Invalid argument #{}. Not one of the possible options.", arg_pos);
+    let bad_option_title = format!("Invalid argument #{arg_pos}. Not one of the possible options.");
     let embed = CreateEmbed::new().title(bad_option_title).color(Color::RED).field(
         "Possible options are",
         choices.as_str(),
@@ -397,7 +396,7 @@ pub async fn parse_role(
         }
     }
 
-    let msg_str = format!("Invalid argument #{}. Could not find any role with that ID.", arg_pos);
+    let msg_str = format!("Invalid argument #{arg_pos}. Could not find any role with that ID.");
 
     util::send_message(ctx, msg.channel_id, msg_str, "parse_role").await;
 

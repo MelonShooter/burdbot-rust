@@ -217,7 +217,7 @@ async fn birthdayconfirm(context: &Context, message: &Message) -> CommandResult 
                         errors.serenity_errors[0]
                     ),
                     SerenitySQLiteError::SQLiteError(error) => {
-                        error!("SQLite error while adding birthday to db: {}", error)
+                        error!("SQLite error while adding birthday to db: {error}")
                     },
                 }
 

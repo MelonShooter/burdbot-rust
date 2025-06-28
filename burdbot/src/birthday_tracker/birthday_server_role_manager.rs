@@ -17,11 +17,10 @@ pub fn handle_update_birthday_roles_error(error: &SerenitySQLiteError) {
             "Error from SQLite or while adding or removing birthday roles. \
                             Couldn't add or remove roles from these people. \
                             Here is a vector of those errors.\
-                            (Probably safe to ignore): {:?}",
-            err
+                            (Probably safe to ignore): {err:?}"
         ),
         SerenitySQLiteError::SQLiteError(_) => {
-            error!("Error from SQLite or while adding or removing birthday roles: {:?}", error)
+            error!("Error from SQLite or while adding or removing birthday roles: {error:?}")
         },
     }
 }
@@ -92,7 +91,7 @@ pub async fn get_birthday_role(
 
     if let Some(role_id) = role_id_option {
         if is_actual_role(ctx, guild_id, role_id).await {
-            let message = format!("The server's current birthday role is {}", role_id);
+            let message = format!("The server's current birthday role is {role_id}");
 
             util::send_message(ctx, channel_id, message, "get_birthday_role").await;
         } else {

@@ -94,14 +94,13 @@ pub async fn add_birthday_to_db(
         {
             Some(role_id_result) => {
                 role_id_option = Some(role_id_result?);
-                message = format!("{}'s birthday has been saved.", user_id);
+                message = format!("{user_id}'s birthday has been saved.");
             },
             None => {
                 role_id_option = None;
                 message = format!(
-                    "{}'s birthday has been saved, but this server doesn't have a birthday role. \
-                    Please ask a staff member to set one.",
-                    user_id
+                    "{user_id}'s birthday has been saved, but this server doesn't have a birthday role. \
+                    Please ask a staff member to set one."
                 );
             },
         };
@@ -135,8 +134,7 @@ pub async fn add_birthday_to_db(
                 warn!(
                     "Error while trying to add role to user while adding bday to db. Likely not a concern \
                         considering this most likely occurred because the role was removed while \
-                        the code was executing or insufficient permission: {:?}",
-                    error
+                        the code was executing or insufficient permission: {error:?}"
                 );
             }
         }
@@ -168,12 +166,12 @@ pub async fn get_birthday(
             time_stamp = time_stamp.with_year(time_stamp.year() + 1).unwrap();
         }
 
-        let footer = CreateEmbedFooter::new(format!("{}'s next birthday will start at ", user_id));
+        let footer = CreateEmbedFooter::new(format!("{user_id}'s next birthday will start at "));
         let embed = CreateEmbed::new().timestamp(time_stamp).footer(footer);
 
         channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await?;
     } else {
-        let msg = format!("No birthday found from the user {}", user_id);
+        let msg = format!("No birthday found from the user {user_id}");
         let embed = CreateEmbed::new().description(msg);
 
         channel_id.send_message(&ctx.http, CreateMessage::new().embed(embed)).await?;
@@ -222,16 +220,15 @@ pub async fn remove_birthday(
             warn!(
                 "Error while trying to remove birthday from database. Likely not a concern \
                     considering this most likely occurred because the role was removed while \
-                    the code was executing or insufficient permission: {:?}",
-                error
+                    the code was executing or insufficient permission: {error:?}"
             );
         }
     }
     // Give this message only if their bday was actually found
     let message = if rows_changed > 0 {
-        format!("{}'s birthday was removed.", user_id)
+        format!("{user_id}'s birthday was removed.")
     } else {
-        format!("No birthday was found for {}.", user_id)
+        format!("No birthday was found for {user_id}.")
     };
 
     util::send_message(ctx, channel_id, message, "remove_birthday").await;

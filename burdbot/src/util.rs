@@ -39,7 +39,7 @@ pub fn get_ids_from_msg_link(link: impl AsRef<str>) -> Option<(GuildId, ChannelI
 
 pub fn check_message_sending(res: serenity::Result<Message>, function_name: &str) {
     if let Err(Error::Model(ModelError::MessageTooLong(_))) = res {
-        error!("{}() message too long! This shouldn't ever happen.", function_name);
+        error!("{function_name}() message too long! This shouldn't ever happen.");
     }
 }
 
