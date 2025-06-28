@@ -1,11 +1,18 @@
 use crate::argument_parser::{self, ArgumentInfo};
 use crate::commands::error_util;
 use crate::image_checker::{ImageChecker, MessageImages};
-use crate::spanish_english::IS_SERVER_HELPER_OR_ABOVE_CHECK;
+use crate::spanish_english::{
+    IS_SERVER_HELPER_OR_ABOVE_CHECK, SPANISH_ENGLISH_SERVER_ID, SPANISH_ENGLISH_STAFF_CHANNEL_ID,
+    SPANISH_ENGLISH_STAFF_ROLE,
+};
 use crate::util::{self, get_ids_from_msg_link};
 
+use chrono::TimeDelta;
 use log::{error, info};
-use serenity::all::{CreateEmbed, CreateMessage, EMBED_MAX_COUNT, GuildId, Permissions};
+use serenity::all::{
+    CreateAllowedMentions, CreateEmbed, CreateMessage, EMBED_MAX_COUNT, GuildId, Mentionable,
+    Permissions, Timestamp,
+};
 use serenity::client::Context;
 use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::{Args, CommandResult};
@@ -174,7 +181,7 @@ async fn validate_image_link(
     msg
 }
 
-// static TIMEOUT_DURATION: Days = Days::new(7);
+static TIMEOUT_DURATION: TimeDelta = TimeDelta::days(7);
 static IMAGE_HASHER: ImageChecker<blake3::Hasher> = ImageChecker::new();
 static IMAGE_HASHER_TYPE: HashType = HashType::Blake3;
 
@@ -184,31 +191,83 @@ pub enum HashType {
     Blake3 = 0,
 }
 
-// async fn time_out_and_delete(ctx: &Context, member: &mut Member, msg: &Message, guild_id: GuildId) {
-//     // Only delete msg if we have permission to timeout the member
-//     // Because it could be staff who's trying to paste the image
-//     let timeout_res = member
-//         .disable_communication_until_datetime(
-//             ctx,
-//             Timestamp::now().checked_add_days(TIMEOUT_DURATION).unwrap().into(),
-//         )
-//         .await;
+/// Times out the user for 7 days and
+/// deletes the message. If it's the Spanish-English discord server,
+/// or a test server, then also notify in a channel.
+/// Prints info trace and returns if no perms to time out, or delete
+///
+/// Must provide the offending message and the guild ID
+async fn time_out_delete_and_notify(
+    ctx: &Context, msg: &Message, banned_img_link: &str, img_msg_link_db_ref: String,
+    guild_id: GuildId,
+) {
+    let Ok(mut member) = guild_id.member(ctx, msg.author.id).await else {
+        error!(
+            "Failed to get member when trying to time out and delete their msgs. Guild ID \
+                {guild_id}. user id: {}",
+            msg.author.id
+        );
+        return;
+    };
 
-//     if let Err(e) = timeout_res {
-//         info!("Tried to time out {} and failed. Likely permission issue: {e:?}", member.user.id);
-//         return;
-//     }
+    // Only delete msg if we have permission to timeout the member
+    // Because it could be staff who's trying to paste the image
+    let timeout_res = member
+        .disable_communication_until_datetime(
+            ctx,
+            Timestamp::now().checked_add_signed(TIMEOUT_DURATION).unwrap().into(),
+        )
+        .await;
 
-//     // At this point, the timeout must've succeeded, so going to try deleting now and then sending out message
-//     if let Err(e) = msg.delete(ctx).await {
-//         error!("Failed to delete banned image. error: {e:?}");
-//         return;
-//     }
+    let timeout_str = format!("Timed out user for {} days", TIMEOUT_DURATION.num_days());
+    let could_timeout = if let Err(e) = timeout_res {
+        info!("Tried to time out {} and failed. Likely permission issue: {e:?}", member.user.id);
+        "Failed to timeout"
+    } else {
+        timeout_str.as_str()
+    };
 
-//     // TODO: send message out and log somewhere
+    let embed = CreateEmbed::new()
+        .color(Color::RED)
+        .title("Banned Image Detected")
+        .field("Sent by", format!("{} {}", msg.author.mention(), msg.author.name), true)
+        .field("In", msg.channel_id.mention().to_string(), true)
+        .field("Deleted Image", format!("[Image]({banned_img_link})"), false)
+        .field("Link from database", format!("[Message]({img_msg_link_db_ref})"), true)
+        .field("Action taken", could_timeout, false)
+        .timestamp(Timestamp::now());
 
-//     info!("Deleted banned image in server: {} from {}", guild_id, member.user.id);
-// }
+    let (ch_id, response) = if guild_id == SPANISH_ENGLISH_SERVER_ID {
+        let staff_notification = CreateMessage::new()
+            .embed(embed)
+            .content(SPANISH_ENGLISH_STAFF_ROLE.mention().to_string());
+        (SPANISH_ENGLISH_STAFF_CHANNEL_ID, staff_notification)
+    } else {
+        (
+            msg.channel_id,
+            CreateMessage::new()
+                .embed(embed)
+                .reference_message(msg)
+                .allowed_mentions(CreateAllowedMentions::new()), // Don't ping with reply
+        )
+    };
+
+    if let Err(e) = ch_id.send_message(ctx, response).await {
+        error!("Error sending banned image resp to server {guild_id} channel {ch_id}. Err: {e}");
+    }
+
+    if let Err(e) = msg.delete(ctx).await {
+        util::send_message(
+            ctx,
+            ch_id,
+            format!("Failed to delete message. Err: {e}"),
+            "time_out_delete_and_notify",
+        )
+        .await;
+    }
+
+    info!("Deleted banned image in server: {} from {}", guild_id, member.user.id);
+}
 
 /* If user has any of these permission, they are exempted from banned images */
 const PERM_EXEMPTION: Permissions =
@@ -233,18 +292,10 @@ pub async fn on_message_receive(ctx: &Context, msg: &Message) {
         }
     }
 
-    for image in images.to_vec() {
+    for image @ (img_link, ..) in images.to_vec() {
         match IMAGE_HASHER.check_image(guild_id, image).await {
-            Ok(false) => {
-                // time_out_and_delete(ctx, &mut member, msg, guild_id).await;
-
-                // Do a dry-run first
-                if let Err(e) =
-                    msg.reply(ctx, "Banned image detected. <@&642782671109488641>").await
-                {
-                    error!("Failed to send msg for a banned image; error: {e}");
-                }
-
+            Ok(Some(db_link_ref)) => {
+                time_out_delete_and_notify(ctx, msg, img_link, db_link_ref, guild_id).await;
                 break;
             },
             Err(e) => error!("Internal error checking for banned image: {e:?}"),

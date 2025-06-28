@@ -237,15 +237,15 @@ async fn main() {
     let (log_sender_mpsc_send, log_sender_mpsc_recv) = mpsc::unbounded_channel();
     let burdbot_log_config = ConfigBuilder::new()
         .set_max_level(LevelFilter::Error)
-        .set_time_level(LevelFilter::Off)
-        .set_location_level(LevelFilter::Error)
+        .set_time_level(LevelFilter::Error)
+        .set_location_level(LevelFilter::Off)
         .set_target_level(LevelFilter::Error)
         .set_thread_level(LevelFilter::Off)
         .add_filter_allow_str("burdbot")
         .build();
     let default_log_config = ConfigBuilder::new()
         .set_max_level(LevelFilter::Error)
-        .set_time_level(LevelFilter::Off)
+        .set_time_level(LevelFilter::Error)
         .set_location_level(LevelFilter::Error)
         .set_target_level(LevelFilter::Error)
         .set_thread_level(LevelFilter::Off)

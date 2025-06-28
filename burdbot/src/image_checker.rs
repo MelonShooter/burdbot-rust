@@ -181,10 +181,12 @@ impl<T: Digest> ImageChecker<T> {
     }
 
     // Checks if an image passes the filters for the guild.
-    // Returns true if no image was found in the checker. Err if there was an internal error
+    // Returns the link reference to the image from the checker db if found.
+    // Returns Ok(None) if no image found and no error.
+    // Err if there was an internal error
     pub async fn check_image(
         &self, guild_id: GuildId, image: (&str, u32, u32),
-    ) -> SerenitySQLiteResult<bool> {
+    ) -> SerenitySQLiteResult<Option<String>> {
         let (url, width, height) = image;
         let rows;
 
@@ -192,35 +194,35 @@ impl<T: Digest> ImageChecker<T> {
 
         {
             let connection = Connection::open(BURDBOT_DB)?;
-            let mut hash_query = connection.prepare(
+            let mut img_query = connection.prepare(
                 "
-                SELECT hash FROM fxhash_image_checksums
+                SELECT hash, link_reference FROM fxhash_image_checksums
                 WHERE guild_id = ?1 AND width = ?2 AND height = ?3;
                 ",
             )?;
 
-            rows = hash_query
+            rows = img_query
                 .query_and_then(params![guild_id.get(), width, height], |row| {
-                    row.get::<_, Vec<u8>>(0)
+                    Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, String>(1)?))
                 })?
-                .collect::<rusqlite::Result<Vec<Vec<u8>>>>()?;
+                .collect::<rusqlite::Result<Vec<(Vec<u8>, String)>>>()?;
         }
 
         // Means no images with matching dimension found
         if rows.is_empty() {
-            return Ok(true);
+            return Ok(None);
         }
 
         // Now check the checksum.
         let attachment_hash = self.calc_image_hash(url).await?;
 
-        for hash in rows {
+        for (hash, link) in rows {
             if hash[..] == attachment_hash[..] {
-                return Ok(false);
+                return Ok(Some(link));
             }
         }
 
-        Ok(true)
+        Ok(None)
     }
 
     // Gets the images stored for a guild

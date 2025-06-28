@@ -3,6 +3,7 @@
 // use std::sync::Arc;
 // use std::time::Duration;
 
+use serenity::all::{ChannelId, GuildId, RoleId};
 // use log::error;
 // use serenity::client::Cache
 // use serenity::http::Http;
@@ -24,7 +25,9 @@ const BOT_PREFIXES: [&str; 5] = ["-", "--", "---", "!", "!!"];
 const MUSIC_CHANNEL_ID: u64 = 263643662808776704;
 // const ENGLISH_CLASS_CATEGORY_ID: u64 = 878362687837442098;
 // const ENGLISH_TEACHER_ROLE_ID: u64 = 878223433899577364;
-// const SPANISH_ENGLISH_SERVER_ID: u64 = 243838819743432704;
+pub const SPANISH_ENGLISH_SERVER_ID: GuildId = GuildId::new(243838819743432704);
+pub const SPANISH_ENGLISH_STAFF_CHANNEL_ID: ChannelId = ChannelId::new(913886469809115206);
+pub const SPANISH_ENGLISH_STAFF_ROLE: RoleId = RoleId::new(642782671109488641);
 // const ENGLISH_CLASS_STAGE_ID: u64 = 878363153455538246;
 
 // struct Teachers;
