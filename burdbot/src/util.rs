@@ -11,13 +11,10 @@ use tokio::process::Command;
 
 use serenity::Error;
 use serenity::all::MessageId;
-use serenity::client::Cache;
 use serenity::http::Http;
-use serenity::model::Permissions;
 use serenity::model::channel::Message;
 use serenity::model::id::ChannelId;
 use serenity::model::id::GuildId;
-use serenity::model::id::UserId;
 use serenity::prelude::ModelError;
 
 use log::error;
@@ -51,20 +48,6 @@ pub async fn send_message(
     let builder = CreateMessage::new().embed(embed);
 
     check_message_sending(ch.send_message(ctx, builder).await, function_name);
-}
-
-pub async fn get_member_permissions<T: AsRef<Cache>>(
-    cache: T, guild_id: GuildId, user_id: impl Into<UserId>,
-) -> Option<Permissions> {
-    let guild = cache.as_ref().guild(guild_id)?;
-
-    guild.members.get(&user_id.into()).map(|member| {
-        member
-            .roles
-            .iter()
-            .flat_map(|id| guild.roles.get(id).map(|role| role.permissions)) // Map role ID to Permissions
-            .fold(Permissions::empty(), |acc, permissions| acc | permissions)
-    })
 }
 
 /// Fetches HTML from a site bypassing anti-scrapers

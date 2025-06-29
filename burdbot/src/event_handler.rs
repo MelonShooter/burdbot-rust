@@ -69,8 +69,6 @@ impl EventHandler for BurdBotEventHandler {
     async fn cache_ready(&self, context: Context, guilds: Vec<GuildId>) {
         chunk_guilds(&context, guilds.as_slice()).await;
 
-        crate::on_cache_ready(&context);
-
         join!(
             /* spanish_english::on_cache_ready(&context), */ logger::on_cache_ready(&context)
         );
