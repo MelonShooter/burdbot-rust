@@ -1,12 +1,11 @@
 // Temporary until all of this is moved to poise
-#![allow(deprecated)]
+// #![allow(deprecated)]
 
 pub mod argument_parser;
 pub mod forvo;
 pub mod id_search_engine;
 pub mod vocaroo;
 
-mod birthday_tracker;
 mod commands;
 mod error;
 mod event_handler;
@@ -19,7 +18,6 @@ mod util;
 mod session_tracker;
 
 use async_ctrlc::CtrlC;
-use chrono::{Timelike, Utc};
 use event_handler::BurdBotEventHandler;
 use log::{LevelFilter, info, warn};
 use logger::{DiscordLogger, LogSender};
@@ -31,7 +29,6 @@ use serenity::client::Context;
 use serenity::framework::StandardFramework;
 use serenity::framework::standard::CommandResult;
 use serenity::framework::standard::macros::hook;
-use serenity::http::Http;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use serenity::prelude::GatewayIntents;
@@ -128,25 +125,6 @@ fn create_sql_tables() {
     transaction.commit().unwrap();
 }
 
-pub(crate) fn on_cache_ready(ctx: &Context) {
-    setup_birthday_tracker(ctx.http.clone());
-}
-
-fn setup_birthday_tracker(http: Arc<Http>) {
-    tokio::spawn(async move {
-        loop {
-            let seconds = 3600 - Utc::now().num_seconds_from_midnight() % 3600; // Get time in seconds until next hour.
-            let sleep_time = Duration::from_secs(seconds.into());
-
-            time::sleep(sleep_time).await;
-
-            if let Err(error) = birthday_tracker::update_birthday_roles(&http).await {
-                birthday_tracker::handle_update_birthday_roles_error(&error);
-            }
-        }
-    });
-}
-
 /*#[hook]
 async fn on_unrecognized_command(ctx: &Context, msg: &Message, _: &str) {
     commands::error_util::unknown_command_message(ctx, &msg.channel_id).await; // uncomment function for this to work in error_util.rs
@@ -194,9 +172,7 @@ async fn main() {
         //.unrecognised_command(on_unrecognized_command)
         .after(on_post_command)
         .help(&commands::HELP)
-        .group(&commands::BIRTHDAY_GROUP)
         .group(&commands::EASTEREGG_GROUP)
-        .group(&commands::VOCAROO_GROUP)
         .group(&commands::CUSTOM_GROUP)
         .group(&commands::ADMINISTRATIVE_GROUP)
         .group(&commands::LANGUAGE_GROUP);

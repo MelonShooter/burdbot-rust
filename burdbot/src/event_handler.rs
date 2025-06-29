@@ -12,7 +12,7 @@ use serenity::model::prelude::Ready;
 // use serenity::model::prelude::VoiceState;
 use tokio::time;
 
-use crate::commands::{custom, vocaroo};
+use crate::commands::custom;
 use crate::{logger, spanish_english};
 
 #[cfg(feature = "songbird")]
@@ -52,24 +52,18 @@ impl EventHandler for BurdBotEventHandler {
         crate::on_ready();
 
         #[cfg(feature = "songbird")]
-        join!(session_tracker::on_ready(&context), vocaroo::on_ready(&context));
-
-        #[cfg(not(feature = "songbird"))]
-        vocaroo::on_ready(&context).await;
+        session_tracker::on_ready(&context);
     }
 
     async fn message(&self, ctx: Context, new_message: Message) {
         join!(
             spanish_english::on_message_receive(&ctx, &new_message),
-            vocaroo::on_message_received(&ctx, &new_message),
             custom::on_message_receive(&ctx, &new_message)
         );
     }
 
     async fn cache_ready(&self, context: Context, guilds: Vec<GuildId>) {
         chunk_guilds(&context, guilds.as_slice()).await;
-
-        crate::on_cache_ready(&context);
 
         join!(
             /* spanish_english::on_cache_ready(&context), */ logger::on_cache_ready(&context)
