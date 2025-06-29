@@ -4,13 +4,11 @@ mod error_util;
 mod language;
 
 pub mod custom;
-pub mod vocaroo;
 
 pub use administrative::ADMINISTRATIVE_GROUP;
 pub use custom::CUSTOM_GROUP;
 pub use easter_egg::EASTEREGG_GROUP;
 pub use language::LANGUAGE_GROUP;
-pub use vocaroo::VOCAROO_GROUP;
 
 use std::collections::HashSet;
 

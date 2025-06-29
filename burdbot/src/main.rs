@@ -1,5 +1,5 @@
 // Temporary until all of this is moved to poise
-#![allow(deprecated)]
+// #![allow(deprecated)]
 
 pub mod argument_parser;
 pub mod forvo;
@@ -173,7 +173,6 @@ async fn main() {
         .after(on_post_command)
         .help(&commands::HELP)
         .group(&commands::EASTEREGG_GROUP)
-        .group(&commands::VOCAROO_GROUP)
         .group(&commands::CUSTOM_GROUP)
         .group(&commands::ADMINISTRATIVE_GROUP)
         .group(&commands::LANGUAGE_GROUP);
