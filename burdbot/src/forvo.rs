@@ -550,6 +550,7 @@ pub async fn fetch_pronunciation(
         .collect())
 }
 
+#[cfg(feature = "lynx-tests")]
 #[tokio::test]
 async fn test_lynx() {
     let forvo = anti_scraper_get_html("https://forvo.com/word/boludo/")

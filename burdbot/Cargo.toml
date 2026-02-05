@@ -8,8 +8,9 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
+lynx-tests = []
 songbird = []
-# default = ["songbird"]
+default = ["lynx-tests"]
 
 [dependencies]
 burdbot-macros = { version = "0.1.0", path = "../burdbot-macros" }
@@ -28,12 +29,12 @@ chrono = { version = "0.4", default-features = false, features = [
 lazy_static = "1"
 regex = "1"
 async-ctrlc = { version = "1", features = ["termination"] }
-reqwest = { version = "0.11", default-features = false, features = [
+reqwest = { version = "0.12", default-features = false, features = [
     "rustls-tls",
 ] }
 bytes = "1"
 urlencoding = "2"
-scraper = "0.23"
+scraper = "0.25"
 petgraph = "0.8.0"
 strum = "0.27"
 strum_macros = "0.27"

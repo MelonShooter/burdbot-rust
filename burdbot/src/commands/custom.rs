@@ -143,6 +143,40 @@ async fn unbanfrommemes(ctx: &Context, msg: &Message, args: Args) -> CommandResu
     Ok(())
 }
 
+#[command]
+#[checks(is_server_helper_or_above)]
+#[only_in("guilds")]
+#[usage("<USER>")]
+#[example("367538590520967181")]
+#[example("DELIBURD#7741")]
+#[description("Ban a user from the sesión de lectura channel.")]
+async fn banfromlectura(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let message_to_send =
+        banfromchannel(ctx, msg, args, RoleId::from(1467650674945822937), "Sesión de lectura")
+            .await?;
+
+    util::send_message(ctx, msg.channel_id, message_to_send, "banfromlectura").await;
+
+    Ok(())
+}
+
+#[command]
+#[checks(is_server_helper_or_above)]
+#[only_in("guilds")]
+#[usage("<USER>")]
+#[example("367538590520967181")]
+#[example("DELIBURD#7741")]
+#[description("Unban a user from the sesión de lectura channel.")]
+async fn unbanfromlectura(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let message_to_send =
+        unbanfromchannel(ctx, msg, args, RoleId::from(1467650674945822937), "Sesión de lectura")
+            .await?;
+
+    util::send_message(ctx, msg.channel_id, message_to_send, "unbanfromlectura").await;
+
+    Ok(())
+}
+
 /// Validates an image link by parsing and checking that:
 /// - The linked message isn't from the provided guild ID
 /// - The message link wasn't valid
@@ -445,5 +479,8 @@ async fn bannedimages(ctx: &Context, msg: &Message, _args: Args) -> CommandResul
 }
 
 #[group]
-#[commands(banfrommemes, unbanfrommemes, banimage, unbanimage, bannedimages)]
+#[commands(
+    banfrommemes, unbanfrommemes, banfromlectura, unbanfromlectura, banimage, unbanimage,
+    bannedimages
+)]
 struct Custom;
