@@ -1054,7 +1054,7 @@ mod test {
 
         // Adding one more element should cause the number of buckets to double though
         assert!(
-            search_engine.add_id(rng.filter(|id| (!unique_ids.contains(id))).next().unwrap()),
+            search_engine.add_id(rng.filter(|id| !unique_ids.contains(id)).next().unwrap()),
             "Unique ID caused add_id to return false."
         );
 

@@ -114,13 +114,14 @@ pub fn obfuscated_command(_arguments: TokenStream, input_stream: TokenStream) ->
     let mut code = "";
 
     if let Stmt::Expr(Expr::Lit(expr_lit), None) = statement
-        && let Lit::Str(lit) = expr_lit.lit {
-            value.push('{');
-            value.push_str(lit.value().as_str());
-            value.push('}');
+        && let Lit::Str(lit) = expr_lit.lit
+    {
+        value.push('{');
+        value.push_str(lit.value().as_str());
+        value.push('}');
 
-            code = value.as_str();
-        }
+        code = value.as_str();
+    }
 
     if code.is_empty() {
         panic!("Code wasn't set. This shouldn't happen b/c it's validated by CommandModifier.");

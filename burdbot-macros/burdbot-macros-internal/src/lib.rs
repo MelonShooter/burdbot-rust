@@ -18,7 +18,7 @@ pub fn decode_aes(string: impl Display) -> String {
 }
 
 pub fn decode_aes_bytes(encoded_input: &[u8]) -> String {
-    if encoded_input.len() % 16 != 0 {
+    if !encoded_input.len().is_multiple_of(16) {
         panic!("Invalid input.");
     }
 
