@@ -450,12 +450,11 @@ async fn bannedimages(ctx: &Context, msg: &Message, _args: Args) -> CommandResul
                     .field(format!("{hash_type} hash"), &image.hash_hex, false);
 
                 // Set thumbnail for the embed if available. If not, it may have been deleted
-                if let Some((_, ch_id, msg_id)) = msg_link_parts {
-                    if let Ok(msg) = ch_id.message(ctx, msg_id).await {
-                        if let Some(&(url, ..)) = MessageImages(&msg).to_vec().first() {
-                            embed = embed.thumbnail(url)
-                        }
-                    }
+                if let Some((_, ch_id, msg_id)) = msg_link_parts
+                    && let Ok(msg) = ch_id.message(ctx, msg_id).await
+                    && let Some(&(url, ..)) = MessageImages(&msg).to_vec().first()
+                {
+                    embed = embed.thumbnail(url)
                 }
 
                 reply = reply.add_embed(embed);

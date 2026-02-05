@@ -1,7 +1,6 @@
 use bytes::Bytes;
 use futures::future;
 use lazy_static::lazy_static;
-use log::error;
 use regex::Regex;
 use reqwest::Client;
 use std::iter;

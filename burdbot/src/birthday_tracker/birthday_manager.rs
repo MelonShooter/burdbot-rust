@@ -133,8 +133,8 @@ pub async fn add_birthday_to_db(
             {
                 warn!(
                     "Error while trying to add role to user while adding bday to db. Likely not a concern \
-                        considering this most likely occurred because the role was removed while \
-                        the code was executing or insufficient permission: {error:?}"
+                     considering this most likely occurred because the role was removed while \
+                     the code was executing or insufficient permission: {error:?}"
                 );
             }
         }
@@ -211,18 +211,17 @@ pub async fn remove_birthday(
         transaction.commit()?;
     }
 
-    if let Some(id) = role_id {
-        if let Err(error) = ctx
+    if let Some(id) = role_id
+        && let Err(error) = ctx
             .http
             .remove_member_role(guild_id, user_id, RoleId::new(id), RM_BDAY_ROLE_REASON)
             .await
-        {
-            warn!(
-                "Error while trying to remove birthday from database. Likely not a concern \
+    {
+        warn!(
+            "Error while trying to remove birthday from database. Likely not a concern \
                     considering this most likely occurred because the role was removed while \
                     the code was executing or insufficient permission: {error:?}"
-            );
-        }
+        );
     }
     // Give this message only if their bday was actually found
     let message = if rows_changed > 0 {

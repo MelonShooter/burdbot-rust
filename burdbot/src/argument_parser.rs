@@ -255,12 +255,12 @@ pub async fn parse_member(
 
     let arg = args.current().unwrap();
 
-    if let Some(user_id) = parse_user_mention(arg) {
-        if let Ok(member) = id_argument_to_member(cache, arg_pos, arg, guild_id, user_id).await {
-            args.advance();
+    if let Some(user_id) = parse_user_mention(arg)
+        && let Ok(member) = id_argument_to_member(cache, arg_pos, arg, guild_id, user_id).await
+    {
+        args.advance();
 
-            return Ok(member);
-        }
+        return Ok(member);
     }
 
     let msg_str =
@@ -388,12 +388,12 @@ pub async fn parse_role(
 
     let arg = args.current().unwrap();
 
-    if let Some(user_id) = parse_role_mention(arg) {
-        if let Ok(role_id) = id_argument_to_role(cache, arg_pos, arg, guild_id, user_id).await {
-            args.advance();
+    if let Some(user_id) = parse_role_mention(arg)
+        && let Ok(role_id) = id_argument_to_role(cache, arg_pos, arg, guild_id, user_id).await
+    {
+        args.advance();
 
-            return Ok(role_id);
-        }
+        return Ok(role_id);
     }
 
     let msg_str = format!("Invalid argument #{arg_pos}. Could not find any role with that ID.");
