@@ -47,9 +47,9 @@ jobs:
         uses: ./.github/actions/setup-burdbot-workspace
 
       - name: Build test code
-        run: cargo test --workspace --no-run --verbose
+        run: cargo test --workspace --no-run --verbose --no-default-features
       - name: Execute tests
-        run: cargo test --workspace --verbose
+        run: cargo test --workspace --verbose  --no-default-features
 
   lint-project:
     name: Run clippy lints on the project
